@@ -64,7 +64,7 @@ export async function requestNcbiSequence(formData: FormData) {
     redirect("/dashboard?error=Enter%20a%20valid%20NCBI%20accession%20identifier.");
   }
 
-  const { error } = await (supabase.rpc as any)("request_ncbi_sequence_retrieval", {
+  const { error } = await supabase.rpc("request_ncbi_sequence_retrieval", {
     project_id: projectId,
     database_name: databaseName,
     accession,
@@ -95,7 +95,7 @@ export async function requestBlastJob(formData: FormData) {
     redirect("/dashboard?error=BLAST%20maximum%20targets%20must%20be%20between%201%20and%2020.");
   }
 
-  const { error } = await (supabase.rpc as any)("request_blast_job", {
+  const { error } = await supabase.rpc("request_blast_job", {
     project_id: projectId,
     query_upload_id: queryUploadId,
     program,
@@ -106,6 +106,64 @@ export async function requestBlastJob(formData: FormData) {
   });
   if (error) {
     redirect(`/dashboard?error=${encodeURIComponent("Could not queue this BLAST analysis. Check that the sequence is ready and compatible with the selected program.")}`);
+  }
+  revalidatePath("/dashboard");
+}
+
+export async function requestPairwiseAlignment(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const sequenceAId = String(formData.get("sequence_a_id") ?? "").trim();
+  const sequenceBId = String(formData.get("sequence_b_id") ?? "").trim();
+  const algorithm = String(formData.get("algorithm") ?? "global").trim().toLowerCase();
+  const matchScore = Number.parseInt(String(formData.get("match_score") ?? "2"), 10);
+  const mismatchScore = Number.parseInt(String(formData.get("mismatch_score") ?? "-1"), 10);
+  const gapScore = Number.parseInt(String(formData.get("gap_score") ?? "-2"), 10);
+
+  if (!projectId || !sequenceAId || !sequenceBId || sequenceAId === sequenceBId) {
+    redirect("/dashboard?error=Pairwise%20alignment%20requires%20two%20different%20validated%20sequences%20from%20one%20project.");
+  }
+  if (!["global", "local"].includes(algorithm)) {
+    redirect("/dashboard?error=Select%20a%20supported%20pairwise%20alignment%20algorithm.");
+  }
+  if (!Number.isInteger(matchScore) || matchScore < 1 || matchScore > 10 || !Number.isInteger(mismatchScore) || mismatchScore < -10 || mismatchScore > 0 || !Number.isInteger(gapScore) || gapScore < -20 || gapScore > -1) {
+    redirect("/dashboard?error=Pairwise%20alignment%20scoring%20parameters%20are%20outside%20approved%20bounds.");
+  }
+
+  const { error } = await supabase.rpc("request_pairwise_alignment", {
+    project_id: projectId,
+    sequence_a_id: sequenceAId,
+    sequence_b_id: sequenceBId,
+    algorithm,
+    match_score: matchScore,
+    mismatch_score: mismatchScore,
+    gap_score: gapScore,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue this pairwise alignment. Inputs must be ready, single-record, ungapped, same-type sequences within compute limits.")}`);
+  }
+  revalidatePath("/dashboard");
+}
+
+export async function requestMultipleSequenceAlignment(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const sequenceUploadIds = formData
+    .getAll("sequence_upload_ids")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const uniqueIds = [...new Set(sequenceUploadIds)];
+
+  if (!projectId || uniqueIds.length < 3 || uniqueIds.length > 50 || uniqueIds.length !== sequenceUploadIds.length) {
+    redirect("/dashboard?error=MSA%20requires%203%E2%80%9350%20unique%20validated%20sequences%20from%20one%20project.");
+  }
+
+  const { error } = await supabase.rpc("request_multiple_sequence_alignment", {
+    project_id: projectId,
+    sequence_upload_ids: uniqueIds,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue this MSA. Inputs must be ready, single-record, ungapped, same-type sequences within the V1 compute budget.")}`);
   }
   revalidatePath("/dashboard");
 }
