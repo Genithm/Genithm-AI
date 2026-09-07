@@ -16,7 +16,7 @@ PAYLOAD = "genithm-audit-checkpoint-v1\norganization_id=11111111-1111-1111-1111-
 def settings() -> Settings:
     return Settings(
         supabase_url="https://example.supabase.co",
-        supabase_secret_key="sb_secret_test_server_only_key_1234567890",
+        supabase_secret_key="synthetic-server-key-for-tests-only",
         signing_key_id="audit-ed25519-test-v1",
         signing_private_key_base64=PRIVATE_KEY_BASE64,
     )
