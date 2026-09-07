@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { createOrganization, createProject } from "./actions";
+import { SequenceUploadPanel } from "./sequence-upload-panel";
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
@@ -10,10 +17,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
 
-  const [{ data: organizations }, { data: projects }] = await Promise.all([
+  const [{ data: organizations }, { data: projects }, { data: sequenceUploads }] = await Promise.all([
     supabase.from("organizations").select("id,name,slug,created_at").order("created_at", { ascending: true }),
     supabase.from("projects").select("id,organization_id,name,description,status,created_at").order("created_at", { ascending: false }),
+    supabase
+      .from("sequence_uploads")
+      .select("id,project_id,original_filename,file_size_bytes,status,sequence_type,sequence_count,residue_count,created_at")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
+
+  const projectOptions = (projects ?? []).map((project) => ({
+    id: project.id,
+    organization_id: project.organization_id,
+    name: project.name,
+  }));
 
   return (
     <main className="container dashboard">
@@ -26,6 +44,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <form action="/auth/signout" method="post"><button className="button">Sign out</button></form>
       </header>
       {params.error ? <p className="error">{params.error}</p> : null}
+
       <div className="section-grid">
         <section className="card">
           <h2>Organizations</h2>
@@ -39,12 +58,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             {!organizations?.length ? <p>No organization yet.</p> : null}
           </div>
         </section>
+
         <section className="card">
           <h2>Projects</h2>
           {organizations?.length ? (
             <form className="stack" action={createProject}>
               <label>Organization
-                <select name="organization_id" required style={{ padding: 12, borderRadius: 10, background: "#07151a", color: "inherit", border: "1px solid var(--line)" }}>
+                <select className="select" name="organization_id" required>
                   {organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
               </label>
@@ -59,6 +79,32 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="dashboard-header">
+          <div>
+            <div className="eyebrow">Sequence ingestion</div>
+            <h2>Private FASTA inputs</h2>
+            <p>Files are stored privately. The browser only performs a quick envelope check; scientific validation is reserved for a controlled server-side worker.</p>
+          </div>
+        </div>
+        <div className="section-grid">
+          <SequenceUploadPanel projects={projectOptions} userId={userId} />
+          <div>
+            <h2>Recent uploads</h2>
+            <div className="list">
+              {(sequenceUploads ?? []).map((upload) => (
+                <div className="item" key={upload.id}>
+                  <strong>{upload.original_filename}</strong>
+                  <div className="small">{formatBytes(upload.file_size_bytes)} · {upload.status.replaceAll("_", " ")}</div>
+                  {upload.sequence_type ? <div className="small">{upload.sequence_type} · {upload.sequence_count ?? 0} records · {upload.residue_count ?? 0} residues</div> : null}
+                </div>
+              ))}
+              {!sequenceUploads?.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
