@@ -70,3 +70,30 @@ jobs:
         run: docker run --rm genithm-sequence-worker:ci --help
       - name: Verify non-root runtime
         run: docker run --rm --entrypoint python genithm-sequence-worker:ci -c "import os; assert os.geteuid() != 0, 'worker must not run as root'"
+
+  source-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/source-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: apps/source-worker/pyproject.toml
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - run: pytest
+
+  source-worker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build source worker image
+        run: docker build --pull -t genithm-source-worker:ci apps/source-worker
+      - name: Verify CLI entrypoint
+        run: docker run --rm genithm-source-worker:ci --help
+      - name: Verify non-root runtime
+        run: docker run --rm --entrypoint python genithm-source-worker:ci -c "import os; assert os.geteuid() != 0, 'source worker must not run as root'"
