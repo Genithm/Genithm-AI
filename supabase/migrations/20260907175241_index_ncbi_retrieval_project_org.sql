@@ -1,0 +1,1 @@
+create index sequence_retrievals_project_org_idx on public.sequence_retrievals(project_id, organization_id);
