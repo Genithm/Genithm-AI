@@ -55,3 +55,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+  - package-ecosystem: pip
+    directory: /apps/scientific-worker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /apps/scientific-worker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
