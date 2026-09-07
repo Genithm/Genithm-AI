@@ -20,7 +20,8 @@ body {
   min-height: 100vh;
 }
 a { color: inherit; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
+button:disabled { cursor: not-allowed; opacity: .55; }
 .container { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
 .nav { display: flex; justify-content: space-between; align-items: center; padding: 24px 0; }
 .brand { font-weight: 800; letter-spacing: .04em; text-decoration: none; }
@@ -38,7 +39,7 @@ p { color: var(--muted); line-height: 1.7; }
 .auth-shell { max-width: 460px; margin: 72px auto; }
 .stack { display: grid; gap: 14px; }
 label { display: grid; gap: 7px; color: var(--muted); font-size: 14px; }
-input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #07151a; color: var(--text); padding: 12px 14px; }
+input, textarea, .select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #07151a; color: var(--text); padding: 12px 14px; }
 textarea { min-height: 110px; resize: vertical; }
 .notice { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 12px; color: var(--muted); }
 .error { color: var(--danger); }
