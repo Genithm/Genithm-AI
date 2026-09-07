@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genithm-blast-worker"
+version = "0.1.0"
+description = "Controlled asynchronous NCBI BLAST worker for Genithm"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+
+[project.scripts]
+genithm-blast-worker = "genithm_blast_worker.runtime:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
