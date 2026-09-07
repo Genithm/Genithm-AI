@@ -10,6 +10,8 @@ from urllib.request import Request, urlopen
 CONNECTOR_VERSION = "genithm-ncbi-connector/0.1.0"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 MAX_RESPONSE_BYTES = 55 * 1024 * 1024
+NO_KEY_MIN_INTERVAL_SECONDS = 0.4
+API_KEY_MIN_INTERVAL_SECONDS = 0.11
 
 
 class NcbiRecordNotFound(LookupError):
@@ -88,6 +90,15 @@ class NcbiConnector:
         self.email = email.strip()
         self.api_key = api_key.strip() if api_key else None
         self.timeout = timeout
+        self._last_request_started = 0.0
+
+    def _pace_request(self) -> None:
+        interval = API_KEY_MIN_INTERVAL_SECONDS if self.api_key else NO_KEY_MIN_INTERVAL_SECONDS
+        now = time.monotonic()
+        remaining = interval - (now - self._last_request_started)
+        if remaining > 0:
+            time.sleep(remaining)
+        self._last_request_started = time.monotonic()
 
     def fetch(self, database: str, accession: str) -> NcbiRecord:
         db = database.lower().strip()
@@ -106,6 +117,7 @@ class NcbiConnector:
         url = f"{EFETCH_URL}?{urlencode(params)}"
 
         for attempt in range(3):
+            self._pace_request()
             request = Request(url, headers={"User-Agent": f"{self.tool}/{CONNECTOR_VERSION}"}, method="GET")
             try:
                 with urlopen(request, timeout=self.timeout) as response:
