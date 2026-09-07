@@ -13,7 +13,7 @@ dependencies = []
 dev = ["pytest==9.1.1"]
 
 [project.scripts]
-genithm-scientific-worker = "genithm_scientific_worker.runtime:main"
+genithm-scientific-worker = "genithm_scientific_worker.runtime_v4:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
