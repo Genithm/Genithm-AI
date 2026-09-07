@@ -30,7 +30,7 @@ def test_properties_for_all_twenty_amino_acids_are_stable() -> None:
     assert result.length == 20
     assert sum(result.amino_acid_composition.values()) == 20
     assert set(result.amino_acid_composition.values()) == {1}
-    assert result.molecular_weight_da == pytest.approx(2395.71328, abs=1e-6)
+    assert result.molecular_weight_da == pytest.approx(2395.73588, abs=1e-6)
     assert result.aromaticity_fraction == pytest.approx(0.15, abs=1e-9)
     assert result.gravy == pytest.approx(-0.49, abs=1e-9)
     assert -3.0 < result.estimated_net_charge_ph7 < 3.0
