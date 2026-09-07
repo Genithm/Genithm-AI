@@ -76,13 +76,22 @@ class SupabaseRuntimeClient:
         self.max_attempts = config.max_attempts
 
     def _headers(self, *, content_type: str | None = None) -> dict[str, str]:
-        headers = {"apikey": self.config.supabase_secret_key, "Authorization": f"Bearer {self.config.supabase_secret_key}", "User-Agent": "genithm-source-worker/0.1"}
+        headers = {
+            "apikey": self.config.supabase_secret_key,
+            "Authorization": f"Bearer {self.config.supabase_secret_key}",
+            "User-Agent": "genithm-source-worker/0.1",
+        }
         if content_type:
             headers["Content-Type"] = content_type
         return headers
 
     def _rpc(self, name: str, payload: dict[str, Any]) -> Any:
-        request = Request(f"{self.config.supabase_url}/rest/v1/rpc/{name}", data=json.dumps(payload, separators=(",", ":")).encode(), headers=self._headers(content_type="application/json"), method="POST")
+        request = Request(
+            f"{self.config.supabase_url}/rest/v1/rpc/{name}",
+            data=json.dumps(payload, separators=(",", ":")).encode(),
+            headers=self._headers(content_type="application/json"),
+            method="POST",
+        )
         try:
             with urlopen(request, timeout=30) as response:
                 raw = response.read()
@@ -98,37 +107,84 @@ class SupabaseRuntimeClient:
         if not rows:
             return None
         row = rows[0]
-        return RetrievalJob(int(row["message_id"]), int(row["read_count"]), str(row["retrieval_id"]), str(row["organization_id"]), str(row["project_id"]), str(row["requested_by"]), str(row["database_name"]), str(row["requested_accession"]))
+        return RetrievalJob(
+            int(row["message_id"]), int(row["read_count"]), str(row["retrieval_id"]),
+            str(row["organization_id"]), str(row["project_id"]), str(row["requested_by"]),
+            str(row["database_name"]), str(row["requested_accession"]),
+        )
 
     @staticmethod
     def object_path(job: RetrievalJob, upload_id: str, record: NcbiRecord) -> str:
         filename = f"ncbi-{record.accession_version.lower()}.fasta"
         return f"{job.organization_id}/{job.project_id}/{job.requested_by}/{upload_id}/{filename}"
 
+    def _object_exists(self, path: str) -> bool:
+        encoded = quote(path, safe="/")
+        request = Request(
+            f"{self.config.supabase_url}/storage/v1/object/authenticated/sequence-inputs/{encoded}",
+            headers=self._headers(),
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                response.read(1)
+            return True
+        except HTTPError as exc:
+            if exc.code == 404:
+                return False
+            raise RuntimeError(f"Supabase Storage object check failed with HTTP {exc.code}") from exc
+        except URLError as exc:
+            raise RuntimeError("Supabase Storage object check connection failed") from exc
+
     def store(self, job: RetrievalJob, upload_id: str, record: NcbiRecord, fasta: bytes) -> None:
-        path = quote(self.object_path(job, upload_id, record), safe="/")
-        request = Request(f"{self.config.supabase_url}/storage/v1/object/sequence-inputs/{path}", data=fasta, headers={**self._headers(content_type="text/plain"), "x-upsert": "false"}, method="POST")
+        object_path = self.object_path(job, upload_id, record)
+        path = quote(object_path, safe="/")
+        request = Request(
+            f"{self.config.supabase_url}/storage/v1/object/sequence-inputs/{path}",
+            data=fasta,
+            headers={**self._headers(content_type="text/plain"), "x-upsert": "false"},
+            method="POST",
+        )
         try:
             with urlopen(request, timeout=60):
                 return
         except HTTPError as exc:
-            if exc.code in {400, 409}:
+            if exc.code in {400, 409} and self._object_exists(object_path):
                 return
             raise RuntimeError(f"Supabase Storage upload failed with HTTP {exc.code}") from exc
         except URLError as exc:
             raise RuntimeError("Supabase Storage upload connection failed") from exc
 
     def finish_success(self, job: RetrievalJob, upload_id: str, record: NcbiRecord, fasta_size: int) -> None:
-        self._rpc("finish_ncbi_sequence_retrieval_success", {"message_id": job.message_id, "retrieval_id": job.retrieval_id, "sequence_upload_id": upload_id, "resolved_accession": record.accession_version, "file_size_bytes": fasta_size, "record_title": record.title, "organism": record.organism, "reported_length": record.length, "record_updated_date": record.updated_date, "connector_version": CONNECTOR_VERSION})
+        self._rpc("finish_ncbi_sequence_retrieval_success", {
+            "message_id": job.message_id,
+            "retrieval_id": job.retrieval_id,
+            "sequence_upload_id": upload_id,
+            "resolved_accession": record.accession_version,
+            "file_size_bytes": fasta_size,
+            "record_title": record.title,
+            "organism": record.organism,
+            "reported_length": record.length,
+            "record_updated_date": record.updated_date,
+            "connector_version": CONNECTOR_VERSION,
+        })
 
     def finish_not_found(self, job: RetrievalJob) -> None:
-        self._rpc("finish_ncbi_sequence_retrieval_not_found", {"message_id": job.message_id, "retrieval_id": job.retrieval_id, "connector_version": CONNECTOR_VERSION})
+        self._rpc("finish_ncbi_sequence_retrieval_not_found", {
+            "message_id": job.message_id, "retrieval_id": job.retrieval_id, "connector_version": CONNECTOR_VERSION
+        })
 
     def finish_rejected(self, job: RetrievalJob, reason: str) -> None:
-        self._rpc("finish_ncbi_sequence_retrieval_rejected", {"message_id": job.message_id, "retrieval_id": job.retrieval_id, "reason": reason[:2000], "connector_version": CONNECTOR_VERSION})
+        self._rpc("finish_ncbi_sequence_retrieval_rejected", {
+            "message_id": job.message_id, "retrieval_id": job.retrieval_id,
+            "reason": reason[:2000], "connector_version": CONNECTOR_VERSION,
+        })
 
     def finish_error(self, job: RetrievalJob, error: str) -> str:
-        return str(self._rpc("finish_ncbi_sequence_retrieval_error", {"message_id": job.message_id, "retrieval_id": job.retrieval_id, "processing_error": error[:2000], "max_attempts": self.max_attempts}))
+        return str(self._rpc("finish_ncbi_sequence_retrieval_error", {
+            "message_id": job.message_id, "retrieval_id": job.retrieval_id,
+            "processing_error": error[:2000], "max_attempts": self.max_attempts,
+        }))
 
 
 def deterministic_upload_id(retrieval_id: str) -> str:
