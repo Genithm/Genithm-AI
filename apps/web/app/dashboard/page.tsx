@@ -73,11 +73,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("sequence_uploads").select("*").order("created_at", { ascending: false }).limit(20),
   ]);
 
-  const sequenceUploads = (sequenceUploadRows ?? []) as Array<(typeof sequenceUploadRows extends Array<infer Row> ? Row : never) & {
+  type SequenceUploadRow = NonNullable<typeof sequenceUploadRows>[number] & {
     sequence_statistics?: unknown;
     statistics_version?: string | null;
     statistics_calculated_at?: string | null;
-  }>;
+  };
+  const sequenceUploads = (sequenceUploadRows ?? []) as SequenceUploadRow[];
 
   const projectOptions = (projects ?? []).map((project) => ({
     id: project.id,
