@@ -94,6 +94,24 @@ class Client:
             raise PairwiseAlignmentError("scientific input integrity check failed")
         return data
 
+    def _result_exists(self, path: str) -> bool:
+        encoded = quote(path, safe="/")
+        request = Request(
+            f"{self.config.supabase_url}/storage/v1/object/authenticated/analysis-results/{encoded}",
+            headers=self._headers(),
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                response.read(1)
+            return True
+        except HTTPError as exc:
+            if exc.code == 404:
+                return False
+            raise RuntimeError(f"scientific result object check failed with HTTP {exc.code}") from exc
+        except URLError as exc:
+            raise RuntimeError("scientific result object check connection failed") from exc
+
     def upload_result(self, path: str, data: bytes) -> None:
         if not data or len(data) > MAX_RESULT_BYTES:
             raise PairwiseAlignmentError("scientific result artifact exceeds allowed size")
@@ -108,6 +126,8 @@ class Client:
             with urlopen(request, timeout=30):
                 return
         except HTTPError as exc:
+            if exc.code in {400, 409} and self._result_exists(path):
+                return
             raise RuntimeError(f"scientific result upload failed with HTTP {exc.code}") from exc
         except URLError as exc:
             raise RuntimeError("scientific result upload connection failed") from exc
