@@ -1,0 +1,60 @@
+name: Hardened worker image
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        required: true
+        type: string
+      image_name:
+        required: true
+        type: string
+      artifact_prefix:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Build worker image
+        run: docker build --pull -t "${{ inputs.image_name }}:ci" "${{ inputs.context }}"
+      - name: Verify image declares non-root user
+        run: |
+          user="$(docker image inspect --format '{{.Config.User}}' '${{ inputs.image_name }}:ci')"
+          test "$user" != ""
+          test "$user" != "root"
+          test "$user" != "0"
+      - name: Verify hardened runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m "${{ inputs.image_name }}:ci" --help
+      - name: Block fixable HIGH or CRITICAL image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.image_name }}:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: 'true'
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+          scanners: vuln
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.image_name }}:ci
+          format: cyclonedx
+          output: ${{ inputs.artifact_prefix }}.sbom.cdx.json
+          exit-code: '0'
+          list-all-pkgs: 'true'
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact_prefix }}-sbom-${{ github.sha }}
+          path: ${{ inputs.artifact_prefix }}.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
