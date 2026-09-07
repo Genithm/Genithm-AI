@@ -22,10 +22,32 @@ def test_valid_scientific_plan():
                 "sequence_a_id": "00000000-0000-0000-0000-000000000001",
                 "sequence_b_id": "00000000-0000-0000-0000-000000000002",
                 "algorithm": "global",
+                "match_score": 2,
+                "mismatch_score": -1,
+                "gap_score": -2,
             },
         },
     }
     assert validate_plan_shape(plan) == plan
+
+
+def test_action_parameter_escape_hatch_is_rejected():
+    with pytest.raises(ValueError):
+        validate_plan_shape(
+            {
+                "schema_version": PLAN_SCHEMA_VERSION,
+                "intent": "scientific_action",
+                "summary": "Run protein properties.",
+                "limitations": [],
+                "action": {
+                    "type": "protein_properties",
+                    "parameters": {
+                        "sequence_upload_id": "00000000-0000-0000-0000-000000000001",
+                        "command": "arbitrary-tool",
+                    },
+                },
+            }
+        )
 
 
 def test_unsupported_plan_must_not_have_action():
