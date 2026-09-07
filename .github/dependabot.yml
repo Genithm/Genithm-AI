@@ -10,3 +10,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /apps/sequence-worker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /apps/sequence-worker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
