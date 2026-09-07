@@ -12,9 +12,26 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from .pairwise import EXECUTOR_VERSION, TOOL_ID, TOOL_VERSION, PairwiseAlignmentError, align, parse_single_fasta
+from .msa import (
+    EXECUTOR_VERSION as MSA_EXECUTOR_VERSION,
+    TOOL_ID as MSA_TOOL_ID,
+    TOOL_VERSION as MSA_TOOL_VERSION,
+    MsaError,
+    parse_single_fasta as parse_msa_fasta,
+    parse_alignment,
+    run_mafft,
+)
+from .pairwise import (
+    EXECUTOR_VERSION as PAIRWISE_EXECUTOR_VERSION,
+    TOOL_ID as PAIRWISE_TOOL_ID,
+    TOOL_VERSION as PAIRWISE_TOOL_VERSION,
+    PairwiseAlignmentError,
+    align,
+    parse_single_fasta as parse_pairwise_fasta,
+)
 
 LOGGER = logging.getLogger("genithm.scientific-worker")
+WORKER_VERSION = "genithm-scientific-worker/0.2.0"
 MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_RESULT_BYTES = 25 * 1024 * 1024
 
@@ -51,7 +68,7 @@ class Client:
         headers = {
             "apikey": self.config.supabase_secret_key,
             "Authorization": f"Bearer {self.config.supabase_secret_key}",
-            "User-Agent": EXECUTOR_VERSION,
+            "User-Agent": WORKER_VERSION,
         }
         if content_type:
             headers["Content-Type"] = content_type
@@ -76,7 +93,7 @@ class Client:
 
     def download(self, path: str, expected_size: int, expected_sha256: str) -> bytes:
         if expected_size < 1 or expected_size > MAX_INPUT_BYTES:
-            raise PairwiseAlignmentError("scientific input file exceeds worker read limit")
+            raise ValueError("scientific input file exceeds worker read limit")
         encoded = quote(path, safe="/")
         request = Request(
             f"{self.config.supabase_url}/storage/v1/object/authenticated/sequence-inputs/{encoded}",
@@ -91,7 +108,7 @@ class Client:
         except URLError as exc:
             raise RuntimeError("input download connection failed") from exc
         if len(data) != expected_size or hashlib.sha256(data).hexdigest() != expected_sha256:
-            raise PairwiseAlignmentError("scientific input integrity check failed")
+            raise ValueError("scientific input integrity check failed")
         return data
 
     def _existing_result_matches(self, path: str, expected: bytes) -> bool:
@@ -112,14 +129,14 @@ class Client:
             raise RuntimeError("scientific result object check connection failed") from exc
         return len(existing) == len(expected) and hashlib.sha256(existing).digest() == hashlib.sha256(expected).digest()
 
-    def upload_result(self, path: str, data: bytes) -> None:
+    def upload_result(self, path: str, data: bytes, content_type: str) -> None:
         if not data or len(data) > MAX_RESULT_BYTES:
-            raise PairwiseAlignmentError("scientific result artifact exceeds allowed size")
+            raise ValueError("scientific result artifact exceeds allowed size")
         encoded = quote(path, safe="/")
         request = Request(
             f"{self.config.supabase_url}/storage/v1/object/analysis-results/{encoded}",
             data=data,
-            headers={**self._headers("application/json"), "x-upsert": "false"},
+            headers={**self._headers(content_type), "x-upsert": "false"},
             method="POST",
         )
         try:
@@ -129,13 +146,13 @@ class Client:
             if exc.code in {400, 409}:
                 if self._existing_result_matches(path, data):
                     return
-                raise PairwiseAlignmentError("existing scientific result artifact does not match deterministic output") from exc
+                raise ValueError("existing scientific result artifact does not match deterministic output") from exc
             raise RuntimeError(f"scientific result upload failed with HTTP {exc.code}") from exc
         except URLError as exc:
             raise RuntimeError("scientific result upload connection failed") from exc
 
 
-def canonical_result(job: dict[str, Any], sequence_a: str, sequence_b: str) -> tuple[bytes, dict[str, Any], dict[str, Any]]:
+def canonical_pairwise_result(job: dict[str, Any], sequence_a: str, sequence_b: str) -> tuple[bytes, dict[str, Any], dict[str, Any]]:
     params = job["parameters"]
     result = align(
         sequence_a,
@@ -159,9 +176,9 @@ def canonical_result(job: dict[str, Any], sequence_a: str, sequence_b: str) -> t
         "input_b_sha256": str(inputs[1]["sha256"]),
     }
     provenance = {
-        "tool_id": TOOL_ID,
-        "tool_version": TOOL_VERSION,
-        "executor_version": EXECUTOR_VERSION,
+        "tool_id": PAIRWISE_TOOL_ID,
+        "tool_version": PAIRWISE_TOOL_VERSION,
+        "executor_version": PAIRWISE_EXECUTOR_VERSION,
         "request_fingerprint": str(job["request_fingerprint"]),
         "parameters": params,
         "inputs": [
@@ -179,6 +196,61 @@ def canonical_result(job: dict[str, Any], sequence_a: str, sequence_b: str) -> t
     return data, summary, provenance
 
 
+def canonical_msa_result(job: dict[str, Any], sequences: list[str]) -> tuple[bytes, dict[str, Any], dict[str, Any]]:
+    data = run_mafft(sequences)
+    records = parse_alignment(data, sequences)
+    inputs = job["inputs"]
+    summary = {
+        "job_type": "multiple_sequence_alignment",
+        "strategy": "auto",
+        "sequence_count": len(records),
+        "aligned_length": len(records[0].sequence),
+        "input_sha256s": [str(item["sha256"]) for item in inputs],
+    }
+    provenance = {
+        "tool_id": MSA_TOOL_ID,
+        "tool_version": MSA_TOOL_VERSION,
+        "executor_version": MSA_EXECUTOR_VERSION,
+        "request_fingerprint": str(job["request_fingerprint"]),
+        "parameters": job["parameters"],
+        "inputs": [
+            {"position": int(item["position"]), "role": str(item["role"]), "sha256": str(item["sha256"])}
+            for item in inputs
+        ],
+    }
+    return data, summary, provenance
+
+
+def process_pairwise(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
+    if job["tool_id"] != PAIRWISE_TOOL_ID or job["tool_version"] != PAIRWISE_TOOL_VERSION:
+        raise PairwiseAlignmentError("claimed job does not match approved pairwise executor")
+    inputs = job["inputs"]
+    if not isinstance(inputs, list) or len(inputs) != 2:
+        raise PairwiseAlignmentError("pairwise scientific job inputs are invalid")
+    raw_a = client.download(str(inputs[0]["object_path"]), int(inputs[0]["file_size_bytes"]), str(inputs[0]["sha256"]))
+    raw_b = client.download(str(inputs[1]["object_path"]), int(inputs[1]["file_size_bytes"]), str(inputs[1]["sha256"]))
+    sequence_a = parse_pairwise_fasta(raw_a)
+    sequence_b = parse_pairwise_fasta(raw_b)
+    data, summary, provenance = canonical_pairwise_result(job, sequence_a, sequence_b)
+    path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/pairwise-result.json"
+    return data, summary, provenance, path, "application/json", PAIRWISE_EXECUTOR_VERSION
+
+
+def process_msa(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
+    if job["tool_id"] != MSA_TOOL_ID or job["tool_version"] != MSA_TOOL_VERSION:
+        raise MsaError("claimed job does not match approved MAFFT executor")
+    inputs = job["inputs"]
+    if not isinstance(inputs, list) or not 3 <= len(inputs) <= 50:
+        raise MsaError("MSA scientific job inputs are outside approved bounds")
+    sequences: list[str] = []
+    for item in inputs:
+        raw = client.download(str(item["object_path"]), int(item["file_size_bytes"]), str(item["sha256"]))
+        sequences.append(parse_msa_fasta(raw))
+    data, summary, provenance = canonical_msa_result(job, sequences)
+    path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/msa-result.fasta"
+    return data, summary, provenance, path, "text/plain; charset=utf-8", MSA_EXECUTOR_VERSION
+
+
 def process_one(client: Client) -> bool:
     rows = client.rpc("claim_scientific_job", {"visibility_seconds": client.config.visibility_seconds})
     if not rows:
@@ -187,39 +259,42 @@ def process_one(client: Client) -> bool:
     message_id = int(job["message_id"])
     job_id = str(job["job_id"])
     try:
-        if job["job_type"] != "pairwise_alignment" or job["tool_id"] != TOOL_ID or job["tool_version"] != TOOL_VERSION:
-            raise PairwiseAlignmentError("claimed scientific job does not match approved pairwise executor")
-        inputs = job["inputs"]
-        if not isinstance(inputs, list) or len(inputs) != 2:
-            raise PairwiseAlignmentError("scientific job inputs are invalid")
-        raw_a = client.download(str(inputs[0]["object_path"]), int(inputs[0]["file_size_bytes"]), str(inputs[0]["sha256"]))
-        raw_b = client.download(str(inputs[1]["object_path"]), int(inputs[1]["file_size_bytes"]), str(inputs[1]["sha256"]))
-        sequence_a = parse_single_fasta(raw_a)
-        sequence_b = parse_single_fasta(raw_b)
-        data, summary, provenance = canonical_result(job, sequence_a, sequence_b)
-        path = f"{job['organization_id']}/{job['project_id']}/{job_id}/pairwise-result.json"
-        client.upload_result(path, data)
+        if job["job_type"] == "pairwise_alignment":
+            data, summary, provenance, path, content_type, executor_version = process_pairwise(client, job)
+        elif job["job_type"] == "multiple_sequence_alignment":
+            data, summary, provenance, path, content_type, executor_version = process_msa(client, job)
+        else:
+            raise ValueError("claimed scientific job type is not supported by this worker")
+
+        client.upload_result(path, data, content_type)
         client.rpc("finish_scientific_job_success", {
             "message_id": message_id,
             "job_id": job_id,
-            "executor_version": EXECUTOR_VERSION,
+            "executor_version": executor_version,
             "result_object_path": path,
             "result_sha256": hashlib.sha256(data).hexdigest(),
             "result_bytes": len(data),
             "result_summary": summary,
             "provenance": provenance,
         })
-        LOGGER.info("scientific job completed job_id=%s type=pairwise_alignment", job_id)
-    except PairwiseAlignmentError as exc:
+        LOGGER.info("scientific job completed job_id=%s type=%s", job_id, job["job_type"])
+    except (PairwiseAlignmentError, MsaError, ValueError) as exc:
         client.rpc("finish_scientific_job_error", {
-            "message_id": message_id, "job_id": job_id, "failure_class": "input_integrity",
-            "processing_error": str(exc)[:2000], "retryable": False, "max_attempts": client.config.max_attempts,
+            "message_id": message_id,
+            "job_id": job_id,
+            "failure_class": "input_integrity" if not isinstance(exc, MsaError) else "output_validation",
+            "processing_error": str(exc)[:2000],
+            "retryable": False,
+            "max_attempts": client.config.max_attempts,
         })
     except Exception as exc:
         client.rpc("finish_scientific_job_error", {
-            "message_id": message_id, "job_id": job_id, "failure_class": "infrastructure",
+            "message_id": message_id,
+            "job_id": job_id,
+            "failure_class": "infrastructure",
             "processing_error": f"{type(exc).__name__}: scientific worker failed"[:2000],
-            "retryable": True, "max_attempts": client.config.max_attempts,
+            "retryable": True,
+            "max_attempts": client.config.max_attempts,
         })
         LOGGER.error("scientific job failed job_id=%s error_type=%s", job_id, type(exc).__name__)
     return True

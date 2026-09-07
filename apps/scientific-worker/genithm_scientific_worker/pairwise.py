@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 TOOL_ID = "genithm-pairwise-aligner"
 TOOL_VERSION = "0.1.0"
-EXECUTOR_VERSION = "genithm-scientific-worker/0.1.0"
+EXECUTOR_VERSION = "genithm-scientific-worker/0.2.0"
 GAPS = frozenset("-.")
 
 
