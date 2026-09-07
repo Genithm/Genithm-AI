@@ -140,6 +140,10 @@ export type Database = {
           object_path: string
           organization_id: string
           original_filename: string
+          processing_attempts: number
+          processing_error: string | null
+          processing_finished_at: string | null
+          processing_started_at: string | null
           project_id: string
           residue_count: number | null
           sequence_count: number | null
@@ -147,7 +151,10 @@ export type Database = {
           sha256: string | null
           status: string
           updated_at: string
+          validated_at: string | null
           validation_error: string | null
+          validation_warnings: Json
+          validator_version: string | null
         }
         Insert: {
           content_type?: string | null
@@ -158,6 +165,10 @@ export type Database = {
           object_path: string
           organization_id: string
           original_filename: string
+          processing_attempts?: number
+          processing_error?: string | null
+          processing_finished_at?: string | null
+          processing_started_at?: string | null
           project_id: string
           residue_count?: number | null
           sequence_count?: number | null
@@ -165,7 +176,10 @@ export type Database = {
           sha256?: string | null
           status?: string
           updated_at?: string
+          validated_at?: string | null
           validation_error?: string | null
+          validation_warnings?: Json
+          validator_version?: string | null
         }
         Update: {
           content_type?: string | null
@@ -176,6 +190,10 @@ export type Database = {
           object_path?: string
           organization_id?: string
           original_filename?: string
+          processing_attempts?: number
+          processing_error?: string | null
+          processing_finished_at?: string | null
+          processing_started_at?: string | null
           project_id?: string
           residue_count?: number | null
           sequence_count?: number | null
@@ -183,7 +201,10 @@ export type Database = {
           sha256?: string | null
           status?: string
           updated_at?: string
+          validated_at?: string | null
           validation_error?: string | null
+          validation_warnings?: Json
+          validator_version?: string | null
         }
         Relationships: [
           {
@@ -207,6 +228,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_sequence_validation_job: {
+        Args: { visibility_seconds?: number }
+        Returns: {
+          content_type: string
+          file_size_bytes: number
+          message_id: number
+          object_path: string
+          read_count: number
+          upload_id: string
+        }[]
+      }
+      complete_sequence_upload: { Args: { upload_id: string }; Returns: string }
       create_organization: {
         Args: { org_name: string; org_slug: string }
         Returns: {
@@ -223,6 +256,38 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      finish_sequence_validation_error: {
+        Args: {
+          max_attempts?: number
+          message_id: number
+          processing_error: string
+          upload_id: string
+        }
+        Returns: string
+      }
+      finish_sequence_validation_rejected: {
+        Args: {
+          message_id: number
+          sha256?: string
+          upload_id: string
+          validation_error: string
+          validator_version: string
+        }
+        Returns: undefined
+      }
+      finish_sequence_validation_success: {
+        Args: {
+          message_id: number
+          residue_count: number
+          sequence_count: number
+          sequence_type: string
+          sha256: string
+          upload_id: string
+          validator_version: string
+          warnings?: Json
+        }
+        Returns: undefined
       }
     }
     Enums: {
