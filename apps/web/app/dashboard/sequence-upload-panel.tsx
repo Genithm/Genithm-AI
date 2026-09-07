@@ -105,16 +105,25 @@ export function SequenceUploadPanel({ projects, userId }: Props) {
         });
 
       if (uploadError) {
-        throw new Error("The file record was created, but private Storage upload failed. Retry with a new file; stale reservations will be cleaned automatically in a later worker milestone.");
+        throw new Error("The upload reservation was created, but private Storage upload failed. The record remains marked as pending upload and is not queued for validation.");
+      }
+
+      const { data: completionStatus, error: completionError } = await supabase.rpc("complete_sequence_upload", {
+        upload_id: uploadId,
+      });
+
+      if (completionError || completionStatus !== "pending_validation") {
+        throw new Error("The file is stored privately, but validation could not be queued. The upload remains recoverable and has not been reported as validated.");
       }
 
       setFile(null);
       const input = document.getElementById("sequence-file") as HTMLInputElement | null;
       if (input) input.value = "";
-      setMessage("Upload complete. The file is private and queued for server-side sequence validation.");
+      setMessage("Upload complete. The private file has been verified and queued for deterministic server-side validation.");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Upload failed.");
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -143,7 +152,7 @@ export function SequenceUploadPanel({ projects, userId }: Props) {
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
       </label>
-      <div className="small">Private input · max 50 MiB · no overwrite · server-side validation follows upload.</div>
+      <div className="small">Private input · max 50 MiB · no overwrite · deterministic server-side validation after upload.</div>
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="notice">{message}</div> : null}
       <button className="button primary" type="button" onClick={upload} disabled={busy || !file}>
