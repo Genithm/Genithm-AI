@@ -59,3 +59,14 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e '.[dev]'
       - run: pytest
+
+  sequence-worker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build worker image
+        run: docker build --pull -t genithm-sequence-worker:ci apps/sequence-worker
+      - name: Verify CLI entrypoint
+        run: docker run --rm genithm-sequence-worker:ci --help
+      - name: Verify non-root runtime
+        run: docker run --rm --entrypoint python genithm-sequence-worker:ci -c "import os; assert os.geteuid() != 0, 'worker must not run as root'"
