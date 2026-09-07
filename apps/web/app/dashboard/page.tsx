@@ -10,6 +10,7 @@ import {
   requestNcbiSequence,
   requestPairwiseAlignment,
   requestPhylogeneticTree,
+  requestProteinProperties,
 } from "./actions";
 import { SequenceUploadPanel } from "./sequence-upload-panel";
 
@@ -76,6 +77,7 @@ function scientificSummary(value: unknown): Record<string, unknown> {
 function scientificLabel(jobType: string) {
   if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
   if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
+  if (jobType === "protein_properties") return "Protein Properties";
   return "Pairwise Alignment";
 }
 
@@ -104,6 +106,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const uploads = sequenceUploads ?? [];
   const jobs = scientificJobs ?? [];
   const readySingleInputs = uploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
+  const readyProteinInputs = readySingleInputs.filter((upload) => upload.sequence_type === "protein");
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, organization_id: project.organization_id, name: project.name }));
   const projectNameById = new Map(projectOptions.map((project) => [project.id, project.name]));
   const inputsByProject = new Map<string, typeof readySingleInputs>();
@@ -191,6 +194,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Protein intelligence</div><h2>Deterministic protein properties</h2>
+        <p>V1 computes amino-acid composition, average molecular weight, aromaticity, Kyte–Doolittle GRAVY, estimated net charge at pH 7, and an estimated isoelectric point. This stage makes no domain or functional claims.</p>
+        {readyProteinInputs.length ? <div className="list">{readyProteinInputs.map((upload) => <div className="item" key={upload.id}>
+          <div className="dashboard-header"><div><strong>{upload.original_filename}</strong><div className="small">{projectNameById.get(upload.project_id) ?? "Project"} · {upload.residue_count ?? 0} residues · SHA-256 {upload.sha256?.slice(0, 20)}…</div></div>
+            <form action={requestProteinProperties}>
+              <input type="hidden" name="project_id" value={upload.project_id} />
+              <input type="hidden" name="sequence_upload_id" value={upload.id} />
+              <button className="button primary">Analyze protein properties</button>
+            </form>
+          </div>
+          <div className="small">Canonical 20-amino-acid, single-record, ungapped sequences only. Ambiguous/non-standard symbols are rejected rather than approximated.</div>
+        </div>)}</div> : <div className="notice">A ready single-record protein FASTA is required before deterministic protein properties can run.</div>}
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Scientific job history</div><h2>Recent scientific analyses</h2>
         <div className="list">{jobs.map((job) => {
           const summary = scientificSummary(job.result_summary);
@@ -200,6 +218,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             {job.status === "completed" && job.job_type === "pairwise_alignment" ? <div className="small">Score {String(summary.score ?? "n/a")} · identity {String(summary.identity_percent ?? "n/a")}% · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
             {job.status === "completed" && job.job_type === "multiple_sequence_alignment" ? <div className="small">Sequences {String(summary.sequence_count ?? "n/a")} · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
             {job.status === "completed" && job.job_type === "phylogenetic_tree" ? <div className="small">Model {String(summary.model ?? "n/a")} · leaves {String(summary.leaf_count ?? "n/a")} · support-labelled internal nodes {String(summary.internal_support_count ?? "n/a")}</div> : null}
+            {job.status === "completed" && job.job_type === "protein_properties" ? <div className="small">Length {String(summary.length ?? "n/a")} · MW {String(summary.molecular_weight_da ?? "n/a")} Da · pI estimate {String(summary.estimated_isoelectric_point ?? "n/a")} · GRAVY {String(summary.gravy ?? "n/a")}</div> : null}
             {job.result_sha256 ? <div className="small">Result SHA-256 {job.result_sha256.slice(0, 20)}…{job.result_bytes ? ` · ${formatBytes(job.result_bytes)}` : ""}</div> : null}
             {job.processing_error ? <div className="error">{job.failure_class ? `${job.failure_class.replaceAll("_", " ")}: ` : ""}{job.processing_error}</div> : null}
           </div>;
