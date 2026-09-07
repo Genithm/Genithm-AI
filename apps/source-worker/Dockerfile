@@ -9,6 +9,7 @@ WORKDIR /app
 RUN addgroup --system genithm && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm
 COPY pyproject.toml ./
 COPY genithm_source_worker ./genithm_source_worker
-RUN python -m pip install .
+RUN python -m pip install . \
+    && python -m pip uninstall -y pip setuptools
 USER genithm
 ENTRYPOINT ["genithm-source-worker"]
