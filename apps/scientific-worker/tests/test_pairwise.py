@@ -6,7 +6,7 @@ import json
 import pytest
 
 from genithm_scientific_worker.pairwise import PairwiseAlignmentError, align, parse_single_fasta
-from genithm_scientific_worker.runtime import canonical_result
+from genithm_scientific_worker.runtime import canonical_pairwise_result
 
 
 def test_global_alignment_is_deterministic() -> None:
@@ -56,10 +56,11 @@ def test_canonical_result_has_integrity_stable_json() -> None:
             {"position": 2, "role": "sequence_b", "sha256": "b" * 64},
         ],
     }
-    data, summary, provenance = canonical_result(job, "ACGT", "ACCT")
+    data, summary, provenance = canonical_pairwise_result(job, "ACGT", "ACCT")
     parsed = json.loads(data)
     assert parsed["summary"] == summary
     assert parsed["provenance"] == provenance
+    assert provenance["executor_version"] == "genithm-scientific-worker/0.2.0"
     assert summary["input_a_sha256"] == "a" * 64
     assert summary["input_b_sha256"] == "b" * 64
     assert len(hashlib.sha256(data).hexdigest()) == 64
