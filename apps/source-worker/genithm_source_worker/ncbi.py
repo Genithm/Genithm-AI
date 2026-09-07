@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -7,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-CONNECTOR_VERSION = "genithm-ncbi-connector/0.1.0"
+CONNECTOR_VERSION = "genithm-ncbi-connector/0.2.0"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 MAX_RESPONSE_BYTES = 55 * 1024 * 1024
 NO_KEY_MIN_INTERVAL_SECONDS = 0.4
@@ -32,6 +33,8 @@ class NcbiRecord:
     length: int
     updated_date: str
     sequence: str
+    source_response_sha256: str
+    source_response_bytes: int
 
     def fasta_bytes(self) -> bytes:
         header = f">{self.accession_version} {self.title}".strip()
@@ -79,7 +82,18 @@ def parse_gbseq_xml(data: bytes, *, database: str, requested_accession: str) -> 
     if "." in requested and accession_version != requested:
         raise NcbiResponseError("NCBI returned a different accession version")
 
-    return NcbiRecord(database, requested, accession_version, title, organism, length, updated_date, sequence)
+    return NcbiRecord(
+        database=database,
+        requested_accession=requested,
+        accession_version=accession_version,
+        title=title,
+        organism=organism,
+        length=length,
+        updated_date=updated_date,
+        sequence=sequence,
+        source_response_sha256=hashlib.sha256(data).hexdigest(),
+        source_response_bytes=len(data),
+    )
 
 
 class NcbiConnector:
