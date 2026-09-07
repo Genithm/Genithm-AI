@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .statistics import calculate_sequence_statistics
 from .validator import FastaValidationError, validate_fasta_bytes
 
 LOGGER = logging.getLogger("genithm.sequence-worker")
@@ -66,7 +67,7 @@ class RuntimeClient(Protocol):
 
     def claim(self) -> ValidationJob | None: ...
     def download(self, job: ValidationJob) -> bytes: ...
-    def finish_success(self, job: ValidationJob, result: Any) -> None: ...
+    def finish_success(self, job: ValidationJob, result: Any, statistics: Any) -> None: ...
     def finish_rejected(self, job: ValidationJob, error: str, digest: str | None) -> None: ...
     def finish_error(self, job: ValidationJob, error: str) -> str: ...
 
@@ -143,9 +144,9 @@ class SupabaseRuntimeClient:
             )
         return data
 
-    def finish_success(self, job: ValidationJob, result: Any) -> None:
+    def finish_success(self, job: ValidationJob, result: Any, statistics: Any) -> None:
         self._rpc(
-            "finish_sequence_validation_success",
+            "finish_sequence_validation_success_v2",
             {
                 "message_id": job.message_id,
                 "upload_id": job.upload_id,
@@ -155,6 +156,8 @@ class SupabaseRuntimeClient:
                 "residue_count": result.residue_count,
                 "validator_version": result.validator_version,
                 "warnings": list(result.warnings),
+                "statistics_version": statistics.statistics_version,
+                "statistics": statistics.to_payload(),
             },
         )
 
@@ -195,8 +198,9 @@ def process_one(client: RuntimeClient) -> bool:
     try:
         data = client.download(job)
         result = validate_fasta_bytes(data)
-        client.finish_success(job, result)
-        LOGGER.info("validation ready upload_id=%s", job.upload_id)
+        statistics = calculate_sequence_statistics(data)
+        client.finish_success(job, result, statistics)
+        LOGGER.info("validation ready upload_id=%s statistics_version=%s", job.upload_id, statistics.statistics_version)
     except FastaValidationError as exc:
         digest = sha256(data).hexdigest() if data is not None else None
         client.finish_rejected(job, str(exc), digest)

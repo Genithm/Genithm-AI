@@ -27,8 +27,17 @@ class FakeClient:
         assert self.data is not None
         return self.data
 
-    def finish_success(self, job, result):
-        self.calls.append(("success", result.sequence_type, result.sequence_count, result.residue_count))
+    def finish_success(self, job, result, statistics):
+        self.calls.append(
+            (
+                "success",
+                result.sequence_type,
+                result.sequence_count,
+                result.residue_count,
+                statistics.gc_content_percent,
+                statistics.statistics_version,
+            )
+        )
 
     def finish_rejected(self, job, error, digest):
         self.calls.append(("rejected", error, digest))
@@ -44,10 +53,17 @@ def test_no_job_returns_false() -> None:
     assert client.calls == [("claim",)]
 
 
-def test_valid_fasta_finishes_successfully() -> None:
+def test_valid_fasta_finishes_successfully_with_statistics() -> None:
     client = FakeClient(data=b">x\nACGT\n")
     assert process_one(client) is True
-    assert client.calls[-1] == ("success", "dna", 1, 4)
+    assert client.calls[-1] == (
+        "success",
+        "dna",
+        1,
+        4,
+        50.0,
+        "genithm-sequence-statistics/0.1.0",
+    )
 
 
 def test_invalid_fasta_is_scientific_rejection() -> None:

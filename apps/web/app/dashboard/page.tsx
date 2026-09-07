@@ -15,6 +15,51 @@ function warningLabels(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string").map((item) => item.replaceAll("_", " "));
 }
 
+type StatisticsSummary = {
+  gcContentPercent: number | null;
+  gcMethod: string | null;
+  minLength: number;
+  maxLength: number;
+  meanLength: number;
+  gapCount: number;
+  composition: Array<[string, number]>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseStatistics(value: unknown): StatisticsSummary | null {
+  if (!isRecord(value)) return null;
+  const recordLength = value.record_length;
+  const composition = value.composition;
+  if (!isRecord(recordLength) || !isRecord(composition)) return null;
+
+  const minLength = numberValue(recordLength.min);
+  const maxLength = numberValue(recordLength.max);
+  const meanLength = numberValue(recordLength.mean);
+  const gapCount = numberValue(value.gap_count);
+  if (minLength === null || maxLength === null || meanLength === null || gapCount === null) return null;
+
+  const parsedComposition = Object.entries(composition)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  return {
+    gcContentPercent: numberValue(value.gc_content_percent),
+    gcMethod: typeof value.gc_method === "string" ? value.gc_method : null,
+    minLength,
+    maxLength,
+    meanLength,
+    gapCount,
+    composition: parsedComposition,
+  };
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -22,15 +67,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
 
-  const [{ data: organizations }, { data: projects }, { data: sequenceUploads }] = await Promise.all([
+  const [{ data: organizations }, { data: projects }, { data: sequenceUploadRows }] = await Promise.all([
     supabase.from("organizations").select("id,name,slug,created_at").order("created_at", { ascending: true }),
     supabase.from("projects").select("id,organization_id,name,description,status,created_at").order("created_at", { ascending: false }),
-    supabase
-      .from("sequence_uploads")
-      .select("id,project_id,original_filename,file_size_bytes,status,sequence_type,sequence_count,residue_count,sha256,validator_version,validation_warnings,validated_at,validation_error,processing_attempts,processing_error,created_at")
-      .order("created_at", { ascending: false })
-      .limit(20),
+    supabase.from("sequence_uploads").select("*").order("created_at", { ascending: false }).limit(20),
   ]);
+
+  type SequenceUploadRow = NonNullable<typeof sequenceUploadRows>[number] & {
+    sequence_statistics?: unknown;
+    statistics_version?: string | null;
+    statistics_calculated_at?: string | null;
+  };
+  const sequenceUploads = (sequenceUploadRows ?? []) as SequenceUploadRow[];
 
   const projectOptions = (projects ?? []).map((project) => ({
     id: project.id,
@@ -90,7 +138,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div>
             <div className="eyebrow">Sequence ingestion</div>
             <h2>Private FASTA inputs</h2>
-            <p>Files are private. Scientific metadata is produced by Genithm&apos;s deterministic validation worker and stored with provenance.</p>
+            <p>Files are private. Scientific metadata and statistics are produced by Genithm&apos;s deterministic worker and stored with versioned provenance.</p>
           </div>
         </div>
         <div className="section-grid">
@@ -98,8 +146,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div>
             <h2>Recent uploads</h2>
             <div className="list">
-              {(sequenceUploads ?? []).map((upload) => {
+              {sequenceUploads.map((upload) => {
                 const warnings = warningLabels(upload.validation_warnings);
+                const statistics = parseStatistics(upload.sequence_statistics);
                 return (
                   <div className="item" key={upload.id}>
                     <strong>{upload.original_filename}</strong>
@@ -107,6 +156,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     {upload.status === "ready" ? (
                       <>
                         <div className="small">{upload.sequence_type ?? "unknown"} · {upload.sequence_count ?? 0} records · {upload.residue_count ?? 0} residues</div>
+                        {statistics ? (
+                          <div className="notice" style={{ marginTop: 10 }}>
+                            <strong>Deterministic sequence statistics</strong>
+                            <div className="small">Length min / mean / max: {statistics.minLength} / {statistics.meanLength} / {statistics.maxLength}</div>
+                            {statistics.gcContentPercent !== null ? <div className="small">GC content: {statistics.gcContentPercent.toFixed(3)}%{statistics.gcMethod ? ` · ${statistics.gcMethod.replaceAll("_", " ")}` : ""}</div> : null}
+                            <div className="small">Gap characters: {statistics.gapCount}</div>
+                            {statistics.composition.length ? <div className="small">Composition: {statistics.composition.map(([symbol, count]) => `${symbol}:${count}`).join(" · ")}</div> : null}
+                            <div className="small">Statistics engine: {upload.statistics_version ?? "unknown"}</div>
+                          </div>
+                        ) : null}
                         <div className="small">Validator: {upload.validator_version ?? "unknown"}{upload.sha256 ? ` · SHA-256 ${upload.sha256.slice(0, 16)}…` : ""}</div>
                         {warnings.length ? <div className="small">Warnings: {warnings.join(", ")}</div> : null}
                       </>
@@ -117,7 +176,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </div>
                 );
               })}
-              {!sequenceUploads?.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
+              {!sequenceUploads.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
             </div>
           </div>
         </div>
