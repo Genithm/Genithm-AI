@@ -12,6 +12,7 @@ import {
   requestPhylogeneticTree,
   requestProteinProperties,
 } from "./actions";
+import { ProteinAnnotationPanel } from "./protein-annotation-panel";
 import { SequenceUploadPanel } from "./sequence-upload-panel";
 
 function formatBytes(bytes: number) {
@@ -207,6 +208,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="small">Canonical 20-amino-acid, single-record, ungapped sequences only. Ambiguous/non-standard symbols are rejected rather than approximated.</div>
         </div>)}</div> : <div className="notice">A ready single-record protein FASTA is required before deterministic protein properties can run.</div>}
       </section>
+
+      <ProteinAnnotationPanel />
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Scientific job history</div><h2>Recent scientific analyses</h2>

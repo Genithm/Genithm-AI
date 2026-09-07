@@ -34,6 +34,101 @@ type SequenceRetrieval = {
   Relationships: RetrievalBase["Relationships"];
 };
 
+type ProteinAnnotationJob = {
+  Row: {
+    annotation_summary: Json | null;
+    connector_version: string | null;
+    created_at: string;
+    freshness_policy: string;
+    gene_names: Json | null;
+    id: string;
+    input_residue_count: number;
+    input_sha256: string;
+    interpro_entries: Json | null;
+    interpro_response_bytes: number | null;
+    interpro_response_sha256: string | null;
+    mapping_candidate_count: number | null;
+    mapping_provider: string;
+    mapping_response_bytes: number | null;
+    mapping_response_sha256: string | null;
+    ncbi_retrieval_id: string;
+    organism_name: string | null;
+    organization_id: string;
+    pfam_entries: Json | null;
+    pfam_response_bytes: number | null;
+    pfam_response_sha256: string | null;
+    processing_attempts: number;
+    processing_error: string | null;
+    processing_finished_at: string | null;
+    processing_started_at: string | null;
+    project_id: string;
+    protein_name: string | null;
+    refseq_accession: string;
+    request_fingerprint: string;
+    requested_by: string;
+    result_message: string | null;
+    sequence_upload_id: string;
+    source_checked_at: string | null;
+    status: string;
+    uniprot_accession: string | null;
+    uniprot_entry_id: string | null;
+    uniprot_release: string | null;
+    uniprot_release_date: string | null;
+    uniprot_response_bytes: number | null;
+    uniprot_response_sha256: string | null;
+    uniprot_reviewed: boolean | null;
+    uniprot_sequence_sha256: string | null;
+    updated_at: string;
+  };
+  Insert: {
+    annotation_summary?: Json | null;
+    connector_version?: string | null;
+    created_at?: string;
+    freshness_policy?: string;
+    gene_names?: Json | null;
+    id?: string;
+    input_residue_count: number;
+    input_sha256: string;
+    interpro_entries?: Json | null;
+    interpro_response_bytes?: number | null;
+    interpro_response_sha256?: string | null;
+    mapping_candidate_count?: number | null;
+    mapping_provider?: string;
+    mapping_response_bytes?: number | null;
+    mapping_response_sha256?: string | null;
+    ncbi_retrieval_id: string;
+    organism_name?: string | null;
+    organization_id: string;
+    pfam_entries?: Json | null;
+    pfam_response_bytes?: number | null;
+    pfam_response_sha256?: string | null;
+    processing_attempts?: number;
+    processing_error?: string | null;
+    processing_finished_at?: string | null;
+    processing_started_at?: string | null;
+    project_id: string;
+    protein_name?: string | null;
+    refseq_accession: string;
+    request_fingerprint: string;
+    requested_by: string;
+    result_message?: string | null;
+    sequence_upload_id: string;
+    source_checked_at?: string | null;
+    status?: string;
+    uniprot_accession?: string | null;
+    uniprot_entry_id?: string | null;
+    uniprot_release?: string | null;
+    uniprot_release_date?: string | null;
+    uniprot_response_bytes?: number | null;
+    uniprot_response_sha256?: string | null;
+    uniprot_reviewed?: boolean | null;
+    uniprot_sequence_sha256?: string | null;
+    updated_at?: string;
+  };
+  Update: Partial<ProteinAnnotationJob["Insert"]>;
+  Relationships: [];
+};
+
 type ScientificJob = {
   Row: {
     created_at: string;
@@ -218,6 +313,7 @@ type AuditCheckpoint = {
 type LiveTables = BaseTables & {
   audit_checkpoints: AuditCheckpoint;
   audit_events: AuditEvent;
+  protein_annotation_jobs: ProteinAnnotationJob;
   scientific_job_dependencies: ScientificJobDependency;
   scientific_job_inputs: ScientificJobInput;
   scientific_jobs: ScientificJob;
@@ -246,6 +342,22 @@ type LiveFunctions = BaseFunctions & {
       organization_id: string;
       payload_sha256: string;
       signing_payload: string;
+    }[];
+  };
+  claim_protein_annotation_job: {
+    Args: { visibility_seconds?: number };
+    Returns: {
+      input_file_size_bytes: number;
+      input_object_path: string;
+      input_residue_count: number;
+      input_sha256: string;
+      job_id: string;
+      message_id: number;
+      organization_id: string;
+      project_id: string;
+      refseq_accession: string;
+      requested_by: string;
+      sequence_upload_id: string;
     }[];
   };
   claim_scientific_job: {
@@ -290,6 +402,43 @@ type LiveFunctions = BaseFunctions & {
     Returns: string;
   };
   finish_phylogenetic_job_success: { Args: ScientificFinishArgs; Returns: undefined };
+  finish_protein_annotation_error: {
+    Args: { job_id: string; max_attempts?: number; message_id: number; processing_error: string; retryable?: boolean };
+    Returns: string;
+  };
+  finish_protein_annotation_no_mapping: {
+    Args: { connector_version: string; job_id: string; mapping_response_bytes: number; mapping_response_sha256: string; message_id: number };
+    Returns: undefined;
+  };
+  finish_protein_annotation_success: {
+    Args: {
+      annotation_summary: Json;
+      connector_version: string;
+      gene_names: Json;
+      interpro_entries: Json;
+      interpro_response_bytes: number;
+      interpro_response_sha256: string;
+      job_id: string;
+      mapping_candidate_count: number;
+      mapping_response_bytes: number;
+      mapping_response_sha256: string;
+      message_id: number;
+      organism_name: string;
+      pfam_entries: Json;
+      pfam_response_bytes: number;
+      pfam_response_sha256: string;
+      protein_name: string;
+      uniprot_accession: string;
+      uniprot_entry_id: string;
+      uniprot_release: string;
+      uniprot_release_date: string;
+      uniprot_response_bytes: number;
+      uniprot_response_sha256: string;
+      uniprot_reviewed: boolean;
+      uniprot_sequence_sha256: string;
+    };
+    Returns: undefined;
+  };
   finish_protein_properties_success: { Args: ScientificFinishArgs; Returns: undefined };
   finish_scientific_job_error: {
     Args: { failure_class: string; job_id: string; max_attempts?: number; message_id: number; processing_error: string; retryable?: boolean };
@@ -314,6 +463,10 @@ type LiveFunctions = BaseFunctions & {
   };
   request_phylogenetic_tree: {
     Args: { msa_job_id: string; project_id: string };
+    Returns: string;
+  };
+  request_protein_annotation: {
+    Args: { project_id: string; sequence_upload_id: string };
     Returns: string;
   };
   request_protein_properties: {
