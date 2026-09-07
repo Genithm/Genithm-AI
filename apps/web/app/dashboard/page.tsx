@@ -68,7 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   if (!userId) redirect("/login");
 
   const retrievalQuery = (supabase.from as any)("sequence_retrievals")
-    .select("id,project_id,source_database,requested_accession,resolved_accession,record_title,organism,reported_length,record_updated_date,status,sequence_upload_id,connector_version,source_retrieved_at,result_message,processing_attempts,processing_error,created_at")
+    .select("id,project_id,source_database,requested_accession,resolution_mode,freshness_policy,resolved_accession,record_title,organism,reported_length,record_updated_date,status,sequence_upload_id,connector_version,source_checked_at,source_retrieved_at,source_response_sha256,source_response_bytes,result_message,processing_attempts,processing_error,created_at")
     .order("created_at", { ascending: false })
     .limit(20);
   const blastQuery = (supabase.from as any)("blast_jobs")
@@ -127,18 +127,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Authoritative sequence retrieval</div><h2>Retrieve from NCBI</h2>
-        <p>Retrieve a nucleotide or protein accession through Genithm&apos;s controlled source connector, then validate and characterize it through the deterministic sequence pipeline.</p>
+        <p>Every new request checks the live NCBI source. An accession without a version resolves the current version at request time; an accession with a version such as <code>NM_000546.6</code> requires that exact record for reproducibility.</p>
         {projectOptions.length ? <form className="stack" action={requestNcbiSequence} style={{ maxWidth: 680 }}>
           <label>Project<select className="select" name="project_id" required>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
           <label>NCBI database<select className="select" name="database_name" required defaultValue="nucleotide"><option value="nucleotide">Nucleotide</option><option value="protein">Protein</option></select></label>
-          <label>Accession<input name="accession" required maxLength={64} placeholder="NM_000546.6" autoCapitalize="characters" /></label>
-          <button className="button primary">Queue NCBI retrieval</button>
+          <label>Accession<input name="accession" required maxLength={64} placeholder="NM_000546 or NM_000546.6" autoCapitalize="characters" /></label>
+          <button className="button primary">Queue live NCBI retrieval</button>
         </form> : <div className="notice">Create a project before requesting an NCBI record.</div>}
         <div className="list" style={{ marginTop: 18 }}>{retrievals.map((item) => <div className="item" key={item.id}>
           <strong>NCBI {item.source_database}: {item.resolved_accession ?? item.requested_accession}</strong>
           <div className="small">{String(item.status).replaceAll("_", " ")} · requested {new Date(item.created_at).toLocaleString()}</div>
+          <div className="small">Freshness: {item.resolution_mode === "exact_version" ? "exact accession.version" : "latest version at request time"} · policy: live source, no silent cache reuse</div>
+          {item.source_checked_at ? <div className="small">Authoritative source checked: {new Date(item.source_checked_at).toLocaleString()}</div> : null}
           {item.record_title ? <div>{item.record_title}</div> : null}
           {item.organism || item.reported_length ? <div className="small">{item.organism ?? "Organism unavailable"}{item.reported_length ? ` · ${item.reported_length} residues/bases` : ""}</div> : null}
+          {item.status === "retrieved" ? <div className="small">Connector: {item.connector_version ?? "unknown"}{item.record_updated_date ? ` · NCBI record updated ${item.record_updated_date}` : ""}{item.source_response_sha256 ? ` · Source SHA-256 ${String(item.source_response_sha256).slice(0, 16)}…` : ""}{item.source_response_bytes ? ` · ${formatBytes(Number(item.source_response_bytes))} source response` : ""}</div> : null}
           {item.result_message ? <div className={item.status === "rejected" || item.status === "not_found" ? "error" : "small"}>{item.result_message}</div> : null}
           {item.processing_error ? <div className="error">Retrieval error: {item.processing_error}</div> : null}
         </div>)}{!retrievals.length ? <div className="notice">No NCBI retrieval requests yet.</div> : null}</div>
