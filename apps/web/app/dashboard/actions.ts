@@ -185,3 +185,21 @@ export async function requestPhylogeneticTree(formData: FormData) {
   }
   revalidatePath("/dashboard");
 }
+
+export async function requestProteinProperties(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const sequenceUploadId = String(formData.get("sequence_upload_id") ?? "").trim();
+  if (!projectId || !sequenceUploadId) {
+    redirect("/dashboard?error=Select%20a%20validated%20protein%20sequence%20for%20protein%20analysis.");
+  }
+
+  const { error } = await supabase.rpc("request_protein_properties", {
+    project_id: projectId,
+    sequence_upload_id: sequenceUploadId,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue protein properties. V1 requires a ready, single-record, ungapped canonical protein sequence within the compute limit.")}`);
+  }
+  revalidatePath("/dashboard");
+}

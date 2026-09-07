@@ -290,6 +290,7 @@ type LiveFunctions = BaseFunctions & {
     Returns: string;
   };
   finish_phylogenetic_job_success: { Args: ScientificFinishArgs; Returns: undefined };
+  finish_protein_properties_success: { Args: ScientificFinishArgs; Returns: undefined };
   finish_scientific_job_error: {
     Args: { failure_class: string; job_id: string; max_attempts?: number; message_id: number; processing_error: string; retryable?: boolean };
     Returns: string;
@@ -313,6 +314,10 @@ type LiveFunctions = BaseFunctions & {
   };
   request_phylogenetic_tree: {
     Args: { msa_job_id: string; project_id: string };
+    Returns: string;
+  };
+  request_protein_properties: {
+    Args: { project_id: string; sequence_upload_id: string };
     Returns: string;
   };
   requeue_audit_checkpoint_request: {
