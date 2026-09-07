@@ -31,6 +31,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   } else if (job.job_type === "phylogenetic_tree") {
     filename = `genithm-tree-${job.id}.nwk`;
     contentType = "text/plain; charset=utf-8";
+  } else if (job.job_type === "protein_properties") {
+    filename = `genithm-protein-properties-${job.id}.json`;
   }
 
   return new Response(bytes, {
