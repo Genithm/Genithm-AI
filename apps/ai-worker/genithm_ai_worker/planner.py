@@ -15,6 +15,33 @@ ALLOWED_ACTIONS = {
     "protein_properties",
     "protein_annotation",
 }
+ACTION_PARAMETER_KEYS = {
+    "ncbi_sequence_retrieval": {"database_name", "accession"},
+    "blast": {"query_upload_id", "program", "expect_value", "max_targets", "low_complexity_filter"},
+    "pairwise_alignment": {"sequence_a_id", "sequence_b_id", "algorithm", "match_score", "mismatch_score", "gap_score"},
+    "multiple_sequence_alignment": {"sequence_upload_ids"},
+    "phylogenetic_tree": {"msa_job_id"},
+    "protein_properties": {"sequence_upload_id"},
+    "protein_annotation": {"sequence_upload_id"},
+}
+
+
+def _action_schema(action_type: str, properties: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["type", "parameters"],
+        "properties": {
+            "type": {"type": "string", "const": action_type},
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": list(properties),
+                "properties": properties,
+            },
+        },
+    }
+
 
 PLAN_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -32,15 +59,48 @@ PLAN_JSON_SCHEMA: dict[str, Any] = {
         "action": {
             "anyOf": [
                 {"type": "null"},
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["type", "parameters"],
-                    "properties": {
-                        "type": {"type": "string", "enum": sorted(ALLOWED_ACTIONS)},
-                        "parameters": {"type": "object"},
+                _action_schema(
+                    "ncbi_sequence_retrieval",
+                    {
+                        "database_name": {"type": "string", "enum": ["nucleotide", "protein"]},
+                        "accession": {"type": "string", "minLength": 3, "maxLength": 64},
                     },
-                },
+                ),
+                _action_schema(
+                    "blast",
+                    {
+                        "query_upload_id": {"type": "string", "minLength": 36, "maxLength": 36},
+                        "program": {"type": "string", "enum": ["blastn", "blastp"]},
+                        "expect_value": {"type": "number", "minimum": 1e-180, "maximum": 1000},
+                        "max_targets": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "low_complexity_filter": {"type": "boolean"},
+                    },
+                ),
+                _action_schema(
+                    "pairwise_alignment",
+                    {
+                        "sequence_a_id": {"type": "string", "minLength": 36, "maxLength": 36},
+                        "sequence_b_id": {"type": "string", "minLength": 36, "maxLength": 36},
+                        "algorithm": {"type": "string", "enum": ["global", "local"]},
+                        "match_score": {"type": "integer", "minimum": 1, "maximum": 10},
+                        "mismatch_score": {"type": "integer", "minimum": -10, "maximum": 0},
+                        "gap_score": {"type": "integer", "minimum": -20, "maximum": -1},
+                    },
+                ),
+                _action_schema(
+                    "multiple_sequence_alignment",
+                    {
+                        "sequence_upload_ids": {
+                            "type": "array",
+                            "minItems": 3,
+                            "maxItems": 50,
+                            "items": {"type": "string", "minLength": 36, "maxLength": 36},
+                        }
+                    },
+                ),
+                _action_schema("phylogenetic_tree", {"msa_job_id": {"type": "string", "minLength": 36, "maxLength": 36}}),
+                _action_schema("protein_properties", {"sequence_upload_id": {"type": "string", "minLength": 36, "maxLength": 36}}),
+                _action_schema("protein_annotation", {"sequence_upload_id": {"type": "string", "minLength": 36, "maxLength": 36}}),
             ]
         },
     },
@@ -59,8 +119,8 @@ Security and scientific integrity rules:
 6. User approval is required after planning. Your confidence never grants authorization.
 7. Do not claim an analysis has run. You are producing a plan only.
 8. Prefer authoritative computational workflows over estimation.
-9. For BLAST choose blastn for nucleotide inputs and blastp for protein inputs. Use only ready single-record sequences from context.
-10. Pairwise alignment requires two distinct ready single-record sequences. Use global unless the user explicitly asks for local alignment.
+9. For BLAST choose blastn for nucleotide inputs and blastp for protein inputs. Use only ready single-record sequences from context. Always provide all BLAST parameters required by the schema.
+10. Pairwise alignment requires two distinct ready single-record sequences. Use global unless the user explicitly asks for local alignment. Always provide the bounded scoring parameters required by the schema.
 11. MSA requires 3-50 ready single-record sequences of compatible type. Do not invent missing IDs.
 12. Phylogeny requires a completed multiple_sequence_alignment job from context.
 13. Protein properties requires a ready protein sequence. Protein annotation additionally requires an eligible NCBI-origin protein represented in context.
@@ -103,8 +163,12 @@ def validate_plan_shape(plan: object) -> dict[str, Any]:
         return plan
     if not isinstance(action, dict) or set(action) != {"type", "parameters"}:
         raise ValueError("scientific plan action is invalid")
-    if action.get("type") not in ALLOWED_ACTIONS or not isinstance(action.get("parameters"), dict):
+    action_type = action.get("type")
+    parameters = action.get("parameters")
+    if action_type not in ALLOWED_ACTIONS or not isinstance(parameters, dict):
         raise ValueError("scientific plan action is not allowlisted")
+    if set(parameters) != ACTION_PARAMETER_KEYS[action_type]:
+        raise ValueError("scientific plan parameters do not match the action contract")
     return plan
 
 
