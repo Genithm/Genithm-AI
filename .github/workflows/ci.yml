@@ -99,10 +99,10 @@ jobs:
           persist-credentials: false
       - name: Build worker image
         run: docker build --pull -t genithm-sequence-worker:ci apps/sequence-worker
-      - name: Verify CLI entrypoint
-        run: docker run --rm genithm-sequence-worker:ci --help
-      - name: Verify non-root runtime
-        run: docker run --rm --entrypoint python genithm-sequence-worker:ci -c "import os; assert os.geteuid() != 0, 'worker must not run as root'"
+      - name: Verify image declares non-root user
+        run: test "$(docker image inspect --format '{{.Config.User}}' genithm-sequence-worker:ci)" != "" && test "$(docker image inspect --format '{{.Config.User}}' genithm-sequence-worker:ci)" != "root" && test "$(docker image inspect --format '{{.Config.User}}' genithm-sequence-worker:ci)" != "0"
+      - name: Verify hardened runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m genithm-sequence-worker:ci --help
 
   source-worker:
     runs-on: ubuntu-latest
@@ -130,10 +130,10 @@ jobs:
           persist-credentials: false
       - name: Build source worker image
         run: docker build --pull -t genithm-source-worker:ci apps/source-worker
-      - name: Verify CLI entrypoint
-        run: docker run --rm genithm-source-worker:ci --help
-      - name: Verify non-root runtime
-        run: docker run --rm --entrypoint python genithm-source-worker:ci -c "import os; assert os.geteuid() != 0, 'source worker must not run as root'"
+      - name: Verify image declares non-root user
+        run: test "$(docker image inspect --format '{{.Config.User}}' genithm-source-worker:ci)" != "" && test "$(docker image inspect --format '{{.Config.User}}' genithm-source-worker:ci)" != "root" && test "$(docker image inspect --format '{{.Config.User}}' genithm-source-worker:ci)" != "0"
+      - name: Verify hardened runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m genithm-source-worker:ci --help
 
   blast-worker:
     runs-on: ubuntu-latest
@@ -161,7 +161,7 @@ jobs:
           persist-credentials: false
       - name: Build BLAST worker image
         run: docker build --pull -t genithm-blast-worker:ci apps/blast-worker
-      - name: Verify CLI entrypoint
-        run: docker run --rm genithm-blast-worker:ci --help
-      - name: Verify non-root runtime
-        run: docker run --rm --entrypoint python genithm-blast-worker:ci -c "import os; assert os.geteuid() != 0, 'BLAST worker must not run as root'"
+      - name: Verify image declares non-root user
+        run: test "$(docker image inspect --format '{{.Config.User}}' genithm-blast-worker:ci)" != "" && test "$(docker image inspect --format '{{.Config.User}}' genithm-blast-worker:ci)" != "root" && test "$(docker image inspect --format '{{.Config.User}}' genithm-blast-worker:ci)" != "0"
+      - name: Verify hardened runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m genithm-blast-worker:ci --help
