@@ -1,7 +1,15 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { createOrganization, createProject, requestBlastJob, requestNcbiSequence } from "./actions";
+import {
+  createOrganization,
+  createProject,
+  requestBlastJob,
+  requestMultipleSequenceAlignment,
+  requestNcbiSequence,
+  requestPairwiseAlignment,
+} from "./actions";
 import { SequenceUploadPanel } from "./sequence-upload-panel";
 
 function formatBytes(bytes: number) {
@@ -60,6 +68,10 @@ function parseBlastHits(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter(isRecord).slice(0, 5) : [];
 }
 
+function scientificSummary(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -67,33 +79,29 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
 
-  const retrievalQuery = (supabase.from as any)("sequence_retrievals")
-    .select("id,project_id,source_database,requested_accession,resolution_mode,freshness_policy,resolved_accession,record_title,organism,reported_length,record_updated_date,status,sequence_upload_id,connector_version,source_checked_at,source_retrieved_at,source_response_sha256,source_response_bytes,result_message,processing_attempts,processing_error,created_at")
-    .order("created_at", { ascending: false })
-    .limit(20);
-  const blastQuery = (supabase.from as any)("blast_jobs")
-    .select("id,project_id,query_upload_id,program,database_name,expect_value,max_targets,low_complexity_filter,status,query_sha256,remote_rid,poll_count,service_version,blast_version,database_reported,database_release,result_summary,normalized_hits,submitted_at,processing_finished_at,processing_error,created_at")
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  const [{ data: organizations }, { data: projects }, { data: sequenceUploadRows }, retrievalResult, blastResult] = await Promise.all([
+  const [{ data: organizations }, { data: projects }, { data: sequenceUploads }, { data: retrievals }, { data: blastJobs }, { data: scientificJobs }] = await Promise.all([
     supabase.from("organizations").select("id,name,slug,created_at").order("created_at", { ascending: true }),
     supabase.from("projects").select("id,organization_id,name,description,status,created_at").order("created_at", { ascending: false }),
-    supabase.from("sequence_uploads").select("*").order("created_at", { ascending: false }).limit(50),
-    retrievalQuery,
-    blastQuery,
+    supabase.from("sequence_uploads").select("*").order("created_at", { ascending: false }).limit(100),
+    supabase.from("sequence_retrievals")
+      .select("id,project_id,source_database,requested_accession,resolution_mode,freshness_policy,resolved_accession,record_title,organism,reported_length,record_updated_date,status,sequence_upload_id,connector_version,source_checked_at,source_retrieved_at,source_response_sha256,source_response_bytes,result_message,processing_attempts,processing_error,created_at")
+      .order("created_at", { ascending: false }).limit(20),
+    supabase.from("blast_jobs")
+      .select("id,project_id,query_upload_id,program,database_name,expect_value,max_targets,low_complexity_filter,status,query_sha256,remote_rid,poll_count,service_version,blast_version,database_reported,database_release,result_summary,normalized_hits,submitted_at,processing_finished_at,processing_error,created_at")
+      .order("created_at", { ascending: false }).limit(20),
+    supabase.from("scientific_jobs")
+      .select("id,project_id,job_type,tool_id,tool_version,status,parameters,processing_attempts,executor_version,result_bytes,result_sha256,result_summary,provenance,failure_class,processing_error,processing_finished_at,created_at")
+      .order("created_at", { ascending: false }).limit(30),
   ]);
 
-  type SequenceUploadRow = NonNullable<typeof sequenceUploadRows>[number] & {
-    sequence_statistics?: unknown;
-    statistics_version?: string | null;
-    statistics_calculated_at?: string | null;
-  };
-  const sequenceUploads = (sequenceUploadRows ?? []) as SequenceUploadRow[];
-  const readyBlastInputs = sequenceUploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
-  const retrievals = (retrievalResult.data ?? []) as any[];
-  const blastJobs = (blastResult.data ?? []) as any[];
+  const uploads = sequenceUploads ?? [];
+  const readySingleInputs = uploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, organization_id: project.organization_id, name: project.name }));
+  const projectNameById = new Map(projectOptions.map((project) => [project.id, project.name]));
+  const inputsByProject = new Map<string, typeof readySingleInputs>();
+  for (const project of projectOptions) inputsByProject.set(project.id, readySingleInputs.filter((upload) => upload.project_id === project.id));
+  const alignmentProjects = projectOptions.filter((project) => (inputsByProject.get(project.id)?.length ?? 0) >= 2);
+  const msaProjects = projectOptions.filter((project) => (inputsByProject.get(project.id)?.length ?? 0) >= 3);
 
   return (
     <main className="container dashboard">
@@ -126,6 +134,50 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Scientific execution</div><h2>Alignment workflows</h2>
+        <p>Pairwise and multiple-sequence alignments use the generalized scientific job engine. Inputs are revalidated by the worker, execution is isolated, and completed results carry tool, version, hashes, parameters, and provenance.</p>
+        <div className="section-grid">
+          <div>
+            <h3>Pairwise alignment</h3>
+            {alignmentProjects.length ? <form className="stack" action={requestPairwiseAlignment}>
+              <label>Project<select className="select" name="project_id" required>{alignmentProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+              <label>Sequence A<select className="select" name="sequence_a_id" required>{readySingleInputs.map((upload) => <option key={upload.id} value={upload.id}>{projectNameById.get(upload.project_id)} · {upload.original_filename} · {upload.sequence_type}</option>)}</select></label>
+              <label>Sequence B<select className="select" name="sequence_b_id" required>{readySingleInputs.map((upload) => <option key={upload.id} value={upload.id}>{projectNameById.get(upload.project_id)} · {upload.original_filename} · {upload.sequence_type}</option>)}</select></label>
+              <label>Algorithm<select className="select" name="algorithm" defaultValue="global"><option value="global">Global (Needleman–Wunsch)</option><option value="local">Local (Smith–Waterman)</option></select></label>
+              <div className="section-grid">
+                <label>Match<input type="number" name="match_score" min="1" max="10" defaultValue="2" /></label>
+                <label>Mismatch<input type="number" name="mismatch_score" min="-10" max="0" defaultValue="-1" /></label>
+              </div>
+              <label>Gap<input type="number" name="gap_score" min="-20" max="-1" defaultValue="-2" /></label>
+              <button className="button primary">Queue pairwise alignment</button>
+            </form> : <div className="notice">A project needs at least two ready single-record sequences before Pairwise Alignment can run.</div>}
+          </div>
+          <div>
+            <h3>Multiple Sequence Alignment</h3>
+            {msaProjects.length ? <form className="stack" action={requestMultipleSequenceAlignment}>
+              <label>Project<select className="select" name="project_id" required>{msaProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+              <label>Sequences (select 3–50)<select className="select" name="sequence_upload_ids" multiple required size={Math.min(10, Math.max(4, readySingleInputs.length))}>{readySingleInputs.map((upload) => <option key={upload.id} value={upload.id}>{projectNameById.get(upload.project_id)} · {upload.original_filename} · {upload.sequence_type} · {upload.residue_count}</option>)}</select></label>
+              <div className="small">Only same-project, same-type, validated ungapped inputs are accepted by the authoritative RPC.</div>
+              <button className="button primary">Queue MAFFT MSA</button>
+            </form> : <div className="notice">A project needs at least three ready single-record sequences before MSA can run.</div>}
+          </div>
+        </div>
+
+        <div className="list" style={{ marginTop: 18 }}>{(scientificJobs ?? []).map((job) => {
+          const summary = scientificSummary(job.result_summary);
+          const label = job.job_type === "multiple_sequence_alignment" ? "Multiple Sequence Alignment" : "Pairwise Alignment";
+          return <div className="item" key={job.id}>
+            <div className="dashboard-header"><div><strong>{label}</strong><div className="small">{projectNameById.get(job.project_id) ?? "Project"} · {job.status.replaceAll("_", " ")} · {new Date(job.created_at).toLocaleString()}</div></div><Link className="button" href={`/dashboard/scientific-jobs/${job.id}`}>Open result</Link></div>
+            <div className="small">Tool: {job.tool_id}/{job.tool_version}{job.executor_version ? ` · executor ${job.executor_version}` : ""} · attempts {job.processing_attempts}</div>
+            {job.status === "completed" && job.job_type === "pairwise_alignment" ? <div className="small">Score {String(summary.score ?? "n/a")} · identity {String(summary.identity_percent ?? "n/a")}% · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
+            {job.status === "completed" && job.job_type === "multiple_sequence_alignment" ? <div className="small">Sequences {String(summary.sequence_count ?? "n/a")} · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
+            {job.result_sha256 ? <div className="small">Result SHA-256 {job.result_sha256.slice(0, 20)}…{job.result_bytes ? ` · ${formatBytes(job.result_bytes)}` : ""}</div> : null}
+            {job.processing_error ? <div className="error">{job.failure_class ? `${job.failure_class.replaceAll("_", " ")}: ` : ""}{job.processing_error}</div> : null}
+          </div>;
+        })}{!scientificJobs?.length ? <div className="notice">No Pairwise or MSA jobs yet.</div> : null}</div>
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Authoritative sequence retrieval</div><h2>Retrieve from NCBI</h2>
         <p>Every new request checks the live NCBI source. An accession without a version resolves the current version at request time; an accession with a version such as <code>NM_000546.6</code> requires that exact record for reproducibility.</p>
         {projectOptions.length ? <form className="stack" action={requestNcbiSequence} style={{ maxWidth: 680 }}>
@@ -134,25 +186,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <label>Accession<input name="accession" required maxLength={64} placeholder="NM_000546 or NM_000546.6" autoCapitalize="characters" /></label>
           <button className="button primary">Queue live NCBI retrieval</button>
         </form> : <div className="notice">Create a project before requesting an NCBI record.</div>}
-        <div className="list" style={{ marginTop: 18 }}>{retrievals.map((item) => <div className="item" key={item.id}>
+        <div className="list" style={{ marginTop: 18 }}>{(retrievals ?? []).map((item) => <div className="item" key={item.id}>
           <strong>NCBI {item.source_database}: {item.resolved_accession ?? item.requested_accession}</strong>
-          <div className="small">{String(item.status).replaceAll("_", " ")} · requested {new Date(item.created_at).toLocaleString()}</div>
+          <div className="small">{item.status.replaceAll("_", " ")} · requested {new Date(item.created_at).toLocaleString()}</div>
           <div className="small">Freshness: {item.resolution_mode === "exact_version" ? "exact accession.version" : "latest version at request time"} · policy: live source, no silent cache reuse</div>
           {item.source_checked_at ? <div className="small">Authoritative source checked: {new Date(item.source_checked_at).toLocaleString()}</div> : null}
           {item.record_title ? <div>{item.record_title}</div> : null}
           {item.organism || item.reported_length ? <div className="small">{item.organism ?? "Organism unavailable"}{item.reported_length ? ` · ${item.reported_length} residues/bases` : ""}</div> : null}
-          {item.status === "retrieved" ? <div className="small">Connector: {item.connector_version ?? "unknown"}{item.record_updated_date ? ` · NCBI record updated ${item.record_updated_date}` : ""}{item.source_response_sha256 ? ` · Source SHA-256 ${String(item.source_response_sha256).slice(0, 16)}…` : ""}{item.source_response_bytes ? ` · ${formatBytes(Number(item.source_response_bytes))} source response` : ""}</div> : null}
+          {item.status === "retrieved" ? <div className="small">Connector: {item.connector_version ?? "unknown"}{item.record_updated_date ? ` · NCBI record updated ${item.record_updated_date}` : ""}{item.source_response_sha256 ? ` · Source SHA-256 ${item.source_response_sha256.slice(0, 16)}…` : ""}{item.source_response_bytes ? ` · ${formatBytes(item.source_response_bytes)} source response` : ""}</div> : null}
           {item.result_message ? <div className={item.status === "rejected" || item.status === "not_found" ? "error" : "small"}>{item.result_message}</div> : null}
           {item.processing_error ? <div className="error">Retrieval error: {item.processing_error}</div> : null}
-        </div>)}{!retrievals.length ? <div className="notice">No NCBI retrieval requests yet.</div> : null}</div>
+        </div>)}{!retrievals?.length ? <div className="notice">No NCBI retrieval requests yet.</div> : null}</div>
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Similarity search</div><h2>BLAST analysis</h2>
         <p>BLAST runs asynchronously through a controlled worker. Genithm validates the input and parameters, stores the raw XML privately, and normalizes scientific hits before they are shown here.</p>
-        {readyBlastInputs.length ? <form className="stack" action={requestBlastJob} style={{ maxWidth: 720 }}>
+        {readySingleInputs.length ? <form className="stack" action={requestBlastJob} style={{ maxWidth: 720 }}>
           <label>Project<select className="select" name="project_id" required>{projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-          <label>Validated single-record sequence<select className="select" name="query_upload_id" required>{readyBlastInputs.map((upload) => <option key={upload.id} value={upload.id}>{upload.original_filename} · {upload.sequence_type} · {upload.residue_count} residues/bases</option>)}</select></label>
+          <label>Validated single-record sequence<select className="select" name="query_upload_id" required>{readySingleInputs.map((upload) => <option key={upload.id} value={upload.id}>{upload.original_filename} · {upload.sequence_type} · {upload.residue_count} residues/bases</option>)}</select></label>
           <label>Program<select className="select" name="program" required defaultValue="blastn"><option value="blastn">blastn → NCBI core_nt</option><option value="blastp">blastp → Swiss-Prot</option></select></label>
           <label>E-value threshold<input name="expect_value" type="number" min="1e-180" max="1000" step="any" defaultValue="10" required /></label>
           <label>Maximum hits<input name="max_targets" type="number" min="1" max="20" defaultValue="20" required /></label>
@@ -160,15 +212,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <button className="button primary">Queue BLAST analysis</button>
         </form> : <div className="notice">A ready single-record FASTA is required before BLAST can run.</div>}
 
-        <div className="list" style={{ marginTop: 18 }}>{blastJobs.map((job) => {
+        <div className="list" style={{ marginTop: 18 }}>{(blastJobs ?? []).map((job) => {
           const hits = parseBlastHits(job.normalized_hits);
           return <div className="item" key={job.id}>
-            <strong>{String(job.program).toUpperCase()} · {job.database_name}</strong>
-            <div className="small">{String(job.status).replaceAll("_", " ")} · E-value ≤ {job.expect_value} · max {job.max_targets} hits · requested {new Date(job.created_at).toLocaleString()}</div>
+            <strong>{job.program.toUpperCase()} · {job.database_name}</strong>
+            <div className="small">{job.status.replaceAll("_", " ")} · E-value ≤ {job.expect_value} · max {job.max_targets} hits · requested {new Date(job.created_at).toLocaleString()}</div>
             {job.remote_rid ? <div className="small">NCBI RID: {job.remote_rid} · polls: {job.poll_count}</div> : null}
             {job.status === "completed" ? <>
               <div className="small">Tool: {job.blast_version ?? "unknown"} · Database: {job.database_reported ?? job.database_name}{job.database_release ? ` · ${job.database_release}` : ""}</div>
-              <div className="small">Query SHA-256: {String(job.query_sha256).slice(0, 16)}…</div>
+              <div className="small">Query SHA-256: {job.query_sha256.slice(0, 16)}…</div>
               {hits.map((hit, index) => <div className="notice" key={`${job.id}-${index}`} style={{ marginTop: 8 }}>
                 <strong>#{String(hit.rank ?? index + 1)} {String(hit.subject_id ?? "unknown subject")}</strong>
                 {hit.title ? <div>{String(hit.title)}</div> : null}
@@ -178,13 +230,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </> : null}
             {job.processing_error ? <div className="error">BLAST error: {job.processing_error}</div> : null}
           </div>;
-        })}{!blastJobs.length ? <div className="notice">No BLAST analyses yet.</div> : null}</div>
+        })}{!blastJobs?.length ? <div className="notice">No BLAST analyses yet.</div> : null}</div>
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="dashboard-header"><div><div className="eyebrow">Sequence ingestion</div><h2>Private FASTA inputs</h2><p>Files are private. Scientific metadata and statistics are produced by Genithm&apos;s deterministic worker and stored with versioned provenance.</p></div></div>
         <div className="section-grid"><SequenceUploadPanel projects={projectOptions} userId={userId} /><div><h2>Recent uploads</h2><div className="list">
-          {sequenceUploads.map((upload) => {
+          {uploads.map((upload) => {
             const warnings = warningLabels(upload.validation_warnings);
             const statistics = parseStatistics(upload.sequence_statistics);
             return <div className="item" key={upload.id}>
@@ -194,7 +246,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <div className="small">Validator: {upload.validator_version ?? "unknown"}{upload.sha256 ? ` · SHA-256 ${upload.sha256.slice(0, 16)}…` : ""}</div>{warnings.length ? <div className="small">Warnings: {warnings.join(", ")}</div> : null}</> : null}
               {upload.status === "rejected" && upload.validation_error ? <div className="error">Rejected: {upload.validation_error}</div> : null}{upload.status === "error" && upload.processing_error ? <div className="error">Processing error: {upload.processing_error}</div> : null}
             </div>;
-          })}{!sequenceUploads.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
+          })}{!uploads.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
         </div></div></div>
       </section>
     </main>
