@@ -74,3 +74,38 @@ export async function requestNcbiSequence(formData: FormData) {
   }
   revalidatePath("/dashboard");
 }
+
+export async function requestBlastJob(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const queryUploadId = String(formData.get("query_upload_id") ?? "").trim();
+  const program = String(formData.get("program") ?? "").trim().toLowerCase();
+  const databaseName = program === "blastp" ? "swissprot" : "core_nt";
+  const expectValue = Number(String(formData.get("expect_value") ?? "10"));
+  const maxTargets = Number.parseInt(String(formData.get("max_targets") ?? "20"), 10);
+  const lowComplexityFilter = formData.get("low_complexity_filter") !== null;
+
+  if (!projectId || !queryUploadId || !["blastn", "blastp"].includes(program)) {
+    redirect("/dashboard?error=Select%20a%20valid%20project,%20sequence,%20and%20BLAST%20program.");
+  }
+  if (!Number.isFinite(expectValue) || expectValue < 1e-180 || expectValue > 1000) {
+    redirect("/dashboard?error=BLAST%20E-value%20must%20be%20between%201e-180%20and%201000.");
+  }
+  if (!Number.isInteger(maxTargets) || maxTargets < 1 || maxTargets > 20) {
+    redirect("/dashboard?error=BLAST%20maximum%20targets%20must%20be%20between%201%20and%2020.");
+  }
+
+  const { error } = await (supabase.rpc as any)("request_blast_job", {
+    project_id: projectId,
+    query_upload_id: queryUploadId,
+    program,
+    database_name: databaseName,
+    expect_value: expectValue,
+    max_targets: maxTargets,
+    low_complexity_filter: lowComplexityFilter,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue this BLAST analysis. Check that the sequence is ready and compatible with the selected program.")}`);
+  }
+  revalidatePath("/dashboard");
+}
