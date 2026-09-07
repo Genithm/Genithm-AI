@@ -50,3 +50,28 @@ export async function createProject(formData: FormData) {
   if (error) redirect(`/dashboard?error=${encodeURIComponent("Could not create project in that organization.")}`);
   revalidatePath("/dashboard");
 }
+
+export async function requestNcbiSequence(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const databaseName = String(formData.get("database_name") ?? "nucleotide").trim().toLowerCase();
+  const accession = String(formData.get("accession") ?? "").trim().toUpperCase();
+
+  if (!projectId || !["nucleotide", "protein"].includes(databaseName)) {
+    redirect("/dashboard?error=Select%20a%20valid%20project%20and%20NCBI%20database.");
+  }
+  if (!/^(?=.*[A-Z])[A-Z0-9_]+(?:\.[0-9]+)?$/.test(accession) || accession.length > 64) {
+    redirect("/dashboard?error=Enter%20a%20valid%20NCBI%20accession%20identifier.");
+  }
+
+  // database.types.ts is refreshed from live Supabase in the same feature before merge.
+  const { error } = await (supabase.rpc as any)("request_ncbi_sequence_retrieval", {
+    project_id: projectId,
+    database_name: databaseName,
+    accession,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue the NCBI retrieval for this project.")}`);
+  }
+  revalidatePath("/dashboard");
+}
