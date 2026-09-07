@@ -130,6 +130,78 @@ export type Database = {
           },
         ]
       }
+      sequence_uploads: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          created_by: string
+          file_size_bytes: number
+          id: string
+          object_path: string
+          organization_id: string
+          original_filename: string
+          project_id: string
+          residue_count: number | null
+          sequence_count: number | null
+          sequence_type: string | null
+          sha256: string | null
+          status: string
+          updated_at: string
+          validation_error: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          created_by: string
+          file_size_bytes: number
+          id: string
+          object_path: string
+          organization_id: string
+          original_filename: string
+          project_id: string
+          residue_count?: number | null
+          sequence_count?: number | null
+          sequence_type?: string | null
+          sha256?: string | null
+          status?: string
+          updated_at?: string
+          validation_error?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          created_by?: string
+          file_size_bytes?: number
+          id?: string
+          object_path?: string
+          organization_id?: string
+          original_filename?: string
+          project_id?: string
+          residue_count?: number | null
+          sequence_count?: number | null
+          sequence_type?: string | null
+          sha256?: string | null
+          status?: string
+          updated_at?: string
+          validation_error?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_uploads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_uploads_project_org_fkey"
+            columns: ["project_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
