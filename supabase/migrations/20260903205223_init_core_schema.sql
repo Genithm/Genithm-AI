@@ -1,0 +1,2 @@
+-- Historical remote migration retained so repository history matches the Genithm Supabase project.
+-- Its previous application schema is intentionally superseded by 20260907154510_reset_public_app_schema.sql.

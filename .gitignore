@@ -1,0 +1,27 @@
+# Node
+node_modules/
+.next/
+out/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
