@@ -60,7 +60,7 @@ def test_canonical_result_has_integrity_stable_json() -> None:
     parsed = json.loads(data)
     assert parsed["summary"] == summary
     assert parsed["provenance"] == provenance
-    assert provenance["executor_version"] == "genithm-scientific-worker/0.2.0"
+    assert provenance["executor_version"] == "genithm-scientific-worker/0.3.0"
     assert summary["input_a_sha256"] == "a" * 64
     assert summary["input_b_sha256"] == "b" * 64
     assert len(hashlib.sha256(data).hexdigest()) == 64
