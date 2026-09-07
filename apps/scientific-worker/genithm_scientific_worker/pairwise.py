@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 TOOL_ID = "genithm-pairwise-aligner"
 TOOL_VERSION = "0.1.0"
-EXECUTOR_VERSION = "genithm-scientific-worker/0.2.0"
+EXECUTOR_VERSION = "genithm-scientific-worker/0.3.0"
 GAPS = frozenset("-.")
 
 
@@ -96,7 +96,7 @@ def align(
 
     n, m = len(sequence_a), len(sequence_b)
     scores = [[0] * (m + 1) for _ in range(n + 1)]
-    trace = [[0] * (m + 1) for _ in range(n + 1)]  # 1 diag, 2 up, 3 left
+    trace = [[0] * (m + 1) for _ in range(n + 1)]
 
     if algorithm == "global":
         for i in range(1, n + 1):
