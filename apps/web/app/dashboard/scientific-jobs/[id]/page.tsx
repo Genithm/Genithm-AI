@@ -14,7 +14,15 @@ function pretty(value: unknown) {
 function jobTitle(jobType: string) {
   if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
   if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
+  if (jobType === "protein_properties") return "Protein Properties";
   return "Pairwise Alignment";
+}
+
+function proteinComposition(value: unknown): Array<[string, number]> {
+  if (!isRecord(value)) return [];
+  return Object.entries(value)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))
+    .sort(([left], [right]) => left.localeCompare(right));
 }
 
 export default async function ScientificJobPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,6 +49,7 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
   if (error || !job) notFound();
   const summary = isRecord(job.result_summary) ? job.result_summary : {};
   const title = jobTitle(job.job_type);
+  const composition = proteinComposition(summary.amino_acid_composition);
 
   return (
     <main className="container dashboard">
@@ -80,6 +89,14 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
             <div className="item"><strong>Support-labelled internal nodes</strong><div>{String(summary.internal_support_count ?? "n/a")}</div></div>
             <div className="item"><strong>Source MSA SHA-256</strong><div><code>{String(summary.source_msa_sha256 ?? "n/a")}</code></div></div>
           </div> : null}
+          {job.job_type === "protein_properties" && job.status === "completed" ? <div className="list">
+            <div className="item"><strong>Length</strong><div>{String(summary.length ?? "n/a")} amino acids</div></div>
+            <div className="item"><strong>Average molecular weight</strong><div>{String(summary.molecular_weight_da ?? "n/a")} Da</div></div>
+            <div className="item"><strong>Aromaticity</strong><div>{typeof summary.aromaticity_fraction === "number" ? `${(summary.aromaticity_fraction * 100).toFixed(3)}%` : "n/a"}</div></div>
+            <div className="item"><strong>GRAVY</strong><div>{String(summary.gravy ?? "n/a")}</div></div>
+            <div className="item"><strong>Estimated net charge at pH 7</strong><div>{String(summary.estimated_net_charge_ph7 ?? "n/a")}</div></div>
+            <div className="item"><strong>Estimated isoelectric point</strong><div>{String(summary.estimated_isoelectric_point ?? "n/a")}</div></div>
+          </div> : null}
           {job.status !== "completed" ? <div className="notice">The result summary becomes available after the isolated scientific worker completes this job.</div> : null}
         </section>
 
@@ -92,6 +109,14 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
           </div>)}</div> : <div className="notice">This job derives from a prior scientific result rather than a raw sequence upload.</div>}
         </section>
       </div>
+
+      {job.job_type === "protein_properties" && job.status === "completed" ? <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Protein composition</div><h3>Amino-acid counts</h3>
+        {composition.length ? <div className="list">{composition.map(([aminoAcid, count]) => <div className="item" key={aminoAcid}><strong>{aminoAcid}</strong><div>{count}</div></div>)}</div> : <div className="notice">Amino-acid composition was not available in the normalized result.</div>}
+        <div className="notice" style={{ marginTop: 18 }}>
+          Charge and isoelectric point are deterministic estimates under the recorded V1 pKa model. This calculation does not model post-translational modifications, disulfide state, cofactors, terminal modifications, domains, motifs, structure, or biological function.
+        </div>
+      </section> : null}
 
       {(dependencies ?? []).length ? <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Workflow lineage</div><h3>Scientific job dependencies</h3>
