@@ -64,7 +64,6 @@ export async function requestNcbiSequence(formData: FormData) {
     redirect("/dashboard?error=Enter%20a%20valid%20NCBI%20accession%20identifier.");
   }
 
-  // database.types.ts is refreshed from live Supabase in the same feature before merge.
   const { error } = await (supabase.rpc as any)("request_ncbi_sequence_retrieval", {
     project_id: projectId,
     database_name: databaseName,
