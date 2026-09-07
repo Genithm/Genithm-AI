@@ -13,7 +13,8 @@ RUN addgroup --system genithm \
 COPY pyproject.toml ./
 COPY genithm_sequence_worker ./genithm_sequence_worker
 
-RUN python -m pip install .
+RUN python -m pip install . \
+    && python -m pip uninstall -y pip setuptools
 
 USER genithm
 
