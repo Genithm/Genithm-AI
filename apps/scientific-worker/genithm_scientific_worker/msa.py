@@ -8,7 +8,7 @@ from pathlib import Path
 
 TOOL_ID = "mafft"
 TOOL_VERSION = "7.505-1"
-EXECUTOR_VERSION = "genithm-scientific-worker/0.2.0"
+EXECUTOR_VERSION = "genithm-scientific-worker/0.3.0"
 MAX_SEQUENCES = 50
 MAX_TOTAL_RESIDUES = 100_000
 MAX_ALIGNMENT_BYTES = 25 * 1024 * 1024

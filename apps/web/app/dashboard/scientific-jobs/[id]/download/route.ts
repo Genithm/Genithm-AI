@@ -23,8 +23,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (downloadError || !data) return NextResponse.json({ error: "Scientific result could not be retrieved." }, { status: 404 });
 
   const bytes = await data.arrayBuffer();
-  const filename = job.job_type === "multiple_sequence_alignment" ? `genithm-msa-${job.id}.fasta` : `genithm-pairwise-${job.id}.json`;
-  const contentType = job.job_type === "multiple_sequence_alignment" ? "text/plain; charset=utf-8" : "application/json; charset=utf-8";
+  let filename = `genithm-pairwise-${job.id}.json`;
+  let contentType = "application/json; charset=utf-8";
+  if (job.job_type === "multiple_sequence_alignment") {
+    filename = `genithm-msa-${job.id}.fasta`;
+    contentType = "text/plain; charset=utf-8";
+  } else if (job.job_type === "phylogenetic_tree") {
+    filename = `genithm-tree-${job.id}.nwk`;
+    contentType = "text/plain; charset=utf-8";
+  }
 
   return new Response(bytes, {
     status: 200,

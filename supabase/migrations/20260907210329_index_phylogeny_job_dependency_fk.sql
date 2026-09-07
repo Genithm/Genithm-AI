@@ -1,0 +1,2 @@
+create index scientific_job_dependencies_job_project_org_idx
+on public.scientific_job_dependencies(job_id, project_id, organization_id);

@@ -9,6 +9,7 @@ import {
   requestMultipleSequenceAlignment,
   requestNcbiSequence,
   requestPairwiseAlignment,
+  requestPhylogeneticTree,
 } from "./actions";
 import { SequenceUploadPanel } from "./sequence-upload-panel";
 
@@ -72,6 +73,12 @@ function scientificSummary(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+function scientificLabel(jobType: string) {
+  if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
+  if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
+  return "Pairwise Alignment";
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -91,10 +98,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .order("created_at", { ascending: false }).limit(20),
     supabase.from("scientific_jobs")
       .select("id,project_id,job_type,tool_id,tool_version,status,parameters,processing_attempts,executor_version,result_bytes,result_sha256,result_summary,provenance,failure_class,processing_error,processing_finished_at,created_at")
-      .order("created_at", { ascending: false }).limit(30),
+      .order("created_at", { ascending: false }).limit(50),
   ]);
 
   const uploads = sequenceUploads ?? [];
+  const jobs = scientificJobs ?? [];
   const readySingleInputs = uploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, organization_id: project.organization_id, name: project.name }));
   const projectNameById = new Map(projectOptions.map((project) => [project.id, project.name]));
@@ -102,6 +110,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   for (const project of projectOptions) inputsByProject.set(project.id, readySingleInputs.filter((upload) => upload.project_id === project.id));
   const alignmentProjects = projectOptions.filter((project) => (inputsByProject.get(project.id)?.length ?? 0) >= 2);
   const msaProjects = projectOptions.filter((project) => (inputsByProject.get(project.id)?.length ?? 0) >= 3);
+  const completedMsaJobs = jobs.filter((job) => job.job_type === "multiple_sequence_alignment" && job.status === "completed" && !!job.result_sha256);
 
   return (
     <main className="container dashboard">
@@ -162,19 +171,39 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </form> : <div className="notice">A project needs at least three ready single-record sequences before MSA can run.</div>}
           </div>
         </div>
+      </section>
 
-        <div className="list" style={{ marginTop: 18 }}>{(scientificJobs ?? []).map((job) => {
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Phylogeny</div><h2>Build a tree from a completed MSA</h2>
+        <p>FastTree V1 derives an approximate maximum-likelihood Newick tree from an immutable completed MSA result. Nucleotide alignments use GTR+CAT; protein alignments use the FastTree JTT+CAT default. The source MSA result hash is preserved as an explicit job dependency.</p>
+        <div className="list">{completedMsaJobs.map((msa) => {
+          const summary = scientificSummary(msa.result_summary);
+          return <div className="item" key={msa.id}>
+            <div className="dashboard-header"><div><strong>{projectNameById.get(msa.project_id) ?? "Project"} · MSA source</strong><div className="small">{String(summary.sequence_count ?? "n/a")} sequences · aligned length {String(summary.aligned_length ?? "n/a")} · SHA-256 {msa.result_sha256?.slice(0, 20)}…</div></div>
+              <form action={requestPhylogeneticTree}>
+                <input type="hidden" name="project_id" value={msa.project_id} />
+                <input type="hidden" name="msa_job_id" value={msa.id} />
+                <button className="button primary">Queue phylogenetic tree</button>
+              </form>
+            </div>
+          </div>;
+        })}{!completedMsaJobs.length ? <div className="notice">A completed MAFFT MSA is required before a phylogenetic tree can be requested.</div> : null}</div>
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Scientific job history</div><h2>Recent scientific analyses</h2>
+        <div className="list">{jobs.map((job) => {
           const summary = scientificSummary(job.result_summary);
-          const label = job.job_type === "multiple_sequence_alignment" ? "Multiple Sequence Alignment" : "Pairwise Alignment";
           return <div className="item" key={job.id}>
-            <div className="dashboard-header"><div><strong>{label}</strong><div className="small">{projectNameById.get(job.project_id) ?? "Project"} · {job.status.replaceAll("_", " ")} · {new Date(job.created_at).toLocaleString()}</div></div><Link className="button" href={`/dashboard/scientific-jobs/${job.id}`}>Open result</Link></div>
+            <div className="dashboard-header"><div><strong>{scientificLabel(job.job_type)}</strong><div className="small">{projectNameById.get(job.project_id) ?? "Project"} · {job.status.replaceAll("_", " ")} · {new Date(job.created_at).toLocaleString()}</div></div><Link className="button" href={`/dashboard/scientific-jobs/${job.id}`}>Open result</Link></div>
             <div className="small">Tool: {job.tool_id}/{job.tool_version}{job.executor_version ? ` · executor ${job.executor_version}` : ""} · attempts {job.processing_attempts}</div>
             {job.status === "completed" && job.job_type === "pairwise_alignment" ? <div className="small">Score {String(summary.score ?? "n/a")} · identity {String(summary.identity_percent ?? "n/a")}% · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
             {job.status === "completed" && job.job_type === "multiple_sequence_alignment" ? <div className="small">Sequences {String(summary.sequence_count ?? "n/a")} · aligned length {String(summary.aligned_length ?? "n/a")}</div> : null}
+            {job.status === "completed" && job.job_type === "phylogenetic_tree" ? <div className="small">Model {String(summary.model ?? "n/a")} · leaves {String(summary.leaf_count ?? "n/a")} · support-labelled internal nodes {String(summary.internal_support_count ?? "n/a")}</div> : null}
             {job.result_sha256 ? <div className="small">Result SHA-256 {job.result_sha256.slice(0, 20)}…{job.result_bytes ? ` · ${formatBytes(job.result_bytes)}` : ""}</div> : null}
             {job.processing_error ? <div className="error">{job.failure_class ? `${job.failure_class.replaceAll("_", " ")}: ` : ""}{job.processing_error}</div> : null}
           </div>;
-        })}{!scientificJobs?.length ? <div className="notice">No Pairwise or MSA jobs yet.</div> : null}</div>
+        })}{!jobs.length ? <div className="notice">No scientific jobs yet.</div> : null}</div>
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>

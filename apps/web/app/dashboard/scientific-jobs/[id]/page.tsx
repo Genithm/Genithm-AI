@@ -11,13 +11,19 @@ function pretty(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+function jobTitle(jobType: string) {
+  if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
+  if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
+  return "Pairwise Alignment";
+}
+
 export default async function ScientificJobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
 
-  const [{ data: job, error }, { data: inputs }] = await Promise.all([
+  const [{ data: job, error }, { data: inputs }, { data: dependencies }] = await Promise.all([
     supabase.from("scientific_jobs")
       .select("id,project_id,organization_id,job_type,tool_id,tool_version,status,parameters,processing_attempts,executor_version,result_object_path,result_sha256,result_bytes,result_summary,provenance,failure_class,processing_error,processing_started_at,processing_finished_at,created_at")
       .eq("id", id)
@@ -26,11 +32,15 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
       .select("input_position,input_role,sequence_upload_id,input_sha256,sequence_type,residue_count")
       .eq("job_id", id)
       .order("input_position", { ascending: true }),
+    supabase.from("scientific_job_dependencies")
+      .select("dependency_job_id,dependency_role,dependency_result_sha256,created_at")
+      .eq("job_id", id)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (error || !job) notFound();
   const summary = isRecord(job.result_summary) ? job.result_summary : {};
-  const title = job.job_type === "multiple_sequence_alignment" ? "Multiple Sequence Alignment" : "Pairwise Alignment";
+  const title = jobTitle(job.job_type);
 
   return (
     <main className="container dashboard">
@@ -64,18 +74,33 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
             <div className="item"><strong>Aligned length</strong><div>{String(summary.aligned_length ?? "n/a")}</div></div>
             <div className="item"><strong>Strategy</strong><div>{String(summary.strategy ?? "n/a")}</div></div>
           </div> : null}
+          {job.job_type === "phylogenetic_tree" && job.status === "completed" ? <div className="list">
+            <div className="item"><strong>Model</strong><div>{String(summary.model ?? "n/a")}</div></div>
+            <div className="item"><strong>Leaves</strong><div>{String(summary.leaf_count ?? "n/a")}</div></div>
+            <div className="item"><strong>Support-labelled internal nodes</strong><div>{String(summary.internal_support_count ?? "n/a")}</div></div>
+            <div className="item"><strong>Source MSA SHA-256</strong><div><code>{String(summary.source_msa_sha256 ?? "n/a")}</code></div></div>
+          </div> : null}
           {job.status !== "completed" ? <div className="notice">The result summary becomes available after the isolated scientific worker completes this job.</div> : null}
         </section>
 
         <section className="card">
           <div className="eyebrow">Inputs</div><h3>Immutable input references</h3>
-          <div className="list">{(inputs ?? []).map((input) => <div className="item" key={`${input.input_position}-${input.sequence_upload_id}`}>
+          {(inputs ?? []).length ? <div className="list">{(inputs ?? []).map((input) => <div className="item" key={`${input.input_position}-${input.sequence_upload_id}`}>
             <strong>#{input.input_position} · {input.input_role}</strong>
             <div className="small">{input.sequence_type} · {input.residue_count} residues/bases</div>
             <div className="small">SHA-256 <code>{input.input_sha256}</code></div>
-          </div>)}</div>
+          </div>)}</div> : <div className="notice">This job derives from a prior scientific result rather than a raw sequence upload.</div>}
         </section>
       </div>
+
+      {(dependencies ?? []).length ? <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Workflow lineage</div><h3>Scientific job dependencies</h3>
+        <div className="list">{(dependencies ?? []).map((dependency) => <div className="item" key={`${dependency.dependency_job_id}-${dependency.dependency_role}`}>
+          <strong>{dependency.dependency_role.replaceAll("_", " ")}</strong>
+          <div className="small">Result SHA-256 <code>{dependency.dependency_result_sha256}</code></div>
+          <Link className="button" href={`/dashboard/scientific-jobs/${dependency.dependency_job_id}`}>Open source job</Link>
+        </div>)}</div>
+      </section> : null}
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Reproducibility</div><h3>Parameters</h3>

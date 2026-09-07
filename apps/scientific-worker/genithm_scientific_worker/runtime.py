@@ -29,9 +29,16 @@ from .pairwise import (
     align,
     parse_single_fasta as parse_pairwise_fasta,
 )
+from .phylogeny import (
+    EXECUTOR_VERSION as PHYLOGENY_EXECUTOR_VERSION,
+    TOOL_ID as PHYLOGENY_TOOL_ID,
+    TOOL_VERSION as PHYLOGENY_TOOL_VERSION,
+    PhylogenyError,
+    run_fasttree,
+)
 
 LOGGER = logging.getLogger("genithm.scientific-worker")
-WORKER_VERSION = "genithm-scientific-worker/0.2.0"
+WORKER_VERSION = "genithm-scientific-worker/0.3.0"
 MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_RESULT_BYTES = 25 * 1024 * 1024
 
@@ -91,18 +98,20 @@ class Client:
             raise RuntimeError(f"Supabase RPC {name} connection failed") from exc
         return json.loads(raw) if raw else None
 
-    def download(self, path: str, expected_size: int, expected_sha256: str) -> bytes:
-        if expected_size < 1 or expected_size > MAX_INPUT_BYTES:
-            raise ValueError("scientific input file exceeds worker read limit")
+    def _download_storage_object(self, bucket: str, path: str, expected_size: int, expected_sha256: str, max_bytes: int) -> bytes:
+        if expected_size < 1 or expected_size > max_bytes:
+            raise ValueError("scientific input artifact exceeds worker read limit")
+        if not expected_sha256 or len(expected_sha256) != 64:
+            raise ValueError("scientific input artifact SHA-256 metadata is invalid")
         encoded = quote(path, safe="/")
         request = Request(
-            f"{self.config.supabase_url}/storage/v1/object/authenticated/sequence-inputs/{encoded}",
+            f"{self.config.supabase_url}/storage/v1/object/authenticated/{bucket}/{encoded}",
             headers=self._headers(),
             method="GET",
         )
         try:
             with urlopen(request, timeout=30) as response:
-                data = response.read(MAX_INPUT_BYTES + 1)
+                data = response.read(max_bytes + 1)
         except HTTPError as exc:
             raise RuntimeError(f"input download failed with HTTP {exc.code}") from exc
         except URLError as exc:
@@ -110,6 +119,12 @@ class Client:
         if len(data) != expected_size or hashlib.sha256(data).hexdigest() != expected_sha256:
             raise ValueError("scientific input integrity check failed")
         return data
+
+    def download(self, path: str, expected_size: int, expected_sha256: str) -> bytes:
+        return self._download_storage_object("sequence-inputs", path, expected_size, expected_sha256, MAX_INPUT_BYTES)
+
+    def download_result(self, path: str, expected_size: int, expected_sha256: str) -> bytes:
+        return self._download_storage_object("analysis-results", path, expected_size, expected_sha256, MAX_RESULT_BYTES)
 
     def _existing_result_matches(self, path: str, expected: bytes) -> bool:
         encoded = quote(path, safe="/")
@@ -251,6 +266,47 @@ def process_msa(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, A
     return data, summary, provenance, path, "text/plain; charset=utf-8", MSA_EXECUTOR_VERSION
 
 
+def process_phylogeny(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
+    if job["tool_id"] != PHYLOGENY_TOOL_ID or job["tool_version"] != PHYLOGENY_TOOL_VERSION:
+        raise PhylogenyError("claimed job does not match approved FastTree executor")
+    params = job.get("parameters")
+    if not isinstance(params, dict):
+        raise PhylogenyError("phylogenetic job parameters are invalid")
+    source_path = str(params.get("source_result_object_path", ""))
+    source_sha = str(params.get("source_result_sha256", ""))
+    source_size = int(params.get("source_result_bytes", 0))
+    source_job_id = str(params.get("source_msa_job_id", ""))
+    sequence_type = str(params.get("sequence_type", ""))
+    expected_count = int(params.get("sequence_count", 0))
+    expected_model = str(params.get("model", ""))
+    if not source_path or not source_job_id or expected_count < 3 or expected_count > 50:
+        raise PhylogenyError("phylogenetic source MSA provenance is incomplete")
+    source = client.download_result(source_path, source_size, source_sha)
+    data, metrics, model = run_fasttree(source, sequence_type=sequence_type, expected_count=expected_count)
+    if model != expected_model:
+        raise PhylogenyError("phylogenetic model does not match authoritative job parameters")
+    summary = {
+        "job_type": "phylogenetic_tree",
+        "model": model,
+        "leaf_count": metrics.leaf_count,
+        "internal_support_count": metrics.internal_support_count,
+        "source_msa_job_id": source_job_id,
+        "source_msa_sha256": source_sha,
+    }
+    provenance = {
+        "tool_id": PHYLOGENY_TOOL_ID,
+        "tool_version": PHYLOGENY_TOOL_VERSION,
+        "executor_version": PHYLOGENY_EXECUTOR_VERSION,
+        "request_fingerprint": str(job["request_fingerprint"]),
+        "source_msa_job_id": source_job_id,
+        "source_msa_sha256": source_sha,
+        "source_msa_object_path": source_path,
+        "model": model,
+    }
+    path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/tree-result.nwk"
+    return data, summary, provenance, path, "text/plain; charset=utf-8", PHYLOGENY_EXECUTOR_VERSION
+
+
 def process_one(client: Client) -> bool:
     rows = client.rpc("claim_scientific_job", {"visibility_seconds": client.config.visibility_seconds})
     if not rows:
@@ -261,13 +317,18 @@ def process_one(client: Client) -> bool:
     try:
         if job["job_type"] == "pairwise_alignment":
             data, summary, provenance, path, content_type, executor_version = process_pairwise(client, job)
+            success_rpc = "finish_scientific_job_success"
         elif job["job_type"] == "multiple_sequence_alignment":
             data, summary, provenance, path, content_type, executor_version = process_msa(client, job)
+            success_rpc = "finish_scientific_job_success"
+        elif job["job_type"] == "phylogenetic_tree":
+            data, summary, provenance, path, content_type, executor_version = process_phylogeny(client, job)
+            success_rpc = "finish_phylogenetic_job_success"
         else:
             raise ValueError("claimed scientific job type is not supported by this worker")
 
         client.upload_result(path, data, content_type)
-        client.rpc("finish_scientific_job_success", {
+        client.rpc(success_rpc, {
             "message_id": message_id,
             "job_id": job_id,
             "executor_version": executor_version,
@@ -278,11 +339,11 @@ def process_one(client: Client) -> bool:
             "provenance": provenance,
         })
         LOGGER.info("scientific job completed job_id=%s type=%s", job_id, job["job_type"])
-    except (PairwiseAlignmentError, MsaError, ValueError) as exc:
+    except (PairwiseAlignmentError, MsaError, PhylogenyError, ValueError) as exc:
         client.rpc("finish_scientific_job_error", {
             "message_id": message_id,
             "job_id": job_id,
-            "failure_class": "input_integrity" if not isinstance(exc, MsaError) else "output_validation",
+            "failure_class": "output_validation" if isinstance(exc, (MsaError, PhylogenyError)) else "input_integrity",
             "processing_error": str(exc)[:2000],
             "retryable": False,
             "max_attempts": client.config.max_attempts,

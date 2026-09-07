@@ -1,10 +1,9 @@
 import type { Database as BaseDatabase, Json } from "@/lib/database.types";
 
 // Live-schema overlay generated from the Genithm Supabase project after the
-// audit, generalized scientific-job, Pairwise, and MSA migrations. Keeping
-// this overlay explicit lets the application remain type-safe while the
-// repository transitions the older generated baseline to fully automated
-// schema generation.
+// audit and generalized scientific-job migrations. Keeping this overlay
+// explicit lets the application remain type-safe while the repository
+// transitions the older generated baseline to automated schema generation.
 type BasePublic = BaseDatabase["public"];
 type BaseTables = BasePublic["Tables"];
 type BaseFunctions = BasePublic["Functions"];
@@ -119,6 +118,31 @@ type ScientificJobInput = {
   Relationships: [];
 };
 
+type ScientificJobDependency = {
+  Row: {
+    created_at: string;
+    dependency_job_id: string;
+    dependency_result_object_path: string;
+    dependency_result_sha256: string;
+    dependency_role: string;
+    job_id: string;
+    organization_id: string;
+    project_id: string;
+  };
+  Insert: {
+    created_at?: string;
+    dependency_job_id: string;
+    dependency_result_object_path: string;
+    dependency_result_sha256: string;
+    dependency_role: string;
+    job_id: string;
+    organization_id: string;
+    project_id: string;
+  };
+  Update: Partial<ScientificJobDependency["Insert"]>;
+  Relationships: [];
+};
+
 type AuditEvent = {
   Row: {
     actor_type: string;
@@ -194,9 +218,21 @@ type AuditCheckpoint = {
 type LiveTables = BaseTables & {
   audit_checkpoints: AuditCheckpoint;
   audit_events: AuditEvent;
+  scientific_job_dependencies: ScientificJobDependency;
   scientific_job_inputs: ScientificJobInput;
   scientific_jobs: ScientificJob;
   sequence_retrievals: SequenceRetrieval;
+};
+
+type ScientificFinishArgs = {
+  executor_version: string;
+  job_id: string;
+  message_id: number;
+  provenance: Json;
+  result_bytes: number;
+  result_object_path: string;
+  result_sha256: string;
+  result_summary: Json;
 };
 
 type LiveFunctions = BaseFunctions & {
@@ -253,23 +289,12 @@ type LiveFunctions = BaseFunctions & {
     };
     Returns: string;
   };
+  finish_phylogenetic_job_success: { Args: ScientificFinishArgs; Returns: undefined };
   finish_scientific_job_error: {
     Args: { failure_class: string; job_id: string; max_attempts?: number; message_id: number; processing_error: string; retryable?: boolean };
     Returns: string;
   };
-  finish_scientific_job_success: {
-    Args: {
-      executor_version: string;
-      job_id: string;
-      message_id: number;
-      provenance: Json;
-      result_bytes: number;
-      result_object_path: string;
-      result_sha256: string;
-      result_summary: Json;
-    };
-    Returns: undefined;
-  };
+  finish_scientific_job_success: { Args: ScientificFinishArgs; Returns: undefined };
   request_multiple_sequence_alignment: {
     Args: { project_id: string; sequence_upload_ids: string[] };
     Returns: string;
@@ -284,6 +309,10 @@ type LiveFunctions = BaseFunctions & {
       sequence_a_id: string;
       sequence_b_id: string;
     };
+    Returns: string;
+  };
+  request_phylogenetic_tree: {
+    Args: { msa_job_id: string; project_id: string };
     Returns: string;
   };
   requeue_audit_checkpoint_request: {
