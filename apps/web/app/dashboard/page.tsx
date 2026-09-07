@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { createOrganization, createProject } from "./actions";
+import { createOrganization, createProject, requestNcbiSequence } from "./actions";
 import { SequenceUploadPanel } from "./sequence-upload-panel";
 
 function formatBytes(bytes: number) {
@@ -67,10 +67,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/login");
 
-  const [{ data: organizations }, { data: projects }, { data: sequenceUploadRows }] = await Promise.all([
+  const retrievalQuery = (supabase.from as any)("sequence_retrievals")
+    .select("id,project_id,source_database,requested_accession,resolved_accession,record_title,organism,reported_length,record_updated_date,status,sequence_upload_id,connector_version,source_retrieved_at,result_message,processing_attempts,processing_error,created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const [{ data: organizations }, { data: projects }, { data: sequenceUploadRows }, retrievalResult] = await Promise.all([
     supabase.from("organizations").select("id,name,slug,created_at").order("created_at", { ascending: true }),
     supabase.from("projects").select("id,organization_id,name,description,status,created_at").order("created_at", { ascending: false }),
     supabase.from("sequence_uploads").select("*").order("created_at", { ascending: false }).limit(20),
+    retrievalQuery,
   ]);
 
   type SequenceUploadRow = NonNullable<typeof sequenceUploadRows>[number] & {
@@ -79,6 +85,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     statistics_calculated_at?: string | null;
   };
   const sequenceUploads = (sequenceUploadRows ?? []) as SequenceUploadRow[];
+  const retrievals = (retrievalResult.data ?? []) as Array<{
+    id: string;
+    source_database: string;
+    requested_accession: string;
+    resolved_accession: string | null;
+    record_title: string | null;
+    organism: string | null;
+    reported_length: number | null;
+    record_updated_date: string | null;
+    status: string;
+    sequence_upload_id: string | null;
+    connector_version: string | null;
+    source_retrieved_at: string | null;
+    result_message: string | null;
+    processing_attempts: number;
+    processing_error: string | null;
+    created_at: string;
+  }>;
 
   const projectOptions = (projects ?? []).map((project) => ({
     id: project.id,
@@ -132,6 +156,47 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Authoritative sequence retrieval</div>
+        <h2>Retrieve from NCBI</h2>
+        <p>Provide an NCBI nucleotide or protein accession. Genithm queues the request through its controlled source connector, preserves source provenance, and sends the returned FASTA through the same deterministic validation/statistics pipeline as uploaded files.</p>
+        {projectOptions.length ? (
+          <form className="stack" action={requestNcbiSequence} style={{ maxWidth: 680 }}>
+            <label>Project
+              <select className="select" name="project_id" required>
+                {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+            </label>
+            <label>NCBI database
+              <select className="select" name="database_name" required defaultValue="nucleotide">
+                <option value="nucleotide">Nucleotide</option>
+                <option value="protein">Protein</option>
+              </select>
+            </label>
+            <label>Accession<input name="accession" required maxLength={64} placeholder="NM_000546.6" autoCapitalize="characters" /></label>
+            <button className="button primary">Queue NCBI retrieval</button>
+          </form>
+        ) : <div className="notice">Create a project before requesting an NCBI record.</div>}
+
+        <div className="list" style={{ marginTop: 18 }}>
+          {retrievals.map((item) => (
+            <div className="item" key={item.id}>
+              <strong>NCBI {item.source_database}: {item.resolved_accession ?? item.requested_accession}</strong>
+              <div className="small">{item.status.replaceAll("_", " ")} · requested {new Date(item.created_at).toLocaleString()}</div>
+              {item.record_title ? <div>{item.record_title}</div> : null}
+              {item.organism || item.reported_length ? <div className="small">{item.organism ?? "Organism unavailable"}{item.reported_length ? ` · ${item.reported_length} residues/bases reported by NCBI` : ""}</div> : null}
+              {item.status === "retrieved" ? (
+                <div className="small">Source retrieved: {item.source_retrieved_at ? new Date(item.source_retrieved_at).toLocaleString() : "unknown"} · Connector: {item.connector_version ?? "unknown"}{item.record_updated_date ? ` · NCBI record updated ${item.record_updated_date}` : ""}</div>
+              ) : null}
+              {item.result_message ? <div className={item.status === "rejected" || item.status === "not_found" ? "error" : "small"}>{item.result_message}</div> : null}
+              {item.status === "error" && item.processing_error ? <div className="error">Retrieval error: {item.processing_error}</div> : null}
+              {item.processing_attempts > 0 && ["queued", "retrieving"].includes(item.status) ? <div className="small">Connector attempts: {item.processing_attempts}</div> : null}
+            </div>
+          ))}
+          {!retrievals.length ? <div className="notice">No NCBI retrieval requests yet.</div> : null}
+        </div>
+      </section>
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="dashboard-header">
