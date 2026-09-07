@@ -167,3 +167,21 @@ export async function requestMultipleSequenceAlignment(formData: FormData) {
   }
   revalidatePath("/dashboard");
 }
+
+export async function requestPhylogeneticTree(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const msaJobId = String(formData.get("msa_job_id") ?? "").trim();
+  if (!projectId || !msaJobId) {
+    redirect("/dashboard?error=Select%20a%20completed%20MSA%20job%20for%20phylogeny.");
+  }
+
+  const { error } = await supabase.rpc("request_phylogenetic_tree", {
+    project_id: projectId,
+    msa_job_id: msaJobId,
+  });
+  if (error) {
+    redirect(`/dashboard?error=${encodeURIComponent("Could not queue this phylogenetic tree. The source must be a completed MSA with valid immutable result provenance.")}`);
+  }
+  revalidatePath("/dashboard");
+}
