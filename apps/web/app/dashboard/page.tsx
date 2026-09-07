@@ -10,6 +10,11 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+function warningLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string").map((item) => item.replaceAll("_", " "));
+}
+
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -22,7 +27,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("projects").select("id,organization_id,name,description,status,created_at").order("created_at", { ascending: false }),
     supabase
       .from("sequence_uploads")
-      .select("id,project_id,original_filename,file_size_bytes,status,sequence_type,sequence_count,residue_count,created_at")
+      .select("id,project_id,original_filename,file_size_bytes,status,sequence_type,sequence_count,residue_count,sha256,validator_version,validation_warnings,validated_at,validation_error,processing_attempts,processing_error,created_at")
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
@@ -85,7 +90,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div>
             <div className="eyebrow">Sequence ingestion</div>
             <h2>Private FASTA inputs</h2>
-            <p>Files are stored privately. The browser only performs a quick envelope check; scientific validation is reserved for a controlled server-side worker.</p>
+            <p>Files are private. Scientific metadata is produced by Genithm&apos;s deterministic validation worker and stored with provenance.</p>
           </div>
         </div>
         <div className="section-grid">
@@ -93,13 +98,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div>
             <h2>Recent uploads</h2>
             <div className="list">
-              {(sequenceUploads ?? []).map((upload) => (
-                <div className="item" key={upload.id}>
-                  <strong>{upload.original_filename}</strong>
-                  <div className="small">{formatBytes(upload.file_size_bytes)} · {upload.status.replaceAll("_", " ")}</div>
-                  {upload.sequence_type ? <div className="small">{upload.sequence_type} · {upload.sequence_count ?? 0} records · {upload.residue_count ?? 0} residues</div> : null}
-                </div>
-              ))}
+              {(sequenceUploads ?? []).map((upload) => {
+                const warnings = warningLabels(upload.validation_warnings);
+                return (
+                  <div className="item" key={upload.id}>
+                    <strong>{upload.original_filename}</strong>
+                    <div className="small">{formatBytes(upload.file_size_bytes)} · {upload.status.replaceAll("_", " ")}</div>
+                    {upload.status === "ready" ? (
+                      <>
+                        <div className="small">{upload.sequence_type ?? "unknown"} · {upload.sequence_count ?? 0} records · {upload.residue_count ?? 0} residues</div>
+                        <div className="small">Validator: {upload.validator_version ?? "unknown"}{upload.sha256 ? ` · SHA-256 ${upload.sha256.slice(0, 16)}…` : ""}</div>
+                        {warnings.length ? <div className="small">Warnings: {warnings.join(", ")}</div> : null}
+                      </>
+                    ) : null}
+                    {upload.status === "rejected" && upload.validation_error ? <div className="error">Rejected: {upload.validation_error}</div> : null}
+                    {upload.status === "error" && upload.processing_error ? <div className="error">Processing error: {upload.processing_error}</div> : null}
+                    {upload.processing_attempts > 0 && !["ready", "rejected"].includes(upload.status) ? <div className="small">Worker attempts: {upload.processing_attempts}</div> : null}
+                  </div>
+                );
+              })}
               {!sequenceUploads?.length ? <div className="notice">No sequence inputs uploaded yet.</div> : null}
             </div>
           </div>
