@@ -1,5 +1,0 @@
-create index ai_conversations_organization_fk_idx on public.ai_conversations(organization_id);
-create index ai_conversations_project_org_fk_idx on public.ai_conversations(project_id,organization_id);
-create index ai_messages_conversation_scope_fk_idx on public.ai_messages(conversation_id,project_id,organization_id,conversation_owner_id);
-create index ai_messages_plan_request_fk_idx on public.ai_messages(plan_request_id) where plan_request_id is not null;
-create index ai_plan_requests_conversation_scope_fk_idx on public.ai_plan_requests(conversation_id,project_id,organization_id,requested_by);
