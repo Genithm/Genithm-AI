@@ -79,7 +79,7 @@ class SupabaseRuntimeClient:
         headers = {
             "apikey": self.config.supabase_secret_key,
             "Authorization": f"Bearer {self.config.supabase_secret_key}",
-            "User-Agent": "genithm-source-worker/0.1",
+            "User-Agent": "genithm-source-worker/0.2",
         }
         if content_type:
             headers["Content-Type"] = content_type
@@ -156,7 +156,7 @@ class SupabaseRuntimeClient:
             raise RuntimeError("Supabase Storage upload connection failed") from exc
 
     def finish_success(self, job: RetrievalJob, upload_id: str, record: NcbiRecord, fasta_size: int) -> None:
-        self._rpc("finish_ncbi_sequence_retrieval_success", {
+        self._rpc("finish_ncbi_sequence_retrieval_success_v2", {
             "message_id": job.message_id,
             "retrieval_id": job.retrieval_id,
             "sequence_upload_id": upload_id,
@@ -167,6 +167,8 @@ class SupabaseRuntimeClient:
             "reported_length": record.length,
             "record_updated_date": record.updated_date,
             "connector_version": CONNECTOR_VERSION,
+            "source_response_sha256": record.source_response_sha256,
+            "source_response_bytes": record.source_response_bytes,
         })
 
     def finish_not_found(self, job: RetrievalJob) -> None:
