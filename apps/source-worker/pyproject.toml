@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genithm-source-worker"
-version = "0.1.0"
+version = "0.3.0"
 description = "Controlled external scientific source adapters for Genithm"
 requires-python = ">=3.11"
 dependencies = []
@@ -13,7 +13,7 @@ dependencies = []
 dev = ["pytest==9.1.1"]
 
 [project.scripts]
-genithm-source-worker = "genithm_source_worker.runtime:main"
+genithm-source-worker = "genithm_source_worker.runtime_v2:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
