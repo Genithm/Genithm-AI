@@ -8,8 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 RUN addgroup --system genithm && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm \
     && apt-get update \
-    && apt-get install --no-install-recommends -y mafft=7.505-1 \
+    && apt-get install --no-install-recommends -y mafft=7.505-1 fasttree=2.1.11-2 \
     && test "$(dpkg-query -W -f='${Version}' mafft)" = "7.505-1" \
+    && test "$(dpkg-query -W -f='${Version}' fasttree)" = "2.1.11-2" \
+    && test -x /usr/bin/FastTree \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./
 COPY genithm_scientific_worker ./genithm_scientific_worker
