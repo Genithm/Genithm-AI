@@ -46,21 +46,32 @@ jobs:
           [[ -n "$EXPECTED_CONTEXT" ]] || { echo 'expected_context must not be empty' >&2; exit 2; }
 
       - name: Verify release workflow provenance
-        uses: actions/github-script@c1a5a0e8b46e8d0e32f205e5354f69c9f43f2e12 # v8.0.0
+        shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           SOURCE_REVISION: ${{ inputs.source_revision }}
           RELEASE_RUN_ID: ${{ inputs.release_run_id }}
-        with:
-          script: |
-            const run = await github.rest.actions.getWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: Number(process.env.RELEASE_RUN_ID),
-            });
-            if (run.data.name !== 'Worker release') core.setFailed('release_run_id is not a Worker release run');
-            if (run.data.conclusion !== 'success') core.setFailed('Worker release run is not successful');
-            if (run.data.head_sha !== process.env.SOURCE_REVISION) core.setFailed('Worker release head SHA does not match source_revision');
-            if (run.data.head_branch !== 'main') core.setFailed('Worker release did not originate from main');
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}" > "$RUNNER_TEMP/release-run.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          run = json.loads(Path(os.environ['RUNNER_TEMP'], 'release-run.json').read_text())
+          expected_revision = os.environ['SOURCE_REVISION']
+          checks = {
+              'name': run.get('name') == 'Worker release',
+              'conclusion': run.get('conclusion') == 'success',
+              'head_sha': run.get('head_sha') == expected_revision,
+              'head_branch': run.get('head_branch') == 'main',
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit('release workflow provenance check failed: ' + ', '.join(failed))
+          print('release workflow provenance verified')
+          PY
+          rm -f "$RUNNER_TEMP/release-run.json"
 
       - name: Download exact release artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
