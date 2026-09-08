@@ -1,6 +1,11 @@
 import Link from "next/link";
 
-export default function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+import { createClient } from "@/lib/supabase/server";
+
+export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const supabase = await createClient();
+  const { data: isPlatformAdmin } = await supabase.rpc("is_platform_admin");
+
   return (
     <>
       <div className="container" style={{ paddingTop: 18 }}>
@@ -8,6 +13,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
           <Link className="button" href="/dashboard">Research dashboard</Link>
           <Link className="button" href="/dashboard/ai">Genithm AI</Link>
           <Link className="button" href="/dashboard/reports">Scientific reports</Link>
+          {isPlatformAdmin ? <Link className="button" href="/dashboard/admin">Platform admin</Link> : null}
         </nav>
       </div>
       {children}
