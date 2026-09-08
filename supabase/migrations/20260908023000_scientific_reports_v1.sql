@@ -1,7 +1,7 @@
 create table public.scientific_reports (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete restrict,
   created_by uuid not null references auth.users(id) on delete restrict,
   source_job_id uuid not null references public.scientific_jobs(id) on delete restrict,
   source_job_type text not null,
@@ -168,7 +168,19 @@ begin
   ) values (
     source_job.organization_id, source_job.project_id, caller_id, source_job.id, source_job.job_type,
     source_job.result_sha256, report_doc, report_hash
-  ) returning id into report_id;
+  )
+  on conflict (source_job_id, created_by) do nothing
+  returning id into report_id;
+
+  if report_id is null then
+    select id into existing_id
+    from public.scientific_reports
+    where source_job_id=source_job.id and created_by=caller_id;
+    if existing_id is null then
+      raise exception 'scientific report creation conflict';
+    end if;
+    return existing_id;
+  end if;
 
   perform app_private.append_audit_event(
     source_job.organization_id,
