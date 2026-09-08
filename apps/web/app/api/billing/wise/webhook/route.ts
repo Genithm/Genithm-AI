@@ -49,6 +49,10 @@ export async function POST(request: NextRequest) {
     let handled = false;
     if (transferId && ["transfers#state-change", "transfers#payout-failure", "transfers#refund"].includes(eventType)) {
       const transfer = await wiseRequest(`/v1/transfers/${encodeURIComponent(transferId)}`);
+      const sourceCurrency = wiseText(transfer.sourceCurrency);
+      const targetCurrency = wiseText(transfer.targetCurrency);
+      if (!sourceCurrency || !targetCurrency) throw new Error("Wise transfer response is missing source or target currency");
+
       const { error: syncError } = await service.rpc("sync_provider_transfer_amounts", {
         provider_key: "wise",
         livemode: config.livemode,
@@ -56,8 +60,8 @@ export async function POST(request: NextRequest) {
         external_profile_id: resource?.profile_id === undefined || resource?.profile_id === null ? config.profileId : String(resource.profile_id),
         external_recipient_id: transfer.targetAccount === undefined || transfer.targetAccount === null ? null : String(transfer.targetAccount),
         status: wiseText(data?.current_state) ?? wiseText(transfer.status) ?? eventType,
-        source_currency: wiseText(transfer.sourceCurrency) ?? "USD",
-        target_currency: wiseText(transfer.targetCurrency) ?? "USD",
+        source_currency: sourceCurrency,
+        target_currency: targetCurrency,
         source_amount: wiseNumber(transfer.sourceValue),
         target_amount: wiseNumber(transfer.targetValue),
         rate: wiseNumber(transfer.rate),
