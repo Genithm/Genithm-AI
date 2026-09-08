@@ -8,39 +8,137 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  security:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.classify.outputs.web }}
+      api: ${{ steps.classify.outputs.api }}
+      sequence_worker: ${{ steps.classify.outputs.sequence_worker }}
+      source_worker: ${{ steps.classify.outputs.source_worker }}
+      blast_worker: ${{ steps.classify.outputs.blast_worker }}
+      audit_worker: ${{ steps.classify.outputs.audit_worker }}
+      scientific_worker: ${{ steps.classify.outputs.scientific_worker }}
+      ai_worker: ${{ steps.classify.outputs.ai_worker }}
+      sequence_image: ${{ steps.classify.outputs.sequence_image }}
+      source_image: ${{ steps.classify.outputs.source_image }}
+      blast_image: ${{ steps.classify.outputs.blast_image }}
+      audit_image: ${{ steps.classify.outputs.audit_image }}
+      scientific_image: ${{ steps.classify.outputs.scientific_image }}
+      ai_image: ${{ steps.classify.outputs.ai_image }}
+      audit_web: ${{ steps.classify.outputs.audit_web }}
+      audit_api: ${{ steps.classify.outputs.audit_api }}
+      audit_sequence: ${{ steps.classify.outputs.audit_sequence }}
+      audit_source: ${{ steps.classify.outputs.audit_source }}
+      audit_blast: ${{ steps.classify.outputs.audit_blast }}
+      audit_audit: ${{ steps.classify.outputs.audit_audit }}
+      audit_scientific: ${{ steps.classify.outputs.audit_scientific }}
+      audit_ai: ${{ steps.classify.outputs.audit_ai }}
+      dependency_audit: ${{ steps.classify.outputs.dependency_audit }}
+      release_required: ${{ steps.classify.outputs.release_required }}
+      full_ci: ${{ steps.classify.outputs.full_ci }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: classify
+        name: Classify changed paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base="$BASE_SHA"
+          head="$HEAD_SHA"
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base="${head}^"
+          fi
+          git diff --name-only "$base" "$head" > /tmp/changed-paths.txt
+          echo 'Changed paths:'
+          cat /tmp/changed-paths.txt
+          python scripts/ci_changes.py --github-output "$GITHUB_OUTPUT" < /tmp/changed-paths.txt
+
+  security-policy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: '3.13'
       - name: Enforce repository security policy
         run: python scripts/security_policy.py
+      - name: Test CI change classification
+        run: python scripts/test_ci_changes.py
+
+  dependency-audit:
+    needs: changes
+    if: needs.changes.outputs.dependency_audit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: needs.changes.outputs.audit_web == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - name: Audit web production dependencies
+        if: needs.changes.outputs.audit_web == 'true'
         working-directory: apps/web
         run: npm audit --omit=dev --audit-level=high
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        if: >-
+          needs.changes.outputs.audit_api == 'true' ||
+          needs.changes.outputs.audit_sequence == 'true' ||
+          needs.changes.outputs.audit_source == 'true' ||
+          needs.changes.outputs.audit_blast == 'true' ||
+          needs.changes.outputs.audit_audit == 'true' ||
+          needs.changes.outputs.audit_scientific == 'true' ||
+          needs.changes.outputs.audit_ai == 'true'
+        with:
+          python-version: '3.13'
       - name: Install pinned Python auditor
+        if: >-
+          needs.changes.outputs.audit_api == 'true' ||
+          needs.changes.outputs.audit_sequence == 'true' ||
+          needs.changes.outputs.audit_source == 'true' ||
+          needs.changes.outputs.audit_blast == 'true' ||
+          needs.changes.outputs.audit_audit == 'true' ||
+          needs.changes.outputs.audit_scientific == 'true' ||
+          needs.changes.outputs.audit_ai == 'true'
         run: python -m pip install pip-audit==2.10.1
       - name: Audit API dependencies
+        if: needs.changes.outputs.audit_api == 'true'
         run: pip-audit --strict apps/api
       - name: Audit sequence worker dependencies
+        if: needs.changes.outputs.audit_sequence == 'true'
         run: pip-audit --strict apps/sequence-worker
       - name: Audit source worker dependencies
+        if: needs.changes.outputs.audit_source == 'true'
         run: pip-audit --strict apps/source-worker
       - name: Audit BLAST worker dependencies
+        if: needs.changes.outputs.audit_blast == 'true'
         run: pip-audit --strict apps/blast-worker
       - name: Audit audit-signer worker dependencies
+        if: needs.changes.outputs.audit_audit == 'true'
         run: pip-audit --strict apps/audit-worker
       - name: Audit scientific worker dependencies
+        if: needs.changes.outputs.audit_scientific == 'true'
         run: pip-audit --strict apps/scientific-worker
       - name: Audit AI worker dependencies
+        if: needs.changes.outputs.audit_ai == 'true'
         run: pip-audit --strict apps/ai-worker
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -62,6 +160,8 @@ jobs:
       - run: npm run build
 
   api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/api } }
     steps:
@@ -74,6 +174,8 @@ jobs:
       - run: pytest
 
   sequence-worker:
+    needs: changes
+    if: needs.changes.outputs.sequence_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/sequence-worker } }
     steps:
@@ -86,6 +188,8 @@ jobs:
       - run: pytest
 
   source-worker:
+    needs: changes
+    if: needs.changes.outputs.source_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/source-worker } }
     steps:
@@ -98,6 +202,8 @@ jobs:
       - run: pytest
 
   blast-worker:
+    needs: changes
+    if: needs.changes.outputs.blast_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/blast-worker } }
     steps:
@@ -110,6 +216,8 @@ jobs:
       - run: pytest
 
   audit-worker:
+    needs: changes
+    if: needs.changes.outputs.audit_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/audit-worker } }
     steps:
@@ -122,6 +230,8 @@ jobs:
       - run: pytest
 
   scientific-worker:
+    needs: changes
+    if: needs.changes.outputs.scientific_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/scientific-worker } }
     steps:
@@ -134,6 +244,8 @@ jobs:
       - run: pytest
 
   ai-worker:
+    needs: changes
+    if: needs.changes.outputs.ai_worker == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/ai-worker } }
     steps:
@@ -146,6 +258,8 @@ jobs:
       - run: pytest
 
   sequence-worker-image:
+    needs: changes
+    if: needs.changes.outputs.sequence_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/sequence-worker
@@ -153,6 +267,8 @@ jobs:
       artifact_prefix: sequence-worker
 
   source-worker-image:
+    needs: changes
+    if: needs.changes.outputs.source_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/source-worker
@@ -160,6 +276,8 @@ jobs:
       artifact_prefix: source-worker
 
   blast-worker-image:
+    needs: changes
+    if: needs.changes.outputs.blast_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/blast-worker
@@ -167,6 +285,8 @@ jobs:
       artifact_prefix: blast-worker
 
   audit-worker-image:
+    needs: changes
+    if: needs.changes.outputs.audit_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/audit-worker
@@ -174,6 +294,8 @@ jobs:
       artifact_prefix: audit-worker
 
   scientific-worker-image:
+    needs: changes
+    if: needs.changes.outputs.scientific_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/scientific-worker
@@ -181,6 +303,8 @@ jobs:
       artifact_prefix: scientific-worker
 
   ai-worker-image:
+    needs: changes
+    if: needs.changes.outputs.ai_image == 'true'
     uses: ./.github/workflows/worker-image.yml
     with:
       context: apps/ai-worker
