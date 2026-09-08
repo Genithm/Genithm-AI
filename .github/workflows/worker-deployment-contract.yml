@@ -12,7 +12,7 @@ on:
       - 'scripts/test_validate_worker_release.py'
       - '.github/workflows/worker-deployment-contract.yml'
       - '.github/workflows/worker-release.yml'
-      - '.github/workflows/worker-production-deploy.yml'
+      - '.github/workflows/worker-production-preflight.yml'
   push:
     branches: [main]
     paths:
@@ -25,7 +25,7 @@ on:
       - 'scripts/test_validate_worker_release.py'
       - '.github/workflows/worker-deployment-contract.yml'
       - '.github/workflows/worker-release.yml'
-      - '.github/workflows/worker-production-deploy.yml'
+      - '.github/workflows/worker-production-preflight.yml'
 
 permissions:
   contents: read
