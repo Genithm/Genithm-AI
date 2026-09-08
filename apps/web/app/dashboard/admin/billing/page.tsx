@@ -35,19 +35,21 @@ function asOverview(value: Json | null): AdminBillingOverview {
       if (typeof count === "number" && Number.isFinite(count)) statusMap[key] = count;
     }
   }
-  const plans = Array.isArray(value.subscriptions_by_plan)
-    ? value.subscriptions_by_plan.filter(isRecord).flatMap((item) =>
-        typeof item.plan_key === "string" && typeof item.plan_name === "string" && typeof item.plan_status === "string" && typeof item.billing_model === "string" && typeof item.organization_count === "number"
-          ? [{
-              plan_key: item.plan_key,
-              plan_name: item.plan_name,
-              plan_status: item.plan_status,
-              billing_model: item.billing_model,
-              organization_count: item.organization_count,
-            }]
-          : [],
-      )
-    : [];
+
+  const plans: PlanDistribution[] = [];
+  const rawPlans: unknown[] = Array.isArray(value.subscriptions_by_plan) ? value.subscriptions_by_plan : [];
+  for (const item of rawPlans) {
+    if (!isRecord(item)) continue;
+    if (typeof item.plan_key !== "string" || typeof item.plan_name !== "string" || typeof item.plan_status !== "string" || typeof item.billing_model !== "string" || typeof item.organization_count !== "number") continue;
+    plans.push({
+      plan_key: item.plan_key,
+      plan_name: item.plan_name,
+      plan_status: item.plan_status,
+      billing_model: item.billing_model,
+      organization_count: item.organization_count,
+    });
+  }
+
   return {
     schema_version: typeof value.schema_version === "string" ? value.schema_version : undefined,
     checked_at: typeof value.checked_at === "string" ? value.checked_at : undefined,
