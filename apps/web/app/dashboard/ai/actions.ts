@@ -68,3 +68,25 @@ export async function requestAiInterpretation(formData: FormData) {
   revalidatePath(`/dashboard/ai/${conversationId}`);
   redirect(`/dashboard/ai/${conversationId}`);
 }
+
+export async function requestAiEvidenceFollowup(formData: FormData) {
+  const supabase = await requireUser();
+  const interpretationRequestId = String(formData.get("interpretation_request_id") ?? "").trim();
+  const conversationId = String(formData.get("conversation_id") ?? "").trim();
+  const question = String(formData.get("question") ?? "").trim();
+
+  if (!interpretationRequestId || !conversationId || question.length < 1 || question.length > 4000) {
+    redirect(`/dashboard/ai/${conversationId || ""}?error=${encodeURIComponent("Enter an evidence follow-up question between 1 and 4000 characters.")}`);
+  }
+
+  const { data, error } = await supabase.rpc("request_ai_evidence_followup", {
+    interpretation_request_id: interpretationRequestId,
+    question,
+  });
+  if (error || !data) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("The evidence follow-up could not be queued. The interpretation may not be completed, project access may have changed, or active request limits may have been reached.")}`);
+  }
+
+  revalidatePath(`/dashboard/ai/${conversationId}`);
+  redirect(`/dashboard/ai/${conversationId}`);
+}
