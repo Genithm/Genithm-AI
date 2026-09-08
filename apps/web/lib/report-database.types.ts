@@ -120,6 +120,10 @@ type ReportFunctions = AiPublic["Functions"] & {
     Args: Record<PropertyKey, never>;
     Returns: Json;
   };
+  get_platform_admin_plan_catalog: {
+    Args: Record<PropertyKey, never>;
+    Returns: Json;
+  };
   get_platform_admin_organizations: {
     Args: { page_size?: number; page_offset?: number };
     Returns: AdminOrganizationRow[];
