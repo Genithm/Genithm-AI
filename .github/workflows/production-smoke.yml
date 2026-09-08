@@ -1,0 +1,44 @@
+name: Production smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Deployed Genithm API HTTPS origin
+        required: true
+        type: string
+      web_base_url:
+        description: Optional deployed Genithm web HTTPS origin
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_BASE_URL: ${{ inputs.api_base_url }}
+      WEB_BASE_URL: ${{ inputs.web_base_url }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Run post-deploy smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--api-base-url "$API_BASE_URL" --timeout-seconds 5 --attempts 3)
+          if [ -n "$WEB_BASE_URL" ]; then
+            args+=(--web-base-url "$WEB_BASE_URL")
+          fi
+          python scripts/production_smoke.py "${args[@]}"
