@@ -31,7 +31,8 @@ export async function POST(request: NextRequest) {
     const requestId = authorization && typeof authorization.refund_request_id === "string" ? authorization.refund_request_id : null;
     const paymentIntentId = authorization && typeof authorization.provider_payment_intent_id === "string" ? authorization.provider_payment_intent_id : null;
     const authorizedAmount = authorization && typeof authorization.amount_minor === "number" ? authorization.amount_minor : null;
-    if (!requestId || !paymentIntentId || !authorizedAmount) throw new Error("Refund authorization returned incomplete data");
+    const authorizedCurrency = authorization && typeof authorization.currency === "string" ? authorization.currency.toLowerCase() : null;
+    if (!requestId || !paymentIntentId || !authorizedAmount || !authorizedCurrency) throw new Error("Refund authorization returned incomplete data");
 
     const stripeReason = ["duplicate", "fraudulent", "requested_by_customer"].includes(reason) ? reason : null;
     const refund = await stripeFormRequest("/refunds", {
@@ -44,9 +45,9 @@ export async function POST(request: NextRequest) {
 
     const refundId = stripeId(refund.id);
     const status = typeof refund.status === "string" ? refund.status : "pending";
-    const currency = typeof refund.currency === "string" ? refund.currency : String(authorization.currency ?? "").toLowerCase();
+    const currency = typeof refund.currency === "string" ? refund.currency : authorizedCurrency;
     const amount = typeof refund.amount === "number" ? refund.amount : authorizedAmount;
-    if (!refundId || !currency) throw new Error("Stripe refund returned incomplete data");
+    if (!refundId) throw new Error("Stripe refund returned incomplete data");
 
     const service = getServiceSupabase();
     const { error: syncError } = await service.rpc("complete_stripe_refund", {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     });
     if (syncError) throw new Error("Stripe accepted the refund, but local reconciliation is pending. Webhook reconciliation will retry the state sync.");
 
-    return NextResponse.redirect(new URL("/dashboard/admin/billing?refund=submitted", request.url), 303);
+    return NextResponse.redirect(new URL("/dashboard/admin/billing/payments?refund=submitted", request.url), 303);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to process refund.";
     return NextResponse.json({ error: message }, { status: 500 });
