@@ -128,6 +128,10 @@ type ReportFunctions = AiPublic["Functions"] & {
     Args: Record<PropertyKey, never>;
     Returns: Json;
   };
+  authorize_platform_billing_configuration: {
+    Args: Record<PropertyKey, never>;
+    Returns: boolean;
+  };
   get_platform_admin_organizations: {
     Args: { page_size?: number; page_offset?: number };
     Returns: AdminOrganizationRow[];
