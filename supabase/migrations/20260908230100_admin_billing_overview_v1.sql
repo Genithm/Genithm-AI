@@ -8,7 +8,7 @@ as $$
 declare
   result jsonb;
 begin
-  if auth.uid() is null or not app_private.is_platform_admin(auth.uid()) then
+  if auth.uid() is null or not app_private.is_platform_admin() then
     raise exception 'platform admin access denied' using errcode = '42501';
   end if;
 
