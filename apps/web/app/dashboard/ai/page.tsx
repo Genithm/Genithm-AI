@@ -29,7 +29,10 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
           <h2>Genithm AI</h2>
           <p className="small">Natural language becomes a validated scientific plan. The model cannot execute tools directly; nothing runs until you explicitly approve a ready plan.</p>
         </div>
-        <Link className="button" href="/dashboard">Back to dashboard</Link>
+        <div className="actions" style={{ marginTop: 0 }}>
+          <Link className="button primary" href="/dashboard/ai/operations">Operational health</Link>
+          <Link className="button" href="/dashboard">Back to dashboard</Link>
+        </div>
       </header>
 
       {query.error ? <p className="error">{query.error}</p> : null}
