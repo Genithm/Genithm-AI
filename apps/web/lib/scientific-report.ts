@@ -37,6 +37,12 @@ function text(value: Json | undefined) {
   return typeof value === "string" ? value : value == null ? "n/a" : String(value);
 }
 
+function sourceSubtype(source: ReportRecord) {
+  if (typeof source.subtype === "string") return source.subtype;
+  if (typeof source.job_type === "string") return source.job_type;
+  return null;
+}
+
 function escapeHtml(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
@@ -46,7 +52,7 @@ export function renderScientificReportMarkdown(snapshotValue: Json) {
   const project = asRecord(snapshot.project);
   const source = asRecord(snapshot.source);
   const policy = asRecord(snapshot.interpretation_policy);
-  const title = reportSourceTitle(text(source.resource_type), text(source.subtype));
+  const title = reportSourceTitle(text(source.resource_type), sourceSubtype(source));
 
   return [
     `# Genithm Scientific Report — ${title}`,
@@ -100,7 +106,7 @@ export function renderScientificReportHtml(snapshotValue: Json, reportSha256: st
   const project = asRecord(snapshot.project);
   const source = asRecord(snapshot.source);
   const policy = asRecord(snapshot.interpretation_policy);
-  const title = reportSourceTitle(text(source.resource_type), text(source.subtype));
+  const title = reportSourceTitle(text(source.resource_type), sourceSubtype(source));
   const section = (heading: string, value: Json | undefined) => `<section><h2>${escapeHtml(heading)}</h2><pre>${escapeHtml(pretty(value))}</pre></section>`;
 
   return `<!doctype html>
