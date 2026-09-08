@@ -48,7 +48,7 @@ async function ensureCustomerMapping(customerId: string | null, livemode: boolea
   if (error) throw new Error("Unable to synchronize Stripe customer mapping");
 }
 
-async function syncSubscription(subscription: JsonObject, livemode: boolean) {
+async function syncSubscription(subscription: JsonObject, livemode: boolean, eventCreatedAt: string) {
   const service = getServiceSupabase();
   const customerId = stripeId(subscription.customer);
   await ensureCustomerMapping(customerId, livemode, metadataOrganization(subscription));
@@ -76,6 +76,7 @@ async function syncSubscription(subscription: JsonObject, livemode: boolean) {
     cancel_at: stripeTimestamp(subscription.cancel_at),
     latest_invoice_id: stripeId(subscription.latest_invoice),
     provider_created_at: stripeTimestamp(subscription.created),
+    event_created_at: eventCreatedAt,
   });
   if (error) throw new Error("Unable to synchronize Stripe subscription");
 }
@@ -188,14 +189,14 @@ async function syncDispute(dispute: JsonObject, livemode: boolean) {
   if (error) throw new Error("Unable to synchronize Stripe dispute");
 }
 
-async function syncCheckoutSession(session: JsonObject, livemode: boolean) {
+async function syncCheckoutSession(session: JsonObject, livemode: boolean, eventCreatedAt: string) {
   const organizationId = metadataOrganization(session) ?? text(session.client_reference_id);
   const customerId = stripeId(session.customer);
   await ensureCustomerMapping(customerId, livemode, organizationId);
   const subscriptionId = stripeId(session.subscription);
   if (subscriptionId) {
     const subscription = await stripeGet(`/subscriptions/${encodeURIComponent(subscriptionId)}`);
-    await syncSubscription(subscription, livemode);
+    await syncSubscription(subscription, livemode, eventCreatedAt);
   }
 }
 
@@ -237,9 +238,9 @@ export async function POST(request: NextRequest) {
   try {
     let handled = true;
     if (eventType === "checkout.session.completed") {
-      await syncCheckoutSession(object, livemode);
+      await syncCheckoutSession(object, livemode, createdAt);
     } else if (["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"].includes(eventType)) {
-      await syncSubscription(object, livemode);
+      await syncSubscription(object, livemode, createdAt);
     } else if (["invoice.created", "invoice.updated", "invoice.finalized", "invoice.paid", "invoice.payment_failed", "invoice.voided"].includes(eventType)) {
       await syncInvoice(object, livemode);
     } else if (["payout.created", "payout.updated", "payout.paid", "payout.failed", "payout.canceled"].includes(eventType)) {
