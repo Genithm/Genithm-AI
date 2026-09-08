@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-import type { Database } from "@/lib/ai-database.types";
+import type { Database } from "@/lib/report-database.types";
 import { getSupabasePublicEnv } from "@/lib/env";
 
 export async function createClient() {
