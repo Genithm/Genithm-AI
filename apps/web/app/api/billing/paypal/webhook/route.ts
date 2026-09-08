@@ -163,10 +163,10 @@ export async function POST(request: NextRequest) {
     if (eventType.startsWith("BILLING.SUBSCRIPTION.")) {
       await syncSubscription(resource, eventCreatedAt, livemode);
       handled = true;
-    } else if (["PAYMENT.SALE.COMPLETED", "PAYMENT.SALE.PENDING", "PAYMENT.SALE.DENIED"].includes(eventType)) {
+    } else if (["PAYMENT.SALE.COMPLETED", "PAYMENT.SALE.PENDING", "PAYMENT.SALE.DENIED", "PAYMENT.SALE.REVERSED"].includes(eventType)) {
       await syncSale(resource, eventType, eventCreatedAt, livemode);
       handled = true;
-    } else if (["PAYMENT.SALE.REFUNDED", "PAYMENT.SALE.REVERSED"].includes(eventType)) {
+    } else if (eventType === "PAYMENT.SALE.REFUNDED") {
       await syncSaleRefund(resource, eventType, eventCreatedAt, livemode);
       handled = true;
     } else if (eventType.startsWith("CUSTOMER.DISPUTE.")) {
