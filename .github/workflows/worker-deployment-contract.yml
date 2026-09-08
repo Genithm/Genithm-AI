@@ -8,8 +8,11 @@ on:
       - 'scripts/test_worker_deployment.py'
       - 'scripts/build_worker_release_manifest.py'
       - 'scripts/test_worker_release_manifest.py'
+      - 'scripts/validate_worker_release.py'
+      - 'scripts/test_validate_worker_release.py'
       - '.github/workflows/worker-deployment-contract.yml'
       - '.github/workflows/worker-release.yml'
+      - '.github/workflows/worker-production-preflight.yml'
   push:
     branches: [main]
     paths:
@@ -18,8 +21,11 @@ on:
       - 'scripts/test_worker_deployment.py'
       - 'scripts/build_worker_release_manifest.py'
       - 'scripts/test_worker_release_manifest.py'
+      - 'scripts/validate_worker_release.py'
+      - 'scripts/test_validate_worker_release.py'
       - '.github/workflows/worker-deployment-contract.yml'
       - '.github/workflows/worker-release.yml'
+      - '.github/workflows/worker-production-preflight.yml'
 
 permissions:
   contents: read
@@ -38,6 +44,8 @@ jobs:
         run: python scripts/test_worker_deployment.py
       - name: Run release manifest contract tests
         run: python scripts/test_worker_release_manifest.py
+      - name: Run release deployment preflight tests
+        run: python scripts/test_validate_worker_release.py
       - name: Render digest-pinned fixture
         run: |
           digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -73,3 +81,7 @@ jobs:
           assert len(payload['workers']) == 6
           assert all('@sha256:' in item['image'] for item in payload['workers'])
           PY
+          python scripts/validate_worker_release.py \
+            --release-manifest /tmp/worker-release.json \
+            --deployment-manifest /tmp/genithm-workers.yaml \
+            --expected-revision "$revision"
