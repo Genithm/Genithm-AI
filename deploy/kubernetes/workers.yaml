@@ -84,7 +84,7 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {cpu: "1", memory: 512Mi}
-          securityContext: &workerSecurity
+          securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
@@ -119,7 +119,12 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {cpu: "1", memory: 512Mi}
-          securityContext: *workerSecurity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -148,7 +153,12 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {cpu: "1", memory: 512Mi}
-          securityContext: *workerSecurity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -176,7 +186,12 @@ spec:
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {cpu: "2", memory: 1Gi}
-          securityContext: *workerSecurity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -206,7 +221,12 @@ spec:
           resources:
             requests: {cpu: 50m, memory: 96Mi}
             limits: {cpu: 500m, memory: 256Mi}
-          securityContext: *workerSecurity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -236,4 +256,9 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {cpu: "1", memory: 512Mi}
-          securityContext: *workerSecurity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
