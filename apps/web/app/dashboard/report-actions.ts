@@ -5,23 +5,39 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
-export async function requestScientificReport(formData: FormData) {
+function sourcePath(resourceType: string, resourceId: string) {
+  if (resourceType === "scientific_job") return `/dashboard/scientific-jobs/${resourceId}`;
+  if (resourceType === "protein_annotation_job") return `/dashboard/protein-annotations/${resourceId}`;
+  return "/dashboard";
+}
+
+export async function requestAuthoritativeReport(formData: FormData) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
 
-  const sourceJobId = String(formData.get("source_job_id") ?? "").trim();
-  if (!sourceJobId) redirect("/dashboard/reports?error=Scientific%20job%20is%20required.");
+  const resourceType = String(formData.get("source_resource_type") ?? "").trim();
+  const resourceId = String(formData.get("source_resource_id") ?? "").trim();
+  if (!resourceType || !resourceId) redirect("/dashboard/reports?error=Report%20source%20is%20required.");
 
-  const { data: reportId, error } = await supabase.rpc("request_scientific_report", {
-    source_job_id: sourceJobId,
+  const { data: reportId, error } = await supabase.rpc("request_authoritative_report", {
+    source_resource_type: resourceType,
+    source_resource_id: resourceId,
   });
 
   if (error || !reportId) {
-    redirect(`/dashboard/scientific-jobs/${sourceJobId}?error=${encodeURIComponent("Could not generate report. The scientific result must be completed and accessible to you.")}`);
+    redirect(`${sourcePath(resourceType, resourceId)}?error=${encodeURIComponent("Could not generate report. The authoritative result must be finalized and accessible to you.")}`);
   }
 
   revalidatePath("/dashboard/reports");
-  revalidatePath(`/dashboard/scientific-jobs/${sourceJobId}`);
+  revalidatePath(sourcePath(resourceType, resourceId));
   redirect(`/dashboard/reports/${reportId}`);
+}
+
+export async function requestScientificReport(formData: FormData) {
+  const sourceJobId = String(formData.get("source_job_id") ?? "").trim();
+  const delegated = new FormData();
+  delegated.set("source_resource_type", "scientific_job");
+  delegated.set("source_resource_id", sourceJobId);
+  return requestAuthoritativeReport(delegated);
 }
