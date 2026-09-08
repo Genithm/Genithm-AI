@@ -60,6 +60,41 @@ type AdminOrganizationRow = {
   created_at: string;
 };
 
+type PlatformSupportUserRow = {
+  user_id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  display_name: string | null;
+  organization_count: number;
+  project_count: number;
+};
+
+type PlatformSupportMembershipRow = {
+  organization_id: string;
+  organization_name: string;
+  organization_slug: string;
+  membership_role: string;
+  project_count: number;
+};
+
+type PlatformSupportCaseRow = {
+  support_case_id: string;
+  organization_id: string;
+  target_user_id: string | null;
+  target_project_id: string | null;
+  category: string;
+  title: string;
+  initial_note: string;
+  status: string;
+  opened_by: string;
+  opened_at: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+};
+
 type ReportFunctions = AiPublic["Functions"] & {
   request_scientific_report: {
     Args: { source_job_id: string };
@@ -84,6 +119,33 @@ type ReportFunctions = AiPublic["Functions"] & {
   get_platform_admin_organizations: {
     Args: { page_size?: number; page_offset?: number };
     Returns: AdminOrganizationRow[];
+  };
+  lookup_platform_support_user: {
+    Args: { exact_email: string };
+    Returns: PlatformSupportUserRow[];
+  };
+  get_platform_support_user_memberships: {
+    Args: { user_id: string };
+    Returns: PlatformSupportMembershipRow[];
+  };
+  get_platform_support_cases: {
+    Args: { organization_id: string; page_size?: number; page_offset?: number };
+    Returns: PlatformSupportCaseRow[];
+  };
+  create_platform_support_case: {
+    Args: {
+      organization_id: string;
+      target_user_id?: string | null;
+      target_project_id?: string | null;
+      category?: string;
+      title?: string;
+      initial_note?: string;
+    };
+    Returns: string;
+  };
+  resolve_platform_support_case: {
+    Args: { support_case_id: string; resolution_note: string };
+    Returns: string;
   };
 };
 
