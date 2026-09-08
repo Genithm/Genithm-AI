@@ -48,10 +48,12 @@ jobs:
             echo 'source_revision must be a full lowercase 40-character Git commit SHA' >&2
             exit 2
           fi
-          git fetch --no-tags origin main
-          main_sha="$(git rev-parse origin/main)"
+          # checkout fetch-depth=0 already fetched origin/main before credentials were deliberately removed.
+          # Do not perform a second authenticated network fetch after persist-credentials=false.
+          main_sha="$(git rev-parse --verify origin/main^{commit})"
+          git cat-file -e "${revision}^{commit}"
           if ! git merge-base --is-ancestor "$revision" "$main_sha"; then
-            echo 'source_revision is not reachable from origin/main' >&2
+            echo 'source_revision is not reachable from the checked-out origin/main ref' >&2
             exit 2
           fi
           echo "source_revision=$revision" >> "$GITHUB_OUTPUT"
