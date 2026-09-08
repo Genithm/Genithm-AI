@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { aiEvidenceExplorerHref, aiEvidenceFactHref } from "@/lib/ai-evidence-links";
 import { createClient } from "@/lib/supabase/server";
 import { approveAiPlan, requestAiEvidenceFollowup, requestAiInterpretation, requestAiPlan } from "../actions";
 
@@ -68,6 +69,21 @@ function dispatchedHref(resourceType: string | null, resourceId: string | null) 
   if (resourceType === "scientific_job") return `/dashboard/scientific-jobs/${resourceId}`;
   if (resourceType === "protein_annotation_job") return `/dashboard/protein-annotations/${resourceId}`;
   return null;
+}
+
+function EvidenceLinks({ interpretationId, evidenceIds }: { interpretationId: string; evidenceIds: string[] }) {
+  if (!evidenceIds.length) return null;
+  return (
+    <div className="small">
+      Evidence:{" "}
+      {evidenceIds.map((evidenceId, index) => (
+        <span key={`${interpretationId}-${evidenceId}`}>
+          {index ? ", " : ""}
+          <Link href={aiEvidenceFactHref(interpretationId, evidenceId)}><code>{evidenceId}</code></Link>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function resourceKey(resourceType: string, resourceId: string) {
@@ -355,7 +371,10 @@ export default async function AiConversationPage({ params, searchParams }: { par
 
                 {interpretation ? (
                   <div className="notice" style={{ marginTop: 12 }}>
-                    <strong>Evidence-grounded AI interpretation</strong>
+                    <div className="dashboard-header">
+                      <strong>Evidence-grounded AI interpretation</strong>
+                      <Link className="button" href={aiEvidenceExplorerHref(interpretation.id)}>Inspect frozen evidence</Link>
+                    </div>
                     <div className="small">Status: {readable(interpretation.status)} · attempts {interpretation.processing_attempts} · evidence SHA-256 <code>{interpretation.evidence_sha256}</code></div>
                     {interpretation.provider || interpretation.model ? <div className="small">Interpreter: {interpretation.provider ?? "unknown"}/{interpretation.model ?? "unknown"}{interpretation.prompt_version ? ` · prompt ${interpretation.prompt_version}` : ""} · policy {interpretation.policy_version}</div> : <div className="small">Policy: {interpretation.policy_version}</div>}
                     {interpretation.processing_error ? <div className="error">Interpretation error: {interpretation.processing_error}</div> : null}
@@ -367,7 +386,7 @@ export default async function AiConversationPage({ params, searchParams }: { par
                             {interpreted.findings.map((finding, index) => (
                               <div className="item" key={`${interpretation.id}-finding-${index}`}>
                                 <div>{finding.statement}</div>
-                                <div className="small">Evidence: {finding.evidenceIds.join(", ")}</div>
+                                <EvidenceLinks interpretationId={interpretation.id} evidenceIds={finding.evidenceIds} />
                               </div>
                             ))}
                           </div>
@@ -405,13 +424,13 @@ export default async function AiConversationPage({ params, searchParams }: { par
                                     <div className="notice" style={{ marginTop: 8 }}>
                                       <strong>{parsedFollowup.status === "insufficient_evidence" ? "Recorded evidence is insufficient" : "Evidence-grounded answer"}</strong>
                                       <p>{parsedFollowup.directAnswer.statement}</p>
-                                      {parsedFollowup.directAnswer.evidenceIds.length ? <div className="small">Evidence: {parsedFollowup.directAnswer.evidenceIds.join(", ")}</div> : null}
+                                      <EvidenceLinks interpretationId={interpretation.id} evidenceIds={parsedFollowup.directAnswer.evidenceIds} />
                                       {parsedFollowup.supportingPoints.length ? (
                                         <div className="list" style={{ marginTop: 8 }}>
                                           {parsedFollowup.supportingPoints.map((point, index) => (
                                             <div className="item" key={`${followup.id}-point-${index}`}>
                                               <div>{point.statement}</div>
-                                              <div className="small">Evidence: {point.evidenceIds.join(", ")}</div>
+                                              <EvidenceLinks interpretationId={interpretation.id} evidenceIds={point.evidenceIds} />
                                             </div>
                                           ))}
                                         </div>
