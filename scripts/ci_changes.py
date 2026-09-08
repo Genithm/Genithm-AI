@@ -48,7 +48,6 @@ RELEASE_SHARED_PATHS = {
     "scripts/render_worker_deployment.py",
     "scripts/build_worker_release_manifest.py",
     "scripts/validate_worker_release.py",
-    ".github/workflows/worker-release.yml",
 }
 
 OUTPUT_KEYS = (
