@@ -113,10 +113,70 @@ type AiPlanRequest = {
   Relationships: [];
 };
 
+type AiInterpretationRequest = {
+  Row: {
+    id: string;
+    plan_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    resource_type: string;
+    resource_id: string;
+    evidence_schema_version: string;
+    evidence_snapshot: Json;
+    evidence_sha256: string;
+    status: string;
+    provider: string | null;
+    model: string | null;
+    prompt_version: string | null;
+    policy_version: string;
+    interpretation_schema_version: string | null;
+    interpretation: Json | null;
+    interpretation_sha256: string | null;
+    processing_attempts: number;
+    processing_started_at: string | null;
+    processing_finished_at: string | null;
+    processing_error: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    plan_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    resource_type: string;
+    resource_id: string;
+    evidence_schema_version?: string;
+    evidence_snapshot: Json;
+    evidence_sha256: string;
+    status?: string;
+    provider?: string | null;
+    model?: string | null;
+    prompt_version?: string | null;
+    policy_version?: string;
+    interpretation_schema_version?: string | null;
+    interpretation?: Json | null;
+    interpretation_sha256?: string | null;
+    processing_attempts?: number;
+    processing_started_at?: string | null;
+    processing_finished_at?: string | null;
+    processing_error?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: Partial<AiInterpretationRequest["Insert"]>;
+  Relationships: [];
+};
+
 type AiTables = LivePublic["Tables"] & {
   ai_conversations: AiConversation;
   ai_messages: AiMessage;
   ai_plan_requests: AiPlanRequest;
+  ai_interpretation_requests: AiInterpretationRequest;
 };
 
 type AiFunctions = LivePublic["Functions"] & {
@@ -127,6 +187,10 @@ type AiFunctions = LivePublic["Functions"] & {
   approve_ai_plan: {
     Args: { plan_request_id: string };
     Returns: { resource_type: string; resource_id: string }[];
+  };
+  request_ai_interpretation: {
+    Args: { plan_request_id: string };
+    Returns: string;
   };
   claim_ai_plan_request: {
     Args: { visibility_seconds?: number };
@@ -157,6 +221,37 @@ type AiFunctions = LivePublic["Functions"] & {
     Args: {
       message_id: number;
       plan_request_id: string;
+      processing_error: string;
+      retryable?: boolean;
+      max_attempts?: number;
+    };
+    Returns: string;
+  };
+  claim_ai_interpretation_request: {
+    Args: { visibility_seconds?: number };
+    Returns: {
+      message_id: number;
+      interpretation_request_id: string;
+      evidence_snapshot: Json;
+      evidence_sha256: string;
+    }[];
+  };
+  finish_ai_interpretation_success: {
+    Args: {
+      message_id: number;
+      interpretation_request_id: string;
+      provider: string;
+      model: string;
+      prompt_version: string;
+      policy_version: string;
+      interpretation: Json;
+    };
+    Returns: undefined;
+  };
+  finish_ai_interpretation_error: {
+    Args: {
+      message_id: number;
+      interpretation_request_id: string;
       processing_error: string;
       retryable?: boolean;
       max_attempts?: number;
