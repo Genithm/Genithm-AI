@@ -256,15 +256,19 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const code = error instanceof Error && error.message ? error.message.slice(0, 120) : "provider_reconciliation_failed";
     if (runId) {
-      await service.rpc("finish_provider_reconciliation", {
-        run_id: runId,
-        status: "failed",
-        target_count: 0,
-        success_count: 0,
-        failure_count: 0,
-        result_summary: { provider },
-        error_code: code,
-      }).catch(() => null);
+      try {
+        await service.rpc("finish_provider_reconciliation", {
+          run_id: runId,
+          status: "failed",
+          target_count: 0,
+          success_count: 0,
+          failure_count: 0,
+          result_summary: { provider },
+          error_code: code,
+        });
+      } catch {
+        // Best-effort run finalization; the original reconciliation failure remains authoritative.
+      }
     }
     try {
       const mode = provider === "stripe" ? getStripeConfig().livemode : provider === "paypal" ? getPayPalConfig().livemode : getWiseConfig().livemode;
