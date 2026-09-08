@@ -19,9 +19,7 @@ export async function GET(
   const { data, error } = await supabase.rpc("get_scientific_report", { report_id: id });
   const report = data?.[0];
   if (error || !report) return NextResponse.json({ error: "Scientific report not found." }, { status: 404 });
-  if (!report.integrity_valid) {
-    return NextResponse.json({ error: "Scientific report integrity check failed. Export refused." }, { status: 409 });
-  }
+  if (!report.integrity_valid) return NextResponse.json({ error: "Scientific report integrity check failed. Export refused." }, { status: 409 });
 
   let body: string;
   let contentType: string;
@@ -48,7 +46,7 @@ export async function GET(
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "X-Genithm-Report-SHA256": report.report_sha256,
-      "X-Genithm-Source-SHA256": report.source_result_sha256,
+      "X-Genithm-Source-Evidence-SHA256": report.source_evidence_sha256 ?? report.source_result_sha256 ?? "",
     },
   });
 }
