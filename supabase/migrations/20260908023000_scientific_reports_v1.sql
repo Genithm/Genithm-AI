@@ -205,3 +205,44 @@ revoke all on function app_private.request_scientific_report(uuid) from public, 
 grant execute on function app_private.request_scientific_report(uuid) to authenticated;
 revoke all on function public.request_scientific_report(uuid) from public, anon, service_role;
 grant execute on function public.request_scientific_report(uuid) to authenticated;
+
+create or replace function public.get_scientific_report(report_id uuid)
+returns table(
+  id uuid,
+  organization_id uuid,
+  project_id uuid,
+  created_by uuid,
+  source_job_id uuid,
+  source_job_type text,
+  source_result_sha256 text,
+  report_schema_version text,
+  report_snapshot jsonb,
+  report_sha256 text,
+  integrity_valid boolean,
+  generated_at timestamptz,
+  created_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path=''
+as $$
+  select
+    r.id,
+    r.organization_id,
+    r.project_id,
+    r.created_by,
+    r.source_job_id,
+    r.source_job_type,
+    r.source_result_sha256,
+    r.report_schema_version,
+    r.report_snapshot,
+    r.report_sha256,
+    encode(extensions.digest(convert_to(r.report_snapshot::text,'UTF8'),'sha256'),'hex') = r.report_sha256,
+    r.generated_at,
+    r.created_at
+  from public.scientific_reports r
+  where r.id=report_id;
+$$;
+revoke all on function public.get_scientific_report(uuid) from public, anon, service_role;
+grant execute on function public.get_scientific_report(uuid) to authenticated;
