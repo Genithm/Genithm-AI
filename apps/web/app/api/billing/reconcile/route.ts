@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     if (!customerId) return NextResponse.json({ error: "Stripe customer mapping is missing." }, { status: 409 });
 
     const service = getServiceSupabase();
+    const reconciliationTime = new Date().toISOString();
     const subscriptions = await stripeGet("/subscriptions", { customer: customerId, status: "all", limit: 20 });
     let subscriptionCount = 0;
     for (const raw of stripeArray(subscriptions.data)) {
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
         cancel_at: stripeTimestamp(subscription.cancel_at),
         latest_invoice_id: stripeId(subscription.latest_invoice),
         provider_created_at: stripeTimestamp(subscription.created),
+        event_created_at: reconciliationTime,
       });
       if (error) throw new Error("Subscription reconciliation failed");
       subscriptionCount += 1;
