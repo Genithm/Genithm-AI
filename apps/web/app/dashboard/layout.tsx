@@ -13,7 +13,9 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
           <Link className="button" href="/dashboard">Research dashboard</Link>
           <Link className="button" href="/dashboard/ai">Genithm AI</Link>
           <Link className="button" href="/dashboard/reports">Scientific reports</Link>
+          <Link className="button" href="/dashboard/billing">Plan & usage</Link>
           {isPlatformAdmin ? <Link className="button" href="/dashboard/admin">Platform admin</Link> : null}
+          {isPlatformAdmin ? <Link className="button" href="/dashboard/admin/billing">Billing operations</Link> : null}
         </nav>
       </div>
       {children}
