@@ -43,7 +43,17 @@ def run_tests() -> None:
 
     result = classify([".github/workflows/worker-release.yml"])
     assert not result["full_ci"]
-    assert result["release_required"]
+    assert not result["release_required"]
+
+    result = classify([".github/workflows/ci.yml"])
+    assert result["full_ci"]
+    assert result["web"]
+    assert result["api"]
+    assert result["dependency_audit"]
+    assert not result["release_required"]
+    for worker in WORKERS:
+        assert result[f"{worker}_worker"]
+        assert not result[f"{worker}_image"]
 
     result = classify(["new-unclassified-area/config.toml"])
     assert result["full_ci"]
