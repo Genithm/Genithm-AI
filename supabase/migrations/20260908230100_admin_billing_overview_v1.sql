@@ -29,15 +29,24 @@ begin
     ), '{}'::jsonb),
     'subscriptions_by_plan', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'plan_key', p.plan_key,
-        'plan_name', p.name,
-        'plan_status', p.status,
-        'billing_model', p.billing_model,
-        'organization_count', count(s.organization_id)
-      ) order by p.sort_order, p.plan_key)
-      from public.billing_plans p
-      left join public.organization_subscriptions s on s.plan_id = p.id
-      group by p.id, p.plan_key, p.name, p.status, p.billing_model, p.sort_order
+        'plan_key', grouped.plan_key,
+        'plan_name', grouped.plan_name,
+        'plan_status', grouped.plan_status,
+        'billing_model', grouped.billing_model,
+        'organization_count', grouped.organization_count
+      ) order by grouped.sort_order, grouped.plan_key)
+      from (
+        select
+          p.plan_key,
+          p.name as plan_name,
+          p.status as plan_status,
+          p.billing_model,
+          p.sort_order,
+          count(s.organization_id)::bigint as organization_count
+        from public.billing_plans p
+        left join public.organization_subscriptions s on s.plan_id = p.id
+        group by p.id, p.plan_key, p.name, p.status, p.billing_model, p.sort_order
+      ) grouped
     ), '[]'::jsonb)
   ) into result;
 
