@@ -1,3 +1,5 @@
+import { createVerify } from "node:crypto";
+
 type WiseJson = Record<string, unknown>;
 
 type WiseConfig = {
@@ -29,9 +31,11 @@ export function getWiseConfig(): WiseConfig {
 export function getWiseSetupState() {
   const apiToken = process.env.WISE_API_TOKEN?.trim() ?? "";
   const profileId = process.env.WISE_PROFILE_ID?.trim() ?? "";
+  const webhookKey = process.env.WISE_WEBHOOK_PUBLIC_KEY?.trim() ?? "";
   const environment = process.env.WISE_ENVIRONMENT?.trim().toLowerCase() || "sandbox";
   return {
     credentialsConfigured: Boolean(apiToken && profileId),
+    webhookConfigured: webhookKey.includes("BEGIN PUBLIC KEY"),
     livemode: environment === "live",
   };
 }
@@ -76,6 +80,15 @@ export async function verifyWiseConnection() {
   return { profileId: config.profileId, livemode: config.livemode };
 }
 
+export function verifyWiseWebhook(rawBody: string, signature: string | null) {
+  const publicKey = required("WISE_WEBHOOK_PUBLIC_KEY").replace(/\\n/g, "\n");
+  if (!signature) throw new Error("Wise webhook signature is missing");
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(rawBody, "utf8");
+  verifier.end();
+  if (!verifier.verify(publicKey, signature, "base64")) throw new Error("Wise webhook signature is invalid");
+}
+
 export async function createWiseQuote(input: {
   sourceCurrency: string;
   targetCurrency: string;
@@ -100,7 +113,6 @@ export async function createWiseTransfer(input: {
   customerTransactionId: string;
   reference?: string;
 }) {
-  const config = getWiseConfig();
   return wiseRequest("/v1/transfers", {
     method: "POST",
     correlationId: input.customerTransactionId,
