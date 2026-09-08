@@ -2,8 +2,6 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-import type { Database } from "@/lib/report-database.types";
-
 type StripeJson = Record<string, unknown>;
 
 type StripeConfig = {
@@ -41,7 +39,9 @@ export function getStripeSetupState() {
 export function getServiceSupabase() {
   const url = requiredServerEnv("SUPABASE_URL");
   const secretKey = requiredServerEnv("SUPABASE_SECRET_KEY");
-  return createSupabaseClient<Database>(url, secretKey, {
+  // Service-only billing reconciliation uses RPC names introduced by the same migration.
+  // Browser/user clients remain strongly typed; this client never crosses the server boundary.
+  return createSupabaseClient<any>(url, secretKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
