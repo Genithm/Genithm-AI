@@ -7,6 +7,7 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
         <nav className="actions" aria-label="Workspace navigation" style={{ marginTop: 0 }}>
           <Link className="button" href="/dashboard">Research dashboard</Link>
           <Link className="button" href="/dashboard/ai">Genithm AI</Link>
+          <Link className="button" href="/dashboard/reports">Scientific reports</Link>
         </nav>
       </div>
       {children}
