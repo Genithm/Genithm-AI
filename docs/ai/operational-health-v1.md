@@ -6,16 +6,18 @@ Genithm exposes a bounded, read-only operational view for the three AI lifecycle
 
 `public.get_ai_operational_health(target_project_id uuid default null)` requires an authenticated caller.
 
-- organization owners and admins receive organization-wide aggregate metrics for organizations they belong to;
-- ordinary members receive aggregates only for requests they created;
-- an optional project ID narrows metrics to a project that belongs to one of the caller's organizations;
+- every caller receives aggregate metrics only for AI requests they created;
+- the underlying AI request-table RLS policies remain the final authorization boundary;
+- an optional project ID narrows metrics to the caller's own requests in that project;
 - the RPC returns aggregates only. It never returns prompts, user questions, frozen evidence, interpretations, follow-up answers, scientific results, storage paths, or secrets.
 
-The function is `SECURITY DEFINER` only so owner/admin aggregate metrics can include other users' lifecycle rows even though the underlying AI request tables are owner-selectable under RLS. The function authenticates the caller, joins only the caller's `organization_members` rows, and applies the owner/admin versus self visibility rule before aggregation. Execution is granted only to `authenticated`.
+The function is `SECURITY INVOKER` with an empty `search_path`. It also filters each source table by `requested_by = auth.uid()` as defense in depth. Execution is granted only to `authenticated`; `anon` and `service_role` cannot invoke the public RPC.
+
+Organization-wide owner/admin metrics are intentionally deferred from V1 rather than bypassing the owner-scoped RLS policies with an authenticated `SECURITY DEFINER` endpoint.
 
 ## Health policy
 
-Each visible organization reports one row for each pipeline:
+Each organization represented by the caller's visible requests reports one row for each pipeline:
 
 - `planner`
 - `interpretation`
