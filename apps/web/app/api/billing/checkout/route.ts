@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
     if (!userId) return NextResponse.redirect(new URL("/login", request.url), 303);
 
     const { livemode } = getStripeConfig();
+    const { error: providerGuardError } = await (supabase as any).rpc("get_provider_checkout_context", {
+      organization_id: organizationId,
+      provider_key: "stripe",
+      price_key: priceKey,
+      livemode,
+    });
+    if (providerGuardError) return NextResponse.json({ error: "Another paid subscription is active or Stripe checkout is not ready for this price." }, { status: 409 });
+
     const { data: rawContext, error: contextError } = await supabase.rpc("get_billing_checkout_context", {
       organization_id: organizationId,
       price_key: priceKey,
