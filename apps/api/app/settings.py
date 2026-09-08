@@ -5,8 +5,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    environment: str = "development"
-    allowed_origins: str = "http://localhost:3000"
+    environment: str = Field(
+        default="development",
+        validation_alias=AliasChoices("GENITHM_ENV", "GENITHM_ENVIRONMENT"),
+    )
+    allowed_origins: str = Field(
+        default="http://localhost:3000",
+        validation_alias=AliasChoices("GENITHM_API_ALLOWED_ORIGINS", "GENITHM_ALLOWED_ORIGINS"),
+    )
     supabase_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("GENITHM_API_SUPABASE_URL", "SUPABASE_URL"),
@@ -15,7 +21,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("GENITHM_API_SUPABASE_SECRET_KEY", "SUPABASE_SECRET_KEY"),
     )
-    readiness_timeout_seconds: float = 3.0
+    readiness_timeout_seconds: float = Field(
+        default=3.0,
+        validation_alias=AliasChoices("GENITHM_API_READINESS_TIMEOUT_SECONDS", "GENITHM_READINESS_TIMEOUT_SECONDS"),
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="GENITHM_",
