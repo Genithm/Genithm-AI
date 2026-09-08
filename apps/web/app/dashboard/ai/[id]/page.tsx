@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { approveAiPlan, requestAiInterpretation, requestAiPlan } from "../actions";
+import { approveAiPlan, requestAiEvidenceFollowup, requestAiInterpretation, requestAiPlan } from "../actions";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -29,6 +29,36 @@ function interpretationParts(value: unknown) {
   return {
     summary: typeof value.summary === "string" ? value.summary : null,
     findings,
+    limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
+  };
+}
+
+function followupParts(value: unknown) {
+  const empty = {
+    status: null as string | null,
+    directAnswer: null as { statement: string; evidenceIds: string[] } | null,
+    supportingPoints: [] as Array<{ statement: string; evidenceIds: string[] }>,
+    limitations: [] as string[],
+  };
+  if (!isRecord(value)) return empty;
+  const grounded = (item: unknown) => {
+    if (!isRecord(item) || typeof item.statement !== "string" || !Array.isArray(item.evidence_ids)) return null;
+    return {
+      statement: item.statement,
+      evidenceIds: item.evidence_ids.filter((evidenceId): evidenceId is string => typeof evidenceId === "string"),
+    };
+  };
+  const directAnswer = grounded(value.direct_answer);
+  const supportingPoints = Array.isArray(value.supporting_points)
+    ? value.supporting_points.flatMap((item) => {
+        const point = grounded(item);
+        return point ? [point] : [];
+      })
+    : [];
+  return {
+    status: typeof value.status === "string" ? value.status : null,
+    directAnswer,
+    supportingPoints,
     limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
   };
 }
@@ -78,7 +108,7 @@ export default async function AiConversationPage({ params, searchParams }: { par
     .maybeSingle();
   if (error || !conversation) notFound();
 
-  const [{ data: messages }, { data: plans }, { data: interpretations }, { data: project }] = await Promise.all([
+  const [{ data: messages }, { data: plans }, { data: interpretations }, { data: followups }, { data: project }] = await Promise.all([
     supabase.from("ai_messages")
       .select("id,role,content,message_kind,plan_request_id,created_at")
       .eq("conversation_id", id)
@@ -94,10 +124,22 @@ export default async function AiConversationPage({ params, searchParams }: { par
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase.from("ai_evidence_followup_requests")
+      .select("id,interpretation_request_id,question,question_sha256,evidence_sha256,status,provider,model,prompt_version,policy_version,answer_schema_version,answer,answer_sha256,processing_attempts,processing_error,created_at,updated_at")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: true })
+      .limit(100),
     supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
   ]);
 
   const interpretationByPlan = new Map((interpretations ?? []).map((item) => [item.plan_request_id, item]));
+  const followupsByInterpretation = new Map<string, NonNullable<typeof followups>>();
+  for (const item of followups ?? []) {
+    const existing = followupsByInterpretation.get(item.interpretation_request_id) ?? [];
+    existing.push(item);
+    followupsByInterpretation.set(item.interpretation_request_id, existing);
+  }
+
   const dispatched = (plans ?? []).filter((plan) => plan.status === "dispatched" && plan.dispatched_resource_type && plan.dispatched_resource_id);
   const scientificIds = dispatched.filter((plan) => plan.dispatched_resource_type === "scientific_job").map((plan) => plan.dispatched_resource_id as string);
   const annotationIds = dispatched.filter((plan) => plan.dispatched_resource_type === "protein_annotation_job").map((plan) => plan.dispatched_resource_id as string);
@@ -134,10 +176,7 @@ export default async function AiConversationPage({ params, searchParams }: { par
   };
 
   const [scientificStates, annotationStates, retrievalStates, blastStates] = await Promise.all([
-    loadScientificStates(),
-    loadAnnotationStates(),
-    loadRetrievalStates(),
-    loadBlastStates(),
+    loadScientificStates(), loadAnnotationStates(), loadRetrievalStates(), loadBlastStates(),
   ]);
 
   const executionByResource = new Map<string, ExecutionState>();
@@ -256,6 +295,7 @@ export default async function AiConversationPage({ params, searchParams }: { par
             const interpretation = interpretationByPlan.get(plan.id);
             const interpreted = interpretationParts(interpretation?.interpretation);
             const interpretationEligible = canInterpret(plan.dispatched_resource_type, execution?.status ?? null);
+            const interpretationFollowups = interpretation ? followupsByInterpretation.get(interpretation.id) ?? [] : [];
             return (
               <div className="item" key={plan.id}>
                 <div className="dashboard-header">
@@ -334,9 +374,60 @@ export default async function AiConversationPage({ params, searchParams }: { par
                         ) : null}
                         {interpreted.limitations.length ? <div className="small" style={{ marginTop: 8 }}><strong>Interpretation limits:</strong> {interpreted.limitations.join(" · ")}</div> : null}
                         {interpretation.interpretation_sha256 ? <div className="small" style={{ marginTop: 8 }}>Interpretation SHA-256: <code>{interpretation.interpretation_sha256}</code></div> : null}
+
+                        <div className="item" style={{ marginTop: 12 }}>
+                          <strong>Ask about this recorded evidence</strong>
+                          <form action={requestAiEvidenceFollowup} className="stack" style={{ marginTop: 8 }}>
+                            <input type="hidden" name="interpretation_request_id" value={interpretation.id} />
+                            <input type="hidden" name="conversation_id" value={conversation.id} />
+                            <label>
+                              Evidence-only question
+                              <textarea name="question" minLength={1} maxLength={4000} required placeholder="Ask what the frozen recorded evidence shows or does not establish." />
+                            </label>
+                            <button className="button primary">Ask from frozen evidence</button>
+                          </form>
+                          <div className="small" style={{ marginTop: 8 }}>The responder receives this question plus the same frozen evidence snapshot only. It cannot search the web, rerun tools, or use missing facts as negative evidence.</div>
+                        </div>
+
+                        {interpretationFollowups.length ? (
+                          <div className="list" style={{ marginTop: 12 }}>
+                            {interpretationFollowups.map((followup) => {
+                              const parsedFollowup = followupParts(followup.answer);
+                              return (
+                                <div className="item" key={followup.id}>
+                                  <strong>You asked</strong>
+                                  <p style={{ whiteSpace: "pre-wrap" }}>{followup.question}</p>
+                                  <div className="small">Status: {readable(followup.status)} · attempts {followup.processing_attempts} · created {new Date(followup.created_at).toLocaleString()}</div>
+                                  <div className="small">Question SHA-256: <code>{followup.question_sha256}</code> · evidence SHA-256: <code>{followup.evidence_sha256}</code></div>
+                                  {followup.provider || followup.model ? <div className="small">Responder: {followup.provider ?? "unknown"}/{followup.model ?? "unknown"}{followup.prompt_version ? ` · prompt ${followup.prompt_version}` : ""} · policy {followup.policy_version}</div> : <div className="small">Policy: {followup.policy_version}</div>}
+                                  {followup.processing_error ? <div className="error">Follow-up error: {followup.processing_error}</div> : null}
+                                  {followup.status === "completed" && parsedFollowup.directAnswer ? (
+                                    <div className="notice" style={{ marginTop: 8 }}>
+                                      <strong>{parsedFollowup.status === "insufficient_evidence" ? "Recorded evidence is insufficient" : "Evidence-grounded answer"}</strong>
+                                      <p>{parsedFollowup.directAnswer.statement}</p>
+                                      {parsedFollowup.directAnswer.evidenceIds.length ? <div className="small">Evidence: {parsedFollowup.directAnswer.evidenceIds.join(", ")}</div> : null}
+                                      {parsedFollowup.supportingPoints.length ? (
+                                        <div className="list" style={{ marginTop: 8 }}>
+                                          {parsedFollowup.supportingPoints.map((point, index) => (
+                                            <div className="item" key={`${followup.id}-point-${index}`}>
+                                              <div>{point.statement}</div>
+                                              <div className="small">Evidence: {point.evidenceIds.join(", ")}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                      {parsedFollowup.limitations.length ? <div className="small" style={{ marginTop: 8 }}><strong>Limits:</strong> {parsedFollowup.limitations.join(" · ")}</div> : null}
+                                      {followup.answer_sha256 ? <div className="small" style={{ marginTop: 8 }}>Answer SHA-256: <code>{followup.answer_sha256}</code></div> : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </>
                     ) : null}
-                    <div className="small" style={{ marginTop: 8 }}>This is a model explanation of the frozen recorded evidence, not a new experiment, source lookup, tool run, or independent scientific verification.</div>
+                    <div className="small" style={{ marginTop: 8 }}>This is model reasoning over frozen recorded evidence, not a new experiment, source lookup, tool run, or independent scientific verification.</div>
                   </div>
                 ) : null}
               </div>
