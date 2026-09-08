@@ -1,6 +1,10 @@
 name: Worker release
 
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       source_revision:
@@ -11,14 +15,14 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 concurrency:
-  group: worker-release-${{ inputs.source_revision }}
+  group: worker-release-${{ github.event.workflow_run.head_sha || inputs.source_revision }}
   cancel-in-progress: false
 
 jobs:
   validate-source:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       source_revision: ${{ steps.validate.outputs.source_revision }}
@@ -30,9 +34,16 @@ jobs:
       - id: validate
         name: Validate tested main revision
         shell: bash
+        env:
+          DISPATCH_REVISION: ${{ inputs.source_revision }}
+          CI_REVISION: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          revision='${{ inputs.source_revision }}'
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_run' ]]; then
+            revision="$CI_REVISION"
+          else
+            revision="$DISPATCH_REVISION"
+          fi
           if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
             echo 'source_revision must be a full lowercase 40-character Git commit SHA' >&2
             exit 2
@@ -88,7 +99,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          repository="ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.image }}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repository="ghcr.io/${owner}/${{ matrix.image }}"
           tag="sha-${{ needs.validate-source.outputs.source_revision }}"
           docker buildx build \
             --platform linux/amd64 \
@@ -114,7 +126,8 @@ jobs:
         run: |
           set -euo pipefail
           digest="$(cat /tmp/image.txt)"
-          repository="ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.image }}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repository="ghcr.io/${owner}/${{ matrix.image }}"
           printf '%s=%s@%s\n' '${{ matrix.worker }}' "$repository" "$digest" > '${{ matrix.worker }}.image'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -140,7 +153,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t images < <(sort /tmp/images/*.image | xargs -r cat)
+          mapfile -t images < <(cat /tmp/images/*.image | sort)
           if [[ "${#images[@]}" -ne 6 ]]; then
             echo "expected 6 worker image records, found ${#images[@]}" >&2
             exit 2
