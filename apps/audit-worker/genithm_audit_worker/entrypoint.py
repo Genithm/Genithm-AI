@@ -9,8 +9,12 @@ WORKER_KIND = "audit_worker"
 WORKER_VERSION = "genithm-audit-worker/0.1.0"
 
 
+def _is_continuous_run(args: list[str]) -> bool:
+    return not any(arg in {"--once", "--help", "-h"} for arg in args)
+
+
 def main() -> None:
-    if "--once" not in sys.argv[1:]:
+    if _is_continuous_run(sys.argv[1:]):
         start_worker_heartbeat(WORKER_KIND, WORKER_VERSION)
     runtime_main()
 
