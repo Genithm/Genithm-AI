@@ -51,7 +51,42 @@ Optional:
 
 `SUPABASE_SECRET_KEY` must be a backend-only Supabase secret/service credential. It must never be exposed to the browser. The audit signing private key must be separately controlled and rotated according to the audit-key runbook; it must not be reused for unrelated signing.
 
-## Rendering a release
+## Publishing immutable worker images
+
+`.github/workflows/worker-release.yml` is the production image publishing pipeline.
+
+A successful `CI` run on `main` automatically starts the worker release workflow for that exact tested commit. A manual `workflow_dispatch` fallback also exists, but it requires a full 40-character commit SHA reachable from `main`.
+
+The release workflow:
+
+1. validates the source revision against `main`;
+2. checks out that exact revision rather than a moving branch tip;
+3. authenticates to GitHub Container Registry using the repository-scoped `GITHUB_TOKEN` with `packages: write`;
+4. builds each worker for `linux/amd64` using Buildx;
+5. publishes six GHCR packages under the Genithm namespace;
+6. attaches BuildKit max-mode provenance and an SBOM attestation;
+7. records the exact registry digest returned by Buildx;
+8. renders the Kubernetes deployment with digest-only image references;
+9. creates `worker-release.json`, schema `genithm-worker-release/1`;
+10. uploads the rendered deployment and release manifest as a 90-day GitHub Actions artifact.
+
+No external registry password is required. The pipeline does not publish or deploy a mutable `latest` tag. The commit-based tag is only a discovery label; deployment always uses the immutable `@sha256:` reference captured in the release manifest.
+
+## Immutable release manifest
+
+`scripts/build_worker_release_manifest.py` creates the machine-readable release record. It fails closed unless all six worker images are present and digest-pinned.
+
+The manifest records:
+
+- source repository and exact Git commit SHA;
+- supported release platform;
+- supply-chain policy for digest-only images, provenance, and SBOM;
+- each worker's deployment name, build context, responsibilities, image repository, and SHA-256 digest;
+- the SHA-256 hash of the rendered Kubernetes deployment manifest.
+
+This means the deployable YAML can be integrity-checked against the release record before it is applied to a cluster.
+
+## Rendering a release manually
 
 Each image must be supplied as a registry reference pinned by SHA-256 digest. Mutable tags such as `latest` are rejected.
 
@@ -68,7 +103,7 @@ python scripts/render_worker_deployment.py \
   --output /tmp/genithm-workers.release.yaml
 ```
 
-The rendered manifest should then be reviewed and applied by the deployment environment. The renderer fails closed if a worker image is missing, unknown, mutable, or not digest-pinned.
+The renderer fails closed if a worker image is missing, unknown, mutable, or not digest-pinned.
 
 ## Release verification
 
@@ -82,4 +117,4 @@ After deployment:
 
 ## Current boundary
 
-This repository now defines a hardened, vendor-neutral continuous-worker deployment contract, but it does not itself provision a Kubernetes cluster, container registry, or secret manager. Until a real deployment environment is connected and the six images are published/deployed, Genithm must not claim that queued scientific work is automatically executing in production.
+The repository now defines both the hardened worker runtime contract and an immutable GHCR publishing/release-manifest pipeline. It still does not provision a Kubernetes cluster or production secret manager, and it does not apply the rendered manifest to a real runtime. Until a deployment environment is connected and the release artifact is applied there, Genithm must not claim that queued scientific work is automatically executing in production.
