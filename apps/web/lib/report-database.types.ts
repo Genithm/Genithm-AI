@@ -51,6 +51,15 @@ type ReportRow = {
   created_at: string;
 };
 
+type AdminOrganizationRow = {
+  organization_id: string;
+  organization_name: string;
+  organization_slug: string;
+  member_count: number;
+  project_count: number;
+  created_at: string;
+};
+
 type ReportFunctions = AiPublic["Functions"] & {
   request_scientific_report: {
     Args: { source_job_id: string };
@@ -63,6 +72,18 @@ type ReportFunctions = AiPublic["Functions"] & {
   get_scientific_report: {
     Args: { report_id: string };
     Returns: ReportRow[];
+  };
+  is_platform_admin: {
+    Args: Record<PropertyKey, never>;
+    Returns: boolean;
+  };
+  get_platform_admin_overview: {
+    Args: Record<PropertyKey, never>;
+    Returns: Json;
+  };
+  get_platform_admin_organizations: {
+    Args: { page_size?: number; page_offset?: number };
+    Returns: AdminOrganizationRow[];
   };
 };
 
