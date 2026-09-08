@@ -124,6 +124,10 @@ type ReportFunctions = AiPublic["Functions"] & {
     Args: Record<PropertyKey, never>;
     Returns: Json;
   };
+  get_platform_admin_payment_operations: {
+    Args: Record<PropertyKey, never>;
+    Returns: Json;
+  };
   get_platform_admin_organizations: {
     Args: { page_size?: number; page_offset?: number };
     Returns: AdminOrganizationRow[];
@@ -162,6 +166,22 @@ type ReportFunctions = AiPublic["Functions"] & {
   has_organization_entitlement: {
     Args: { target_organization_id: string; requested_feature_key: string };
     Returns: boolean;
+  };
+  get_organization_billing_state: {
+    Args: { organization_id: string; livemode: boolean };
+    Returns: Json;
+  };
+  get_billing_checkout_context: {
+    Args: { organization_id: string; price_key: string; livemode: boolean };
+    Returns: Json;
+  };
+  get_billing_portal_context: {
+    Args: { organization_id: string; livemode: boolean };
+    Returns: Json;
+  };
+  request_platform_refund: {
+    Args: { provider_invoice_id: string; amount_minor?: number | null; reason?: string };
+    Returns: Json;
   };
 };
 
