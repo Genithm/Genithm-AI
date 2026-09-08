@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { approveAiPlan, requestAiPlan } from "../actions";
+import { approveAiPlan, requestAiInterpretation, requestAiPlan } from "../actions";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -14,6 +14,22 @@ function planParts(value: unknown) {
     summary: typeof value.summary === "string" ? value.summary : null,
     limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
     action: isRecord(value.action) ? value.action : null,
+  };
+}
+
+function interpretationParts(value: unknown) {
+  if (!isRecord(value)) return { summary: null as string | null, findings: [] as Array<{ statement: string; evidenceIds: string[] }>, limitations: [] as string[] };
+  const findings = Array.isArray(value.findings)
+    ? value.findings.flatMap((item) => {
+        if (!isRecord(item) || typeof item.statement !== "string" || !Array.isArray(item.evidence_ids)) return [];
+        const evidenceIds = item.evidence_ids.filter((evidenceId): evidenceId is string => typeof evidenceId === "string");
+        return [{ statement: item.statement, evidenceIds }];
+      })
+    : [];
+  return {
+    summary: typeof value.summary === "string" ? value.summary : null,
+    findings,
+    limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
   };
 }
 
@@ -30,6 +46,14 @@ function resourceKey(resourceType: string, resourceId: string) {
 
 function readable(value: string) {
   return value.replaceAll("_", " ");
+}
+
+function canInterpret(resourceType: string | null, status: string | null) {
+  if (!resourceType || !status) return false;
+  if (resourceType === "scientific_job" || resourceType === "blast_job") return status === "completed";
+  if (resourceType === "protein_annotation_job") return status === "completed" || status === "no_mapping";
+  if (resourceType === "sequence_retrieval") return status === "retrieved" || status === "not_found";
+  return false;
 }
 
 type ExecutionState = {
@@ -54,7 +78,7 @@ export default async function AiConversationPage({ params, searchParams }: { par
     .maybeSingle();
   if (error || !conversation) notFound();
 
-  const [{ data: messages }, { data: plans }, { data: project }] = await Promise.all([
+  const [{ data: messages }, { data: plans }, { data: interpretations }, { data: project }] = await Promise.all([
     supabase.from("ai_messages")
       .select("id,role,content,message_kind,plan_request_id,created_at")
       .eq("conversation_id", id)
@@ -65,9 +89,15 @@ export default async function AiConversationPage({ params, searchParams }: { par
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase.from("ai_interpretation_requests")
+      .select("id,plan_request_id,status,evidence_schema_version,evidence_sha256,provider,model,prompt_version,policy_version,interpretation_schema_version,interpretation,interpretation_sha256,processing_attempts,processing_error,created_at,updated_at")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(50),
     supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
   ]);
 
+  const interpretationByPlan = new Map((interpretations ?? []).map((item) => [item.plan_request_id, item]));
   const dispatched = (plans ?? []).filter((plan) => plan.status === "dispatched" && plan.dispatched_resource_type && plan.dispatched_resource_id);
   const scientificIds = dispatched.filter((plan) => plan.dispatched_resource_type === "scientific_job").map((plan) => plan.dispatched_resource_id as string);
   const annotationIds = dispatched.filter((plan) => plan.dispatched_resource_type === "protein_annotation_job").map((plan) => plan.dispatched_resource_id as string);
@@ -223,6 +253,9 @@ export default async function AiConversationPage({ params, searchParams }: { par
             const execution = plan.dispatched_resource_type && plan.dispatched_resource_id
               ? executionByResource.get(resourceKey(plan.dispatched_resource_type, plan.dispatched_resource_id))
               : null;
+            const interpretation = interpretationByPlan.get(plan.id);
+            const interpreted = interpretationParts(interpretation?.interpretation);
+            const interpretationEligible = canInterpret(plan.dispatched_resource_type, execution?.status ?? null);
             return (
               <div className="item" key={plan.id}>
                 <div className="dashboard-header">
@@ -230,14 +263,23 @@ export default async function AiConversationPage({ params, searchParams }: { par
                     <strong>{plan.action_type ? readable(plan.action_type) : readable(plan.status)}</strong>
                     <div className="small">Plan status: {readable(plan.status)} · attempts {plan.processing_attempts} · created {new Date(plan.created_at).toLocaleString()}</div>
                   </div>
-                  {plan.status === "ready" && plan.requires_confirmation ? (
-                    <form action={approveAiPlan}>
-                      <input type="hidden" name="plan_request_id" value={plan.id} />
-                      <input type="hidden" name="conversation_id" value={conversation.id} />
-                      <button className="button primary">Approve &amp; run</button>
-                    </form>
-                  ) : null}
-                  {plan.status === "dispatched" && href ? <Link className="button primary" href={href}>Open dispatched work</Link> : null}
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    {plan.status === "ready" && plan.requires_confirmation ? (
+                      <form action={approveAiPlan}>
+                        <input type="hidden" name="plan_request_id" value={plan.id} />
+                        <input type="hidden" name="conversation_id" value={conversation.id} />
+                        <button className="button primary">Approve &amp; run</button>
+                      </form>
+                    ) : null}
+                    {plan.status === "dispatched" && href ? <Link className="button" href={href}>Open dispatched work</Link> : null}
+                    {plan.status === "dispatched" && execution && interpretationEligible && !interpretation ? (
+                      <form action={requestAiInterpretation}>
+                        <input type="hidden" name="plan_request_id" value={plan.id} />
+                        <input type="hidden" name="conversation_id" value={conversation.id} />
+                        <button className="button primary">Interpret recorded result</button>
+                      </form>
+                    ) : null}
+                  </div>
                 </div>
 
                 {parsed.summary ? <p>{parsed.summary}</p> : null}
@@ -263,10 +305,38 @@ export default async function AiConversationPage({ params, searchParams }: { par
                             <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(execution.summary, null, 2)}</pre>
                           </details>
                         ) : null}
+                        {interpretationEligible && !interpretation ? <div className="small" style={{ marginTop: 8 }}>This terminal result is eligible for a separate evidence-grounded AI explanation. The evidence snapshot is frozen before it is sent to the interpreter.</div> : null}
                       </>
                     ) : (
                       <div className="small">The dispatched resource is not currently visible in your authorized project scope. Genithm does not infer a result or completion state when the authoritative record cannot be read.</div>
                     )}
+                  </div>
+                ) : null}
+
+                {interpretation ? (
+                  <div className="notice" style={{ marginTop: 12 }}>
+                    <strong>Evidence-grounded AI interpretation</strong>
+                    <div className="small">Status: {readable(interpretation.status)} · attempts {interpretation.processing_attempts} · evidence SHA-256 <code>{interpretation.evidence_sha256}</code></div>
+                    {interpretation.provider || interpretation.model ? <div className="small">Interpreter: {interpretation.provider ?? "unknown"}/{interpretation.model ?? "unknown"}{interpretation.prompt_version ? ` · prompt ${interpretation.prompt_version}` : ""} · policy {interpretation.policy_version}</div> : <div className="small">Policy: {interpretation.policy_version}</div>}
+                    {interpretation.processing_error ? <div className="error">Interpretation error: {interpretation.processing_error}</div> : null}
+                    {interpretation.status === "completed" && interpreted.summary ? (
+                      <>
+                        <p>{interpreted.summary}</p>
+                        {interpreted.findings.length ? (
+                          <div className="list">
+                            {interpreted.findings.map((finding, index) => (
+                              <div className="item" key={`${interpretation.id}-finding-${index}`}>
+                                <div>{finding.statement}</div>
+                                <div className="small">Evidence: {finding.evidenceIds.join(", ")}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {interpreted.limitations.length ? <div className="small" style={{ marginTop: 8 }}><strong>Interpretation limits:</strong> {interpreted.limitations.join(" · ")}</div> : null}
+                        {interpretation.interpretation_sha256 ? <div className="small" style={{ marginTop: 8 }}>Interpretation SHA-256: <code>{interpretation.interpretation_sha256}</code></div> : null}
+                      </>
+                    ) : null}
+                    <div className="small" style={{ marginTop: 8 }}>This is a model explanation of the frozen recorded evidence, not a new experiment, source lookup, tool run, or independent scientific verification.</div>
                   </div>
                 ) : null}
               </div>

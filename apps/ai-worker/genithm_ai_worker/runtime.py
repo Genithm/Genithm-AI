@@ -10,6 +10,14 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .interpreter import (
+    INTERPRETATION_JSON_SCHEMA,
+    INTERPRETATION_POLICY_VERSION,
+    INTERPRETATION_PROMPT_VERSION,
+    SYSTEM_INSTRUCTIONS as INTERPRETER_SYSTEM_INSTRUCTIONS,
+    build_interpretation_input,
+    parse_interpretation_response,
+)
 from .planner import (
     PLAN_JSON_SCHEMA,
     POLICY_VERSION,
@@ -20,7 +28,7 @@ from .planner import (
     validate_plan_shape,
 )
 
-USER_AGENT = "genithm-ai-worker/0.1.0"
+USER_AGENT = "genithm-ai-worker/0.2.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +141,14 @@ class OpenAIPlannerClient:
                 }
             },
         }
+        response = self._responses(payload)
+        try:
+            plan = json.loads(extract_response_text(response))
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ProviderHttpError(f"structured planner output was invalid: {exc}", retryable=False) from exc
+        return validate_plan_shape(plan)
+
+    def _responses(self, payload: dict[str, Any]) -> dict[str, Any]:
         response = JsonHttpClient.request(
             "https://api.openai.com/v1/responses",
             method="POST",
@@ -147,11 +163,30 @@ class OpenAIPlannerClient:
         )
         if not isinstance(response, dict):
             raise ProviderHttpError("provider returned an invalid response shape", retryable=False)
+        return response
+
+
+class OpenAIInterpreterClient(OpenAIPlannerClient):
+    def interpret(self, evidence: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "model": self.settings.model,
+            "store": False,
+            "instructions": INTERPRETER_SYSTEM_INSTRUCTIONS,
+            "input": build_interpretation_input(evidence),
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "genithm_ai_interpretation_v1",
+                    "strict": True,
+                    "schema": INTERPRETATION_JSON_SCHEMA,
+                }
+            },
+        }
+        response = self._responses(payload)
         try:
-            plan = json.loads(extract_response_text(response))
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise ProviderHttpError(f"structured planner output was invalid: {exc}", retryable=False) from exc
-        return validate_plan_shape(plan)
+            return parse_interpretation_response(response, evidence)
+        except ValueError as exc:
+            raise ProviderHttpError(str(exc), retryable=False) from exc
 
 
 def _first_row(value: Any) -> dict[str, Any] | None:
@@ -166,7 +201,7 @@ def _first_row(value: Any) -> dict[str, Any] | None:
     return value
 
 
-def process_once(settings: Settings, rpc: SupabaseRpcClient, planner: OpenAIPlannerClient) -> bool:
+def process_plan_once(settings: Settings, rpc: SupabaseRpcClient, planner: OpenAIPlannerClient) -> bool:
     claimed = _first_row(rpc.rpc("claim_ai_plan_request", {"visibility_seconds": settings.visibility_seconds}))
     if claimed is None:
         return False
@@ -175,65 +210,63 @@ def process_once(settings: Settings, rpc: SupabaseRpcClient, planner: OpenAIPlan
     user_message = str(claimed["user_message"])
     authorized_context = claimed.get("authorized_context")
     if not isinstance(authorized_context, dict):
-        rpc.rpc(
-            "finish_ai_plan_error",
-            {
-                "message_id": message_id,
-                "plan_request_id": request_id,
-                "processing_error": "Authorized context was invalid.",
-                "retryable": False,
-                "max_attempts": 3,
-            },
-        )
+        rpc.rpc("finish_ai_plan_error", {"message_id": message_id, "plan_request_id": request_id, "processing_error": "Authorized context was invalid.", "retryable": False, "max_attempts": 3})
         raise RuntimeError("authorized context was invalid")
-
     try:
         plan = planner.plan(user_message, authorized_context)
-        rpc.rpc(
-            "finish_ai_plan_success",
-            {
-                "message_id": message_id,
-                "plan_request_id": request_id,
-                "provider": planner.provider,
-                "model": settings.model,
-                "prompt_version": PROMPT_VERSION,
-                "policy_version": POLICY_VERSION,
-                "plan": plan,
-            },
-        )
+        rpc.rpc("finish_ai_plan_success", {"message_id": message_id, "plan_request_id": request_id, "provider": planner.provider, "model": settings.model, "prompt_version": PROMPT_VERSION, "policy_version": POLICY_VERSION, "plan": plan})
         return True
     except ProviderHttpError as exc:
-        rpc.rpc(
-            "finish_ai_plan_error",
-            {
-                "message_id": message_id,
-                "plan_request_id": request_id,
-                "processing_error": str(exc)[:1500],
-                "retryable": exc.retryable,
-                "max_attempts": 3,
-            },
-        )
+        rpc.rpc("finish_ai_plan_error", {"message_id": message_id, "plan_request_id": request_id, "processing_error": str(exc)[:1500], "retryable": exc.retryable, "max_attempts": 3})
         raise
     except Exception as exc:
-        rpc.rpc(
-            "finish_ai_plan_error",
-            {
-                "message_id": message_id,
-                "plan_request_id": request_id,
-                "processing_error": str(exc)[:1500],
-                "retryable": False,
-                "max_attempts": 3,
-            },
-        )
+        rpc.rpc("finish_ai_plan_error", {"message_id": message_id, "plan_request_id": request_id, "processing_error": str(exc)[:1500], "retryable": False, "max_attempts": 3})
         raise
+
+
+def process_interpretation_once(settings: Settings, rpc: SupabaseRpcClient, interpreter: OpenAIInterpreterClient) -> bool:
+    claimed = _first_row(rpc.rpc("claim_ai_interpretation_request", {"visibility_seconds": settings.visibility_seconds}))
+    if claimed is None:
+        return False
+    message_id = int(claimed["message_id"])
+    request_id = str(claimed["interpretation_request_id"])
+    evidence = claimed.get("evidence_snapshot")
+    if not isinstance(evidence, dict):
+        rpc.rpc("finish_ai_interpretation_error", {"message_id": message_id, "interpretation_request_id": request_id, "processing_error": "Evidence snapshot was invalid.", "retryable": False, "max_attempts": 3})
+        raise RuntimeError("evidence snapshot was invalid")
+    try:
+        interpretation = interpreter.interpret(evidence)
+        rpc.rpc("finish_ai_interpretation_success", {
+            "message_id": message_id,
+            "interpretation_request_id": request_id,
+            "provider": interpreter.provider,
+            "model": settings.model,
+            "prompt_version": INTERPRETATION_PROMPT_VERSION,
+            "policy_version": INTERPRETATION_POLICY_VERSION,
+            "interpretation": interpretation,
+        })
+        return True
+    except ProviderHttpError as exc:
+        rpc.rpc("finish_ai_interpretation_error", {"message_id": message_id, "interpretation_request_id": request_id, "processing_error": str(exc)[:1500], "retryable": exc.retryable, "max_attempts": 3})
+        raise
+    except Exception as exc:
+        rpc.rpc("finish_ai_interpretation_error", {"message_id": message_id, "interpretation_request_id": request_id, "processing_error": str(exc)[:1500], "retryable": False, "max_attempts": 3})
+        raise
+
+
+def process_once(settings: Settings, rpc: SupabaseRpcClient, planner: OpenAIPlannerClient, interpreter: OpenAIInterpreterClient | None = None) -> bool:
+    if process_plan_once(settings, rpc, planner):
+        return True
+    return process_interpretation_once(settings, rpc, interpreter or OpenAIInterpreterClient(settings))
 
 
 def run_forever(settings: Settings) -> None:
     rpc = SupabaseRpcClient(settings)
     planner = OpenAIPlannerClient(settings)
+    interpreter = OpenAIInterpreterClient(settings)
     while True:
         try:
-            worked = process_once(settings, rpc, planner)
+            worked = process_once(settings, rpc, planner, interpreter)
         except Exception as exc:
             print(f"AI worker iteration failed: {exc}", file=sys.stderr, flush=True)
             worked = True
@@ -242,12 +275,13 @@ def run_forever(settings: Settings) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Genithm's permission-controlled AI scientific planner")
-    parser.add_argument("--once", action="store_true", help="Process at most one queued AI planning request")
+    parser = argparse.ArgumentParser(description="Run Genithm's permission-controlled AI planner and evidence interpreter")
+    parser.add_argument("--once", action="store_true", help="Process at most one queued AI planning or interpretation request")
     args = parser.parse_args()
     settings = Settings.from_env()
     if args.once:
-        process_once(settings, SupabaseRpcClient(settings), OpenAIPlannerClient(settings))
+        rpc = SupabaseRpcClient(settings)
+        process_once(settings, rpc, OpenAIPlannerClient(settings), OpenAIInterpreterClient(settings))
         return
     run_forever(settings)
 

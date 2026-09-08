@@ -53,3 +53,18 @@ export async function approveAiPlan(formData: FormData) {
   if (dispatched.resource_type === "protein_annotation_job") redirect(`/dashboard/protein-annotations/${dispatched.resource_id}`);
   redirect(`/dashboard/ai/${conversationId}`);
 }
+
+export async function requestAiInterpretation(formData: FormData) {
+  const supabase = await requireUser();
+  const planRequestId = String(formData.get("plan_request_id") ?? "").trim();
+  const conversationId = String(formData.get("conversation_id") ?? "").trim();
+  if (!planRequestId || !conversationId) redirect("/dashboard/ai?error=AI%20interpretation%20request%20is%20invalid.");
+
+  const { data, error } = await supabase.rpc("request_ai_interpretation", { plan_request_id: planRequestId });
+  if (error || !data) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("The authoritative result is not ready or eligible for evidence-grounded interpretation.")}`);
+  }
+
+  revalidatePath(`/dashboard/ai/${conversationId}`);
+  redirect(`/dashboard/ai/${conversationId}`);
+}
