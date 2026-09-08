@@ -6,14 +6,20 @@ on:
       - 'deploy/kubernetes/workers.yaml'
       - 'scripts/render_worker_deployment.py'
       - 'scripts/test_worker_deployment.py'
+      - 'scripts/build_worker_release_manifest.py'
+      - 'scripts/test_worker_release_manifest.py'
       - '.github/workflows/worker-deployment-contract.yml'
+      - '.github/workflows/worker-release.yml'
   push:
     branches: [main]
     paths:
       - 'deploy/kubernetes/workers.yaml'
       - 'scripts/render_worker_deployment.py'
       - 'scripts/test_worker_deployment.py'
+      - 'scripts/build_worker_release_manifest.py'
+      - 'scripts/test_worker_release_manifest.py'
       - '.github/workflows/worker-deployment-contract.yml'
+      - '.github/workflows/worker-release.yml'
 
 permissions:
   contents: read
@@ -30,6 +36,8 @@ jobs:
           python-version: '3.13'
       - name: Run deployment contract tests
         run: python scripts/test_worker_deployment.py
+      - name: Run release manifest contract tests
+        run: python scripts/test_worker_release_manifest.py
       - name: Render digest-pinned fixture
         run: |
           digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -42,3 +50,26 @@ jobs:
             --image "ai=ghcr.io/genithm/ai-worker@sha256:${digest}" \
             --output /tmp/genithm-workers.yaml
           test "$(grep -c '@sha256:' /tmp/genithm-workers.yaml)" -eq 6
+      - name: Build immutable release fixture
+        run: |
+          digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          revision="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          python scripts/build_worker_release_manifest.py \
+            --repository Genithm/Genithm-AI \
+            --source-revision "$revision" \
+            --deployment-manifest /tmp/genithm-workers.yaml \
+            --image "sequence=ghcr.io/genithm/sequence-worker@sha256:${digest}" \
+            --image "source=ghcr.io/genithm/source-worker@sha256:${digest}" \
+            --image "blast=ghcr.io/genithm/blast-worker@sha256:${digest}" \
+            --image "scientific=ghcr.io/genithm/scientific-worker@sha256:${digest}" \
+            --image "audit=ghcr.io/genithm/audit-worker@sha256:${digest}" \
+            --image "ai=ghcr.io/genithm/ai-worker@sha256:${digest}" \
+            --output /tmp/worker-release.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/worker-release.json').read_text())
+          assert payload['schema_version'] == 'genithm-worker-release/1'
+          assert len(payload['workers']) == 6
+          assert all('@sha256:' in item['image'] for item in payload['workers'])
+          PY
