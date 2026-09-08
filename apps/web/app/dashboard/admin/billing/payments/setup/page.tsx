@@ -30,6 +30,7 @@ export default async function PaymentSetupPage() {
           <p className="small">Attach provider credentials once, verify them here, then use the same Genithm billing core across customer payments and payout rails.</p>
         </div>
         <div className="actions">
+          <Link className="button" href="/dashboard/admin/billing/payments/health">Provider health</Link>
           <Link className="button" href="/dashboard/admin/billing/payments">Payment operations</Link>
           <Link className="button" href="/dashboard/admin/billing">Billing operations</Link>
         </div>
