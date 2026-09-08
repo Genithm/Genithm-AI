@@ -104,12 +104,6 @@ def classify(paths: list[str]) -> dict[str, bool]:
     result = {key: False for key in OUTPUT_KEYS}
     result["full_ci"] = full_ci
 
-    if full_ci:
-        for key in OUTPUT_KEYS:
-            if key != "full_ci":
-                result[key] = True
-        return result
-
     result["web"] = any(path.startswith("apps/web/") for path in paths)
     result["api"] = any(path.startswith("apps/api/") for path in paths)
 
@@ -128,11 +122,28 @@ def classify(paths: list[str]) -> dict[str, bool]:
     for worker in WORKERS:
         result[f"audit_{worker}"] = f"apps/{worker}-worker/pyproject.toml" in paths
 
+    if full_ci:
+        result["web"] = True
+        result["api"] = True
+        for worker in WORKERS:
+            result[f"{worker}_worker"] = True
+        result["audit_web"] = True
+        result["audit_api"] = True
+        for worker in WORKERS:
+            result[f"audit_{worker}"] = True
+
+        # Unknown areas are conservative: validate every image too. Known CI-routing
+        # changes run full code/security validation without paying for six unrelated
+        # Docker builds solely because the routing implementation changed.
+        if unknown:
+            for worker in WORKERS:
+                result[f"{worker}_image"] = True
+
     result["dependency_audit"] = any(
         result[key]
         for key in ("audit_web", "audit_api", *(f"audit_{worker}" for worker in WORKERS))
     )
-    result["release_required"] = any(result[f"{worker}_image"] for worker in WORKERS) or any(
+    result["release_required"] = bool(unknown) or any(result[f"{worker}_image"] for worker in WORKERS) or any(
         path in RELEASE_SHARED_PATHS for path in paths
     )
     return result
