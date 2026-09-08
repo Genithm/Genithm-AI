@@ -1,0 +1,161 @@
+name: Worker production deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Full tested commit SHA from a successful Worker release
+        required: true
+        type: string
+      release_run_id:
+        description: Successful Worker release workflow run ID containing the release artifact
+        required: true
+        type: string
+      expected_context:
+        description: Exact kubectl context name expected for the production cluster
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: genithm-worker-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      - name: Validate dispatch inputs
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          EXPECTED_CONTEXT: ${{ inputs.expected_context }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]] || { echo 'source_revision must be a full lowercase Git SHA' >&2; exit 2; }
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'release_run_id must be numeric' >&2; exit 2; }
+          [[ -n "$EXPECTED_CONTEXT" ]] || { echo 'expected_context must not be empty' >&2; exit 2; }
+
+      - name: Verify release workflow provenance
+        uses: actions/github-script@c1a5a0e8b46e8d0e32f205e5354f69c9f43f2e12 # v8.0.0
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        with:
+          script: |
+            const run = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: Number(process.env.RELEASE_RUN_ID),
+            });
+            if (run.data.name !== 'Worker release') core.setFailed('release_run_id is not a Worker release run');
+            if (run.data.conclusion !== 'success') core.setFailed('Worker release run is not successful');
+            if (run.data.head_sha !== process.env.SOURCE_REVISION) core.setFailed('Worker release head SHA does not match source_revision');
+            if (run.data.head_branch !== 'main') core.setFailed('Worker release did not originate from main');
+
+      - name: Download exact release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: genithm-worker-release-${{ inputs.source_revision }}
+          path: release
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Validate immutable release artifact
+        run: |
+          python scripts/validate_worker_release.py \
+            --release-manifest release/worker-release.json \
+            --deployment-manifest release/genithm-workers.yaml \
+            --expected-revision '${{ inputs.source_revision }}'
+
+      - name: Configure production kubeconfig
+        shell: bash
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+          EXPECTED_CONTEXT: ${{ inputs.expected_context }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBE_CONFIG_BASE64" || { echo 'production KUBE_CONFIG_BASE64 secret is not configured' >&2; exit 2; }
+          umask 077
+          printf '%s' "$KUBE_CONFIG_BASE64" | base64 --decode > "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          actual_context="$(kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" config current-context)"
+          test "$actual_context" = "$EXPECTED_CONTEXT" || { echo 'kubectl context does not match expected_context' >&2; exit 2; }
+
+      - name: Verify cluster access and secret contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl auth can-i get deployments -n genithm-workers >/dev/null
+          kubectl auth can-i create deployments -n genithm-workers >/dev/null
+          kubectl auth can-i patch deployments -n genithm-workers >/dev/null
+          kubectl get secret genithm-worker-secrets -n genithm-workers -o json > "$RUNNER_TEMP/worker-secret.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          payload = json.loads(Path(os.environ['RUNNER_TEMP'], 'worker-secret.json').read_text())
+          keys = set((payload.get('data') or {}).keys())
+          required = {
+              'SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'NCBI_EMAIL', 'OPENAI_API_KEY',
+              'GENITHM_AI_MODEL', 'GENITHM_AUDIT_SIGNING_KEY_ID',
+              'GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64',
+          }
+          missing = sorted(required - keys)
+          if missing:
+              raise SystemExit('missing required Kubernetes secret keys: ' + ', '.join(missing))
+          print('required Kubernetes secret keys are present')
+          PY
+          rm -f "$RUNNER_TEMP/worker-secret.json"
+
+      - name: Server-side dry run
+        run: kubectl apply --server-side --dry-run=server -f release/genithm-workers.yaml
+
+      - name: Apply digest-pinned worker release
+        run: kubectl apply --server-side -f release/genithm-workers.yaml
+
+      - name: Verify six worker rollouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for deployment in sequence-worker source-worker blast-worker scientific-worker audit-worker ai-worker; do
+            kubectl rollout status "deployment/${deployment}" -n genithm-workers --timeout=180s
+          done
+
+      - name: Verify deployed images match release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl get deployments -n genithm-workers -o json > "$RUNNER_TEMP/deployments.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          release = json.loads(Path('release/worker-release.json').read_text())
+          deployed = json.loads(Path(os.environ['RUNNER_TEMP'], 'deployments.json').read_text())
+          expected = {item['deployment']: item['image'] for item in release['workers']}
+          actual = {}
+          for item in deployed.get('items', []):
+              name = item.get('metadata', {}).get('name')
+              containers = item.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+              if name in expected and len(containers) == 1:
+                  actual[name] = containers[0].get('image')
+          if actual != expected:
+              raise SystemExit('deployed worker image set does not exactly match release manifest')
+          print('all six deployed worker images exactly match the immutable release manifest')
+          PY
+          rm -f "$RUNNER_TEMP/deployments.json"
+
+      - name: Deployment boundary
+        run: |
+          echo 'Worker rollout verified. Production readiness remains fail-closed until fresh heartbeats from all six workers are observed by Genithm readiness.'
