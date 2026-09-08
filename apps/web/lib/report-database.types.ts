@@ -128,6 +128,10 @@ type ReportFunctions = AiPublic["Functions"] & {
     Args: Record<PropertyKey, never>;
     Returns: Json;
   };
+  get_platform_admin_provider_financial_operations: {
+    Args: Record<PropertyKey, never>;
+    Returns: Json;
+  };
   authorize_platform_billing_configuration: {
     Args: Record<PropertyKey, never>;
     Returns: boolean;
@@ -185,6 +189,10 @@ type ReportFunctions = AiPublic["Functions"] & {
   };
   request_platform_refund: {
     Args: { provider_invoice_id: string; amount_minor?: number | null; reason?: string };
+    Returns: Json;
+  };
+  request_provider_refund: {
+    Args: { provider_key: string; livemode: boolean; external_transaction_id: string; amount?: number | null; reason?: string };
     Returns: Json;
   };
 };
