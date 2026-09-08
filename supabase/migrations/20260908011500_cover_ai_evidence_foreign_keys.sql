@@ -1,0 +1,5 @@
+create index ai_interpretation_requests_conversation_scope_fk_idx
+on public.ai_interpretation_requests(conversation_id, project_id, organization_id, requested_by);
+
+create index ai_evidence_followup_conversation_scope_fk_idx
+on public.ai_evidence_followup_requests(conversation_id, project_id, organization_id, requested_by);
