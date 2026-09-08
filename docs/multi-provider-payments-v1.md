@@ -81,13 +81,37 @@ The provider's external status is normalized into `organization_subscriptions`; 
 - PayPal disputes are mirrored into the provider-neutral transaction ledger for operational visibility; dispute resolution actions remain provider-side unless explicitly implemented later.
 - Raw webhook payloads are not retained. Only provider event identity/type/digest and normalized financial state are stored.
 
+## Provider health and reconciliation
+
+Platform admins can inspect `/dashboard/admin/billing/payments/health` for a provider-neutral reliability view across Stripe, PayPal and Wise.
+
+Health signals include:
+- whether a provider connection exists and is currently verified,
+- verification older than 24 hours,
+- unresolved failed webhook deliveries,
+- active subscription records whose authoritative sync is older than 24 hours,
+- organization-plan drift against the latest provider subscription state,
+- Wise transfers that remain in-flight without a fresh authoritative sync,
+- the most recent reconciliation result.
+
+**Verify & reconcile** is Platform Admin + AAL2/MFA gated. It first verifies the configured provider credentials, then re-reads locally known authoritative provider IDs and writes a reconciliation run to `billing_provider_reconciliation_runs`.
+
+V1 authoritative repair coverage is intentionally conservative:
+- Stripe: locally mapped customer subscriptions.
+- PayPal: locally mapped subscriptions.
+- Wise: locally recorded transfer IDs.
+
+A successful reconciliation never deletes or rewrites failed webhook history. Covered failed events may receive `resolved_at`, a resolution code and the reconciliation-run ID. Resolution is event-family scoped: Stripe subscription events, PayPal `BILLING.SUBSCRIPTION.*`, and Wise transfer-state events can be cleared by V1. Uncovered Stripe checkout/invoice/refund/dispute/payout failures and PayPal sale/refund/dispute failures remain unresolved until a reconciliation path that actually re-reads that authoritative financial state is implemented or the provider retries the signed event successfully.
+
+This fail-closed scope prevents a successful subscription re-read from falsely clearing an unrelated financial failure.
+
 ## Wise transfer safety
 
 Wise transfer creation is platform-admin + AAL2/MFA gated. Genithm creates an authenticated quote and transfer instruction for an existing Wise recipient ID. Funding availability depends on the Wise account, region and integration permissions; the application does not pretend that every Wise API token can fund transfers automatically.
 
 ## Provider-neutral extension contract
 
-Provider metadata/capabilities are stored in `billing_payment_providers`. Provider-neutral connection, price mapping, subscription, transaction, refund-request, transfer and webhook tables avoid hard-coding the commercial model to Stripe.
+Provider metadata/capabilities are stored in `billing_payment_providers`. Provider-neutral connection, price mapping, subscription, transaction, refund-request, transfer, webhook and reconciliation tables avoid hard-coding the commercial model to Stripe.
 
 A future provider such as Adyen, Paddle, Razorpay or another payout rail should be added as a server adapter plus a provider registry entry/capability mapping. Organization plan, entitlement and usage schemas do not need to be redesigned.
 
@@ -99,9 +123,9 @@ A future provider such as Adyen, Paddle, Razorpay or another payout rail should 
 - No raw Wise recipient bank details are stored by Genithm.
 - Provider webhook payloads are not persisted; only identity, event type and SHA-256 digest are retained.
 - Provider-neutral tables use RLS + FORCE RLS and deny direct anon/authenticated access.
-- Service synchronization functions are service-role only.
+- Service synchronization and reconciliation functions are service-role only.
 - Member billing views are organization-authorized.
-- Provider configuration, PayPal refunds and Wise transfer creation require platform-admin + AAL2/MFA where financially sensitive.
+- Provider configuration, provider reconciliation, PayPal refunds and Wise transfer creation require platform-admin + AAL2/MFA where financially sensitive.
 
 ## Current commercial activation state
 
