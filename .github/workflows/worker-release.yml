@@ -26,13 +26,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       source_revision: ${{ steps.validate.outputs.source_revision }}
+      release_required: ${{ steps.validate.outputs.release_required }}
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.source_revision }}
           fetch-depth: 0
           persist-credentials: false
       - id: validate
-        name: Validate tested main revision
+        name: Validate tested main revision and release scope
         shell: bash
         env:
           DISPATCH_REVISION: ${{ inputs.source_revision }}
@@ -48,8 +50,6 @@ jobs:
             echo 'source_revision must be a full lowercase 40-character Git commit SHA' >&2
             exit 2
           fi
-          # checkout fetch-depth=0 already fetched origin/main before credentials were deliberately removed.
-          # Do not perform a second authenticated network fetch after persist-credentials=false.
           main_sha="$(git rev-parse --verify origin/main^{commit})"
           git cat-file -e "${revision}^{commit}"
           if ! git merge-base --is-ancestor "$revision" "$main_sha"; then
@@ -58,8 +58,36 @@ jobs:
           fi
           echo "source_revision=$revision" >> "$GITHUB_OUTPUT"
 
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            echo 'release_required=true' >> "$GITHUB_OUTPUT"
+            echo 'Manual dispatch explicitly requested a complete worker release.'
+            exit 0
+          fi
+
+          if ! git cat-file -e "${revision}^" 2>/dev/null; then
+            echo 'release_required=true' >> "$GITHUB_OUTPUT"
+            echo 'No parent revision available; fail closed to a complete worker release.'
+            exit 0
+          fi
+
+          git diff --name-only "${revision}^" "$revision" > /tmp/changed-paths.txt
+          echo 'Main-commit paths considered for worker release:'
+          cat /tmp/changed-paths.txt
+          python scripts/ci_changes.py < /tmp/changed-paths.txt > /tmp/release-scope.txt
+          cat /tmp/release-scope.txt
+          release_required="$(sed -n 's/^release_required=//p' /tmp/release-scope.txt)"
+          if [[ "$release_required" != 'true' && "$release_required" != 'false' ]]; then
+            echo 'release classifier did not return a valid release_required result' >&2
+            exit 2
+          fi
+          echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
+          if [[ "$release_required" == 'false' ]]; then
+            echo 'No worker runtime/image/deployment change detected; skipping six-image publish.'
+          fi
+
   publish:
     needs: validate-source
+    if: needs.validate-source.outputs.release_required == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -140,6 +168,7 @@ jobs:
 
   manifest:
     needs: [validate-source, publish]
+    if: needs.validate-source.outputs.release_required == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
