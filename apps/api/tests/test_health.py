@@ -53,7 +53,16 @@ def test_readiness_returns_bounded_dependency_metrics(monkeypatch) -> None:
     )
 
     response = client.get("/api/v1/ready")
+    payload = response.json()
 
     assert response.status_code == 200
-    assert response.json()["expected_queue_count"] == 9
-    assert "message" not in response.text.lower()
+    assert payload["expected_queue_count"] == 9
+    assert set(payload) == {
+        "status",
+        "expected_queue_count",
+        "missing_queues",
+        "stale_queues",
+        "total_backlog",
+        "max_oldest_message_age_seconds",
+        "checked_at",
+    }
