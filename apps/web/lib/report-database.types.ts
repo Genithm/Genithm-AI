@@ -192,7 +192,7 @@ type ReportFunctions = AiPublic["Functions"] & {
     Returns: Json;
   };
   request_provider_refund: {
-    Args: { provider_key: string; external_transaction_id: string; amount?: number | null; reason?: string };
+    Args: { provider_key: string; livemode: boolean; external_transaction_id: string; amount?: number | null; reason?: string };
     Returns: Json;
   };
 };
