@@ -1,0 +1,176 @@
+name: Worker release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Full tested main-branch commit SHA to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: worker-release-${{ inputs.source_revision }}
+  cancel-in-progress: false
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    outputs:
+      source_revision: ${{ steps.validate.outputs.source_revision }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: validate
+        name: Validate tested main revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision='${{ inputs.source_revision }}'
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'source_revision must be a full lowercase 40-character Git commit SHA' >&2
+            exit 2
+          fi
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$revision" "$main_sha"; then
+            echo 'source_revision is not reachable from origin/main' >&2
+            exit 2
+          fi
+          echo "source_revision=$revision" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: validate-source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - worker: sequence
+            context: apps/sequence-worker
+            image: genithm-sequence-worker
+          - worker: source
+            context: apps/source-worker
+            image: genithm-source-worker
+          - worker: blast
+            context: apps/blast-worker
+            image: genithm-blast-worker
+          - worker: scientific
+            context: apps/scientific-worker
+            image: genithm-scientific-worker
+          - worker: audit
+            context: apps/audit-worker
+            image: genithm-audit-worker
+          - worker: ai
+            context: apps/ai-worker
+            image: genithm-ai-worker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ needs.validate-source.outputs.source_revision }}
+          persist-credentials: false
+      - name: Log in to GHCR with repository token
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - name: Create Buildx builder
+        run: docker buildx create --use --name genithm-release
+      - name: Build and publish immutable worker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.image }}"
+          tag="sha-${{ needs.validate-source.outputs.source_revision }}"
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=mode=max \
+            --sbom=true \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${{ needs.validate-source.outputs.source_revision }}" \
+            --tag "${repository}:${tag}" \
+            --metadata-file /tmp/build-metadata.json \
+            --push \
+            '${{ matrix.context }}'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('/tmp/build-metadata.json').read_text())
+          digest = metadata.get('containerimage.digest')
+          if not isinstance(digest, str) or not digest.startswith('sha256:') or len(digest) != 71:
+              raise SystemExit('Buildx did not return a valid containerimage.digest')
+          Path('/tmp/image.txt').write_text(digest + '\n', encoding='utf-8')
+          PY
+      - name: Write worker image result
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$(cat /tmp/image.txt)"
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.image }}"
+          printf '%s=%s@%s\n' '${{ matrix.worker }}' "$repository" "$digest" > '${{ matrix.worker }}.image'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: worker-image-${{ matrix.worker }}-${{ needs.validate-source.outputs.source_revision }}
+          path: ${{ matrix.worker }}.image
+          if-no-files-found: error
+          retention-days: 30
+
+  manifest:
+    needs: [validate-source, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ needs.validate-source.outputs.source_revision }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: worker-image-*-${{ needs.validate-source.outputs.source_revision }}
+          merge-multiple: true
+          path: /tmp/images
+      - name: Render digest-pinned deployment and release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(sort /tmp/images/*.image | xargs -r cat)
+          if [[ "${#images[@]}" -ne 6 ]]; then
+            echo "expected 6 worker image records, found ${#images[@]}" >&2
+            exit 2
+          fi
+          args=()
+          for image in "${images[@]}"; do
+            args+=(--image "$image")
+          done
+          mkdir -p release
+          python scripts/render_worker_deployment.py "${args[@]}" --output release/genithm-workers.yaml
+          python scripts/build_worker_release_manifest.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-revision '${{ needs.validate-source.outputs.source_revision }}' \
+            --deployment-manifest release/genithm-workers.yaml \
+            "${args[@]}" \
+            --output release/worker-release.json
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          release = Path('release')
+          manifest = json.loads((release / 'worker-release.json').read_text())
+          rendered = (release / 'genithm-workers.yaml').read_bytes()
+          if manifest['deployment']['sha256'] != hashlib.sha256(rendered).hexdigest():
+              raise SystemExit('release manifest deployment hash mismatch')
+          if len(manifest['workers']) != 6:
+              raise SystemExit('release manifest does not contain six workers')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: genithm-worker-release-${{ needs.validate-source.outputs.source_revision }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 90
