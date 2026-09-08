@@ -1,0 +1,44 @@
+name: Worker deployment contract
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/kubernetes/workers.yaml'
+      - 'scripts/render_worker_deployment.py'
+      - 'scripts/test_worker_deployment.py'
+      - '.github/workflows/worker-deployment-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/kubernetes/workers.yaml'
+      - 'scripts/render_worker_deployment.py'
+      - 'scripts/test_worker_deployment.py'
+      - '.github/workflows/worker-deployment-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Run deployment contract tests
+        run: python scripts/test_worker_deployment.py
+      - name: Render digest-pinned fixture
+        run: |
+          digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          python scripts/render_worker_deployment.py \
+            --image "sequence=ghcr.io/genithm/sequence-worker@sha256:${digest}" \
+            --image "source=ghcr.io/genithm/source-worker@sha256:${digest}" \
+            --image "blast=ghcr.io/genithm/blast-worker@sha256:${digest}" \
+            --image "scientific=ghcr.io/genithm/scientific-worker@sha256:${digest}" \
+            --image "audit=ghcr.io/genithm/audit-worker@sha256:${digest}" \
+            --image "ai=ghcr.io/genithm/ai-worker@sha256:${digest}" \
+            --output /tmp/genithm-workers.yaml
+          test "$(grep -c '@sha256:' /tmp/genithm-workers.yaml)" -eq 6

@@ -1,0 +1,264 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: genithm-workers
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: genithm-worker-config
+  namespace: genithm-workers
+data:
+  NCBI_TOOL: genithm
+  LOG_LEVEL: INFO
+  GENITHM_SEQUENCE_VISIBILITY_SECONDS: "300"
+  GENITHM_SEQUENCE_MAX_ATTEMPTS: "3"
+  GENITHM_SEQUENCE_POLL_SECONDS: "2"
+  GENITHM_NCBI_VISIBILITY_SECONDS: "300"
+  GENITHM_NCBI_MAX_ATTEMPTS: "3"
+  GENITHM_NCBI_POLL_SECONDS: "2"
+  GENITHM_BLAST_VISIBILITY_SECONDS: "300"
+  GENITHM_BLAST_POLL_SECONDS: "2"
+  GENITHM_SCIENTIFIC_VISIBILITY_SECONDS: "300"
+  GENITHM_SCIENTIFIC_MAX_ATTEMPTS: "3"
+  GENITHM_SCIENTIFIC_POLL_SECONDS: "2"
+  GENITHM_AUDIT_VISIBILITY_SECONDS: "300"
+  GENITHM_AUDIT_POLL_SECONDS: "2"
+  GENITHM_AI_VISIBILITY_SECONDS: "300"
+  GENITHM_AI_POLL_SECONDS: "2"
+  GENITHM_AI_REQUEST_TIMEOUT_SECONDS: "90"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workers-no-ingress
+  namespace: genithm-workers
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workers-https-egress
+  namespace: genithm-workers
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sequence-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: sequence-worker}}
+  template:
+    metadata: {labels: {app: sequence-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: GENITHM_SEQUENCE_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: source-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: source-worker}}
+  template:
+    metadata: {labels: {app: source-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: GENITHM_SOURCE_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+            - {name: NCBI_EMAIL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: NCBI_EMAIL}}}
+            - {name: NCBI_API_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: NCBI_API_KEY, optional: true}}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blast-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: blast-worker}}
+  template:
+    metadata: {labels: {app: blast-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: GENITHM_BLAST_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+            - {name: NCBI_EMAIL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: NCBI_EMAIL}}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scientific-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: scientific-worker}}
+  template:
+    metadata: {labels: {app: scientific-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: GENITHM_SCIENTIFIC_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: "2", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: audit-worker}}
+  template:
+    metadata: {labels: {app: audit-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: GENITHM_AUDIT_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+            - {name: GENITHM_AUDIT_SIGNING_KEY_ID, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: GENITHM_AUDIT_SIGNING_KEY_ID}}}
+            - {name: GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64}}}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-worker
+  namespace: genithm-workers
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: ai-worker}}
+  template:
+    metadata: {labels: {app: ai-worker}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: GENITHM_AI_WORKER_IMAGE
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: {name: genithm-worker-config}
+          env:
+            - {name: SUPABASE_URL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_URL}}}
+            - {name: SUPABASE_SECRET_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: SUPABASE_SECRET_KEY}}}
+            - {name: OPENAI_API_KEY, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: OPENAI_API_KEY}}}
+            - {name: GENITHM_AI_MODEL, valueFrom: {secretKeyRef: {name: genithm-worker-secrets, key: GENITHM_AI_MODEL}}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
