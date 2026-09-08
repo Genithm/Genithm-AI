@@ -49,52 +49,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function asPlanSummary(value: Json | null): PlanSummary | null {
-  if (!isRecord(value) || !isRecord(value.plan) || !isRecord(value.subscription)) return null;
-  if (typeof value.organization_id !== "string" || typeof value.plan.key !== "string" || typeof value.plan.name !== "string") return null;
+  if (!isRecord(value)) return null;
+  const plan = value.plan;
+  const subscription = value.subscription;
+  if (!isRecord(plan) || !isRecord(subscription)) return null;
+  if (typeof value.organization_id !== "string" || typeof plan.key !== "string" || typeof plan.name !== "string") return null;
 
-  const entitlements = Array.isArray(value.entitlements)
-    ? value.entitlements.filter(isRecord).flatMap((item) =>
-        typeof item.feature_key === "string" && typeof item.name === "string" && typeof item.description === "string" && typeof item.enabled === "boolean"
-          ? [{ feature_key: item.feature_key, name: item.name, description: item.description, enabled: item.enabled }]
-          : [],
-      )
-    : [];
+  const entitlements: Entitlement[] = [];
+  const rawEntitlements: unknown[] = Array.isArray(value.entitlements) ? value.entitlements : [];
+  for (const item of rawEntitlements) {
+    if (!isRecord(item)) continue;
+    if (typeof item.feature_key !== "string" || typeof item.name !== "string" || typeof item.description !== "string" || typeof item.enabled !== "boolean") continue;
+    entitlements.push({ feature_key: item.feature_key, name: item.name, description: item.description, enabled: item.enabled });
+  }
 
-  const limits = Array.isArray(value.limits)
-    ? value.limits.filter(isRecord).flatMap((item) => {
-        if (typeof item.metric_key !== "string" || typeof item.name !== "string" || typeof item.unit !== "string") return [];
-        const numberOrNull = (candidate: unknown) => (typeof candidate === "number" && Number.isFinite(candidate) ? candidate : candidate === null ? null : null);
-        return [{
-          metric_key: item.metric_key,
-          name: item.name,
-          unit: item.unit,
-          reset_period: typeof item.reset_period === "string" ? item.reset_period : "none",
-          aggregation_strategy: typeof item.aggregation_strategy === "string" ? item.aggregation_strategy : "sum",
-          soft_limit: numberOrNull(item.soft_limit),
-          hard_limit: numberOrNull(item.hard_limit),
-          used: typeof item.used === "number" && Number.isFinite(item.used) ? item.used : 0,
-          remaining: numberOrNull(item.remaining),
-          enforcement_active: item.enforcement_active === true,
-        }];
-      })
-    : [];
+  const limits: UsageLimit[] = [];
+  const rawLimits: unknown[] = Array.isArray(value.limits) ? value.limits : [];
+  for (const item of rawLimits) {
+    if (!isRecord(item)) continue;
+    if (typeof item.metric_key !== "string" || typeof item.name !== "string" || typeof item.unit !== "string") continue;
+    limits.push({
+      metric_key: item.metric_key,
+      name: item.name,
+      unit: item.unit,
+      reset_period: typeof item.reset_period === "string" ? item.reset_period : "none",
+      aggregation_strategy: typeof item.aggregation_strategy === "string" ? item.aggregation_strategy : "sum",
+      soft_limit: numberOrNull(item.soft_limit),
+      hard_limit: numberOrNull(item.hard_limit),
+      used: numberOrNull(item.used) ?? 0,
+      remaining: numberOrNull(item.remaining),
+      enforcement_active: item.enforcement_active === true,
+    });
+  }
 
   return {
     organization_id: value.organization_id,
     plan: {
-      key: value.plan.key,
-      name: value.plan.name,
-      description: typeof value.plan.description === "string" ? value.plan.description : "",
-      status: typeof value.plan.status === "string" ? value.plan.status : "unknown",
-      billing_model: typeof value.plan.billing_model === "string" ? value.plan.billing_model : "unknown",
+      key: plan.key,
+      name: plan.name,
+      description: typeof plan.description === "string" ? plan.description : "",
+      status: typeof plan.status === "string" ? plan.status : "unknown",
+      billing_model: typeof plan.billing_model === "string" ? plan.billing_model : "unknown",
     },
     subscription: {
-      status: typeof value.subscription.status === "string" ? value.subscription.status : "unknown",
-      assignment_source: typeof value.subscription.assignment_source === "string" ? value.subscription.assignment_source : "unknown",
-      current_period_start: typeof value.subscription.current_period_start === "string" ? value.subscription.current_period_start : null,
-      current_period_end: typeof value.subscription.current_period_end === "string" ? value.subscription.current_period_end : null,
-      cancel_at: typeof value.subscription.cancel_at === "string" ? value.subscription.cancel_at : null,
+      status: typeof subscription.status === "string" ? subscription.status : "unknown",
+      assignment_source: typeof subscription.assignment_source === "string" ? subscription.assignment_source : "unknown",
+      current_period_start: typeof subscription.current_period_start === "string" ? subscription.current_period_start : null,
+      current_period_end: typeof subscription.current_period_end === "string" ? subscription.current_period_end : null,
+      cancel_at: typeof subscription.cancel_at === "string" ? subscription.cancel_at : null,
     },
     entitlements,
     limits,
