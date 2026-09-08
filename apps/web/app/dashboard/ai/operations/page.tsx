@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 type HealthRow = {
   organization_id: string;
   organization_name: string;
-  visibility_scope: "organization" | "self";
+  visibility_scope: "self";
   pipeline: "planner" | "interpretation" | "evidence_followup";
   queued_count: number;
   active_count: number;
@@ -67,7 +67,7 @@ export default async function AiOperationsPage({ searchParams }: { searchParams:
         <div>
           <div className="eyebrow">Production observability</div>
           <h2>AI operational health</h2>
-          <p className="small">Bounded lifecycle metrics only. No prompts, frozen evidence, AI answers, or scientific result bodies are exposed here.</p>
+          <p className="small">Bounded lifecycle metrics for your own AI requests only. Underlying row-level security remains authoritative; prompts, frozen evidence, AI answers, and scientific result bodies are not exposed here.</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
           <Link className="button" href="/dashboard/ai">Back to Genithm AI</Link>
@@ -80,7 +80,7 @@ export default async function AiOperationsPage({ searchParams }: { searchParams:
         <div className="dashboard-header">
           <div>
             <div className="eyebrow">Filter</div>
-            <h3>Queue scope</h3>
+            <h3>Your queue scope</h3>
           </div>
           <div className="small">Refreshed {refreshedAt ? new Date(refreshedAt).toLocaleString() : "now"}</div>
         </div>
@@ -100,14 +100,14 @@ export default async function AiOperationsPage({ searchParams }: { searchParams:
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Current state</div>
         <h3>{attentionCount ? `${attentionCount} pipeline${attentionCount === 1 ? "" : "s"} need attention` : "All visible AI pipelines healthy"}</h3>
-        {!rows.length && !error ? <div className="notice">No accessible AI operational metrics are available for this scope.</div> : null}
+        {!rows.length && !error ? <div className="notice">No AI operational metrics are available for your requests in this scope.</div> : null}
       </section>
 
       {Array.from(grouped.entries()).map(([organizationId, orgRows]) => (
         <section className="card" style={{ marginTop: 18 }} key={organizationId}>
           <div className="dashboard-header">
             <div>
-              <div className="eyebrow">{orgRows[0].visibility_scope === "organization" ? "Organization-wide visibility" : "Your requests only"}</div>
+              <div className="eyebrow">Your requests only</div>
               <h3>{orgRows[0].organization_name}</h3>
             </div>
             <span className="small">{orgRows.some((row) => row.health === "attention") ? "Attention" : "Healthy"}</span>
