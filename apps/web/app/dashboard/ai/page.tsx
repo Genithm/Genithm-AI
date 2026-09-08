@@ -10,9 +10,14 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
 
-  const [{ data: projects }, { data: conversations }] = await Promise.all([
+  const [{ data: projects }, { data: conversations }, { data: interpretations }] = await Promise.all([
     supabase.from("projects").select("id,name,status,created_at").eq("status", "active").order("created_at", { ascending: false }).limit(100),
     supabase.from("ai_conversations").select("id,project_id,title,status,created_at,updated_at").order("updated_at", { ascending: false }).limit(50),
+    supabase.from("ai_interpretation_requests")
+      .select("id,conversation_id,project_id,resource_type,resource_id,evidence_sha256,created_at")
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
   const projectName = new Map((projects ?? []).map((project) => [project.id, project.name]));
 
@@ -49,6 +54,30 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
             <button className="button primary">Create plan</button>
           </form>
         ) : <div className="notice">Create an active project before using Genithm AI.</div>}
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">Evidence explorer</div>
+        <h3>Recent verified-input interpretations</h3>
+        <div className="notice">Inspect the exact frozen evidence snapshot supplied to the interpreter. The explorer recomputes the stored snapshot SHA-256 in the database before presenting values as verified.</div>
+        <div className="list" style={{ marginTop: 12 }}>
+          {(interpretations ?? []).map((interpretation) => (
+            <div className="item" key={interpretation.id}>
+              <div className="dashboard-header">
+                <div>
+                  <strong>{interpretation.resource_type.replaceAll("_", " ")}</strong>
+                  <div className="small">{projectName.get(interpretation.project_id) ?? "Project"} · resource <code>{interpretation.resource_id}</code> · frozen {new Date(interpretation.created_at).toLocaleString()}</div>
+                  <div className="small">Evidence SHA-256: <code>{interpretation.evidence_sha256}</code></div>
+                </div>
+                <div className="actions" style={{ marginTop: 0 }}>
+                  <Link className="button primary" href={`/dashboard/ai/evidence/${interpretation.id}`}>Inspect frozen evidence</Link>
+                  <Link className="button" href={`/dashboard/ai/${interpretation.conversation_id}`}>Conversation</Link>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!interpretations?.length ? <div className="notice">No completed evidence-grounded interpretations are available yet.</div> : null}
+        </div>
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
