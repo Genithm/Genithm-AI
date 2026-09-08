@@ -17,10 +17,15 @@ type UsageLimit = {
   unit: string;
   reset_period: string;
   aggregation_strategy: string;
+  metering_state: "active" | "planned";
+  period_start: string | null;
+  period_end: string | null;
   soft_limit: number | null;
   hard_limit: number | null;
   used: number;
   remaining: number | null;
+  soft_limit_reached: boolean;
+  hard_limit_reached: boolean;
   enforcement_active: boolean;
 };
 
@@ -42,6 +47,8 @@ type PlanSummary = {
   };
   entitlements: Entitlement[];
   limits: UsageLimit[];
+  active_meter_count: number;
+  planned_meter_count: number;
   commercial_enforcement_active: boolean;
 };
 
@@ -79,10 +86,15 @@ function asPlanSummary(value: Json | null): PlanSummary | null {
       unit: item.unit,
       reset_period: typeof item.reset_period === "string" ? item.reset_period : "none",
       aggregation_strategy: typeof item.aggregation_strategy === "string" ? item.aggregation_strategy : "sum",
+      metering_state: item.metering_state === "active" ? "active" : "planned",
+      period_start: typeof item.period_start === "string" ? item.period_start : null,
+      period_end: typeof item.period_end === "string" ? item.period_end : null,
       soft_limit: numberOrNull(item.soft_limit),
       hard_limit: numberOrNull(item.hard_limit),
       used: numberOrNull(item.used) ?? 0,
       remaining: numberOrNull(item.remaining),
+      soft_limit_reached: item.soft_limit_reached === true,
+      hard_limit_reached: item.hard_limit_reached === true,
       enforcement_active: item.enforcement_active === true,
     });
   }
@@ -105,6 +117,8 @@ function asPlanSummary(value: Json | null): PlanSummary | null {
     },
     entitlements,
     limits,
+    active_meter_count: numberOrNull(value.active_meter_count) ?? 0,
+    planned_meter_count: numberOrNull(value.planned_meter_count) ?? 0,
     commercial_enforcement_active: value.commercial_enforcement_active === true,
   };
 }
@@ -117,6 +131,12 @@ function formatUsage(value: number, unit: string) {
     return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
   }
   return `${value.toLocaleString()} ${unit}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleString();
 }
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ organization?: string }> }) {
@@ -139,6 +159,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     ? await supabase.rpc("get_organization_plan_summary", { target_organization_id: selectedOrganization.id })
     : { data: null, error: null };
   const summary = asPlanSummary(planResult.data);
+  const activeMeters = summary?.limits.filter((limit) => limit.metering_state === "active") ?? [];
+  const plannedMeters = summary?.limits.filter((limit) => limit.metering_state === "planned") ?? [];
 
   return (
     <main className="container dashboard">
@@ -179,11 +201,14 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 <h2>{summary.plan.name}</h2>
                 <p>{summary.plan.description}</p>
                 <div className="small">Plan key: {summary.plan.key} · subscription: {summary.subscription.status} · assignment: {summary.subscription.assignment_source}</div>
+                <div className="small" style={{ marginTop: 8 }}>
+                  Usage meters: {summary.active_meter_count} active · {summary.planned_meter_count} planned
+                </div>
                 {summary.commercial_enforcement_active ? (
-                  <div className="notice" style={{ marginTop: 10 }}>Configured hard limits are active for this organization.</div>
+                  <div className="notice" style={{ marginTop: 10 }}>Configured hard limits are active for at least one metered resource.</div>
                 ) : (
                   <div className="notice" style={{ marginTop: 10 }}>
-                    Commercial quota enforcement is not active yet. Usage is visible, but no arbitrary launch-time cap is being applied.
+                    Commercial quota enforcement is not active yet. Real usage is being measured where metering is active, but no arbitrary launch-time cap is being applied.
                   </div>
                 )}
               </section>
@@ -203,21 +228,40 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               </section>
 
               <section className="card" style={{ marginTop: 18 }}>
-                <div className="eyebrow">Usage ledger</div>
-                <h3>Metered resources</h3>
-                <p className="small">Usage events are written only by trusted backend services and are idempotent. Browser clients cannot write billing usage directly.</p>
+                <div className="eyebrow">Active usage meters</div>
+                <h3>Authoritatively measured resources</h3>
+                <p className="small">These counters are sourced from trusted backend terminal events. Browser clients cannot submit or edit billing usage.</p>
                 <div className="list">
-                  {summary.limits.map((limit) => (
+                  {activeMeters.map((limit) => (
                     <div className="item" key={limit.metric_key}>
                       <strong>{limit.name}</strong>
                       <div className="small">Used: {formatUsage(limit.used, limit.unit)} · reset: {limit.reset_period}</div>
+                      {formatDate(limit.period_end) ? <div className="small">Current window ends: {formatDate(limit.period_end)}</div> : null}
                       <div className="small">
                         {limit.hard_limit === null
                           ? "No hard limit configured"
                           : `Hard limit: ${formatUsage(limit.hard_limit, limit.unit)} · remaining: ${formatUsage(limit.remaining ?? 0, limit.unit)}`}
                       </div>
+                      {limit.soft_limit_reached ? <div className="notice" style={{ marginTop: 8 }}>Soft usage threshold reached.</div> : null}
+                      {limit.hard_limit_reached ? <div className="error" style={{ marginTop: 8 }}>Hard usage threshold reached.</div> : null}
                     </div>
                   ))}
+                  {!activeMeters.length ? <div className="notice">No usage meter is active for this organization yet.</div> : null}
+                </div>
+              </section>
+
+              <section className="card" style={{ marginTop: 18 }}>
+                <div className="eyebrow">Planned meters</div>
+                <h3>Defined but not yet authoritative</h3>
+                <p className="small">These metrics exist in the commercial catalog for future rollout, but a zero value must not be interpreted as measured usage until their backend wiring is active.</p>
+                <div className="list">
+                  {plannedMeters.map((limit) => (
+                    <div className="item" key={limit.metric_key}>
+                      <strong>{limit.name}</strong>
+                      <div className="small">{limit.metric_key} · {limit.unit} · planned</div>
+                    </div>
+                  ))}
+                  {!plannedMeters.length ? <div className="notice">All configured usage metrics are actively metered.</div> : null}
                 </div>
               </section>
 
