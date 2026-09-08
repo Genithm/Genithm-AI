@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { requestScientificReport } from "@/app/dashboard/report-actions";
 import { createClient } from "@/lib/supabase/server";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -25,13 +26,20 @@ function proteinComposition(value: unknown): Array<[string, number]> {
     .sort(([left], [right]) => left.localeCompare(right));
 }
 
-export default async function ScientificJobPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ScientificJobPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
+  const { error: queryError } = await searchParams;
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
 
-  const [{ data: job, error }, { data: inputs }, { data: dependencies }] = await Promise.all([
+  const [{ data: job, error }, { data: inputs }, { data: dependencies }, { data: existingReport }] = await Promise.all([
     supabase.from("scientific_jobs")
       .select("id,project_id,organization_id,job_type,tool_id,tool_version,status,parameters,processing_attempts,executor_version,result_object_path,result_sha256,result_bytes,result_summary,provenance,failure_class,processing_error,processing_started_at,processing_finished_at,created_at")
       .eq("id", id)
@@ -44,6 +52,10 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
       .select("dependency_job_id,dependency_role,dependency_result_sha256,created_at")
       .eq("job_id", id)
       .order("created_at", { ascending: true }),
+    supabase.from("scientific_reports")
+      .select("id,report_sha256,generated_at")
+      .eq("source_job_id", id)
+      .maybeSingle(),
   ]);
 
   if (error || !job) notFound();
@@ -55,17 +67,29 @@ export default async function ScientificJobPage({ params }: { params: Promise<{ 
     <main className="container dashboard">
       <header className="dashboard-header">
         <div><div className="eyebrow">Scientific result</div><h2>{title}</h2><p className="small">Job {job.id}</p></div>
-        <Link className="button" href="/dashboard">Back to dashboard</Link>
+        <div className="actions">
+          {existingReport ? <Link className="button primary" href={`/dashboard/reports/${existingReport.id}`}>Open report</Link> : null}
+          {job.status === "completed" && job.result_sha256 && !existingReport ? (
+            <form action={requestScientificReport}>
+              <input type="hidden" name="source_job_id" value={job.id} />
+              <button className="button primary" type="submit">Generate report</button>
+            </form>
+          ) : null}
+          <Link className="button" href="/dashboard">Back to dashboard</Link>
+        </div>
       </header>
+
+      {queryError ? <div className="error">{queryError}</div> : null}
 
       <section className="card">
         <div className="dashboard-header">
           <div><strong>{job.status.replaceAll("_", " ")}</strong><div className="small">Tool {job.tool_id}/{job.tool_version}{job.executor_version ? ` · executor ${job.executor_version}` : ""}</div></div>
-          {job.status === "completed" && job.result_object_path ? <a className="button primary" href={`/dashboard/scientific-jobs/${job.id}/download`}>Download result</a> : null}
+          {job.status === "completed" && job.result_object_path ? <a className="button" href={`/dashboard/scientific-jobs/${job.id}/download`}>Download raw result</a> : null}
         </div>
         <div className="small">Created {new Date(job.created_at).toLocaleString()}{job.processing_started_at ? ` · started ${new Date(job.processing_started_at).toLocaleString()}` : ""}{job.processing_finished_at ? ` · finished ${new Date(job.processing_finished_at).toLocaleString()}` : ""}</div>
         <div className="small">Attempts: {job.processing_attempts}</div>
         {job.result_sha256 ? <div className="small">Result SHA-256: <code>{job.result_sha256}</code>{job.result_bytes ? ` · ${job.result_bytes} bytes` : ""}</div> : null}
+        {existingReport ? <div className="small">Report SHA-256: <code>{existingReport.report_sha256}</code> · generated {new Date(existingReport.generated_at).toLocaleString()}</div> : null}
         {job.processing_error ? <div className="error">{job.failure_class ? `${job.failure_class.replaceAll("_", " ")}: ` : ""}{job.processing_error}</div> : null}
       </section>
 
