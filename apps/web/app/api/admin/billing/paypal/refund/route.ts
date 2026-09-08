@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { paypalObject, paypalRequest, paypalText } from "@/lib/paypal-server";
+import { getPayPalConfig, paypalObject, paypalRequest, paypalText } from "@/lib/paypal-server";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/stripe-server";
 
@@ -34,14 +34,16 @@ export async function POST(request: NextRequest) {
     const { data: claimsData } = await supabase.auth.getClaims();
     if (!claimsData?.claims?.sub) return NextResponse.redirect(new URL("/login", request.url), 303);
 
+    const { livemode } = getPayPalConfig();
     const { data: rawAuthorization, error: authorizationError } = await supabase.rpc("request_provider_refund", {
       provider_key: "paypal",
+      livemode,
       external_transaction_id: saleId,
       amount,
       reason,
     });
     if (authorizationError || !rawAuthorization || typeof rawAuthorization !== "object" || Array.isArray(rawAuthorization)) {
-      return NextResponse.json({ error: "PayPal refund authorization failed. Platform admin MFA/AAL2 is required, and the sale must have refundable funds." }, { status: 403 });
+      return NextResponse.json({ error: "PayPal refund authorization failed. Platform admin MFA/AAL2 is required, and the sale must have refundable funds in the active PayPal environment." }, { status: 403 });
     }
 
     const authorization = rawAuthorization as Record<string, unknown>;
