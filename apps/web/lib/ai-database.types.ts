@@ -172,11 +172,71 @@ type AiInterpretationRequest = {
   Relationships: [];
 };
 
+type AiEvidenceFollowupRequest = {
+  Row: {
+    id: string;
+    interpretation_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    question: string;
+    question_sha256: string;
+    evidence_schema_version: string;
+    evidence_snapshot: Json;
+    evidence_sha256: string;
+    status: string;
+    provider: string | null;
+    model: string | null;
+    prompt_version: string | null;
+    policy_version: string;
+    answer_schema_version: string | null;
+    answer: Json | null;
+    answer_sha256: string | null;
+    processing_attempts: number;
+    processing_started_at: string | null;
+    processing_finished_at: string | null;
+    processing_error: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    interpretation_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    question: string;
+    question_sha256: string;
+    evidence_schema_version?: string;
+    evidence_snapshot: Json;
+    evidence_sha256: string;
+    status?: string;
+    provider?: string | null;
+    model?: string | null;
+    prompt_version?: string | null;
+    policy_version?: string;
+    answer_schema_version?: string | null;
+    answer?: Json | null;
+    answer_sha256?: string | null;
+    processing_attempts?: number;
+    processing_started_at?: string | null;
+    processing_finished_at?: string | null;
+    processing_error?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: Partial<AiEvidenceFollowupRequest["Insert"]>;
+  Relationships: [];
+};
+
 type AiTables = LivePublic["Tables"] & {
   ai_conversations: AiConversation;
   ai_messages: AiMessage;
   ai_plan_requests: AiPlanRequest;
   ai_interpretation_requests: AiInterpretationRequest;
+  ai_evidence_followup_requests: AiEvidenceFollowupRequest;
 };
 
 type AiFunctions = LivePublic["Functions"] & {
@@ -190,6 +250,10 @@ type AiFunctions = LivePublic["Functions"] & {
   };
   request_ai_interpretation: {
     Args: { plan_request_id: string };
+    Returns: string;
+  };
+  request_ai_evidence_followup: {
+    Args: { interpretation_request_id: string; question: string };
     Returns: string;
   };
   claim_ai_plan_request: {
@@ -206,56 +270,35 @@ type AiFunctions = LivePublic["Functions"] & {
     }[];
   };
   finish_ai_plan_success: {
-    Args: {
-      message_id: number;
-      plan_request_id: string;
-      provider: string;
-      model: string;
-      prompt_version: string;
-      policy_version: string;
-      plan: Json;
-    };
+    Args: { message_id: number; plan_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
     Returns: undefined;
   };
   finish_ai_plan_error: {
-    Args: {
-      message_id: number;
-      plan_request_id: string;
-      processing_error: string;
-      retryable?: boolean;
-      max_attempts?: number;
-    };
+    Args: { message_id: number; plan_request_id: string; processing_error: string; retryable?: boolean; max_attempts?: number };
     Returns: string;
   };
   claim_ai_interpretation_request: {
     Args: { visibility_seconds?: number };
-    Returns: {
-      message_id: number;
-      interpretation_request_id: string;
-      evidence_snapshot: Json;
-      evidence_sha256: string;
-    }[];
+    Returns: { message_id: number; interpretation_request_id: string; evidence_snapshot: Json; evidence_sha256: string }[];
   };
   finish_ai_interpretation_success: {
-    Args: {
-      message_id: number;
-      interpretation_request_id: string;
-      provider: string;
-      model: string;
-      prompt_version: string;
-      policy_version: string;
-      interpretation: Json;
-    };
+    Args: { message_id: number; interpretation_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; interpretation: Json };
     Returns: undefined;
   };
   finish_ai_interpretation_error: {
-    Args: {
-      message_id: number;
-      interpretation_request_id: string;
-      processing_error: string;
-      retryable?: boolean;
-      max_attempts?: number;
-    };
+    Args: { message_id: number; interpretation_request_id: string; processing_error: string; retryable?: boolean; max_attempts?: number };
+    Returns: string;
+  };
+  claim_ai_evidence_followup_request: {
+    Args: { visibility_seconds?: number };
+    Returns: { message_id: number; followup_request_id: string; question: string; evidence_snapshot: Json; evidence_sha256: string }[];
+  };
+  finish_ai_evidence_followup_success: {
+    Args: { message_id: number; followup_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; answer: Json };
+    Returns: undefined;
+  };
+  finish_ai_evidence_followup_error: {
+    Args: { message_id: number; followup_request_id: string; processing_error: string; retryable?: boolean; max_attempts?: number };
     Returns: string;
   };
 };
