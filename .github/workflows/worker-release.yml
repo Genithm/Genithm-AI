@@ -73,7 +73,7 @@ jobs:
           git diff --name-only "${revision}^" "$revision" > /tmp/changed-paths.txt
           echo 'Main-commit paths considered for worker release:'
           cat /tmp/changed-paths.txt
-          python scripts/ci_changes.py < /tmp/changed-paths.txt > /tmp/release-scope.txt
+          env -u GITHUB_OUTPUT python scripts/ci_changes.py < /tmp/changed-paths.txt > /tmp/release-scope.txt
           cat /tmp/release-scope.txt
           release_required="$(sed -n 's/^release_required=//p' /tmp/release-scope.txt)"
           if [[ "$release_required" != 'true' && "$release_required" != 'false' ]]; then
