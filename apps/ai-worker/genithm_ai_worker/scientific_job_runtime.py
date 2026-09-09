@@ -4,22 +4,15 @@ from typing import Any
 
 
 class ScientificJobRuntime:
-    """Runtime boundary for Genithm's existing scientific_jobs pipeline.
+    """Runtime boundary for Genithm's existing scientific_jobs pipeline."""
 
-    Keeps worker execution coupled to the existing scientific job model rather
-    than introducing a parallel execution schema.
-    """
-
-    def __init__(self, rpc_client: Any, worker_id: str):
-        if not worker_id:
-            raise ValueError("worker_id is required")
+    def __init__(self, rpc_client: Any):
         self.rpc_client = rpc_client
-        self.worker_id = worker_id
 
-    def claim_job(self) -> dict[str, Any] | None:
+    def claim_job(self, visibility_seconds: int = 300) -> dict[str, Any] | None:
         response = self.rpc_client.rpc(
             "claim_scientific_job",
-            {"worker_id": self.worker_id},
+            {"visibility_seconds": visibility_seconds},
         )
         if response is None:
             return None
@@ -29,24 +22,50 @@ class ScientificJobRuntime:
             raise RuntimeError("invalid scientific job claim response")
         return response
 
-    def update_status(self, job_id: str, status: str, metadata: dict[str, Any] | None = None) -> Any:
+    def complete(
+        self,
+        *,
+        message_id: int,
+        job_id: str,
+        executor_version: str,
+        result_object_path: str,
+        result_sha256: str,
+        result_bytes: int,
+        result_summary: dict[str, Any],
+        provenance: dict[str, Any],
+    ) -> Any:
         return self.rpc_client.rpc(
-            "update_scientific_job_status",
+            "finish_scientific_job_success",
             {
+                "message_id": message_id,
                 "job_id": job_id,
-                "worker_id": self.worker_id,
-                "status": status,
-                "metadata": metadata or {},
+                "executor_version": executor_version,
+                "result_object_path": result_object_path,
+                "result_sha256": result_sha256,
+                "result_bytes": result_bytes,
+                "result_summary": result_summary,
+                "provenance": provenance,
             },
         )
 
-    def complete(self, job_id: str, result: dict[str, Any], provenance: dict[str, Any]) -> Any:
+    def fail(
+        self,
+        *,
+        message_id: int,
+        job_id: str,
+        failure_class: str,
+        processing_error: str,
+        retryable: bool,
+        max_attempts: int = 3,
+    ) -> Any:
         return self.rpc_client.rpc(
-            "complete_scientific_job",
+            "finish_scientific_job_error",
             {
+                "message_id": message_id,
                 "job_id": job_id,
-                "worker_id": self.worker_id,
-                "result": result,
-                "provenance": provenance,
+                "failure_class": failure_class,
+                "processing_error": processing_error,
+                "retryable": retryable,
+                "max_attempts": max_attempts,
             },
         )
