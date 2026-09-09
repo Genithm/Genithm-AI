@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type AALState = {
-  currentLevel: "aal1" | "aal2" | null;
-  nextLevel: "aal1" | "aal2" | null;
+  currentLevel: string | null;
+  nextLevel: string | null;
 };
 
 type TotpSetup = {
