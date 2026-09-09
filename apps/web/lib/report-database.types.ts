@@ -132,6 +132,10 @@ type ReportFunctions = AiPublic["Functions"] & {
     Args: Record<PropertyKey, never>;
     Returns: Json;
   };
+  get_platform_admin_provider_health: {
+    Args: Record<PropertyKey, never>;
+    Returns: Json;
+  };
   authorize_platform_billing_configuration: {
     Args: Record<PropertyKey, never>;
     Returns: boolean;
