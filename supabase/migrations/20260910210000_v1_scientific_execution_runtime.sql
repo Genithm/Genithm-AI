@@ -69,7 +69,16 @@ create policy analysis_jobs_select_project_member on public.analysis_jobs for se
   exists (select 1 from public.projects p where p.id = analysis_jobs.project_id and app_private.is_org_member(p.organization_id))
 );
 create policy analysis_jobs_insert_project_writer on public.analysis_jobs for insert to authenticated with check (
-  created_by = (select auth.uid()) and exists (
+  created_by = (select auth.uid())
+  and status in ('created','queued')
+  and attempt_count = 0
+  and max_attempts = 3
+  and worker_id is null
+  and lease_expires_at is null
+  and started_at is null
+  and completed_at is null
+  and last_error is null
+  and exists (
     select 1 from public.projects p where p.id = analysis_jobs.project_id and app_private.can_write_org(p.organization_id)
   )
 );
@@ -93,8 +102,9 @@ create policy evidence_snapshots_select_project_member on public.evidence_snapsh
 );
 
 revoke all on table public.analysis_jobs, public.analysis_results, public.evidence_snapshots from anon, authenticated;
-grant select, insert, update on table public.analysis_jobs to authenticated;
-grant select on table public.analysis_results, public.evidence_snapshots to authenticated;
+grant select on table public.analysis_jobs, public.analysis_results, public.evidence_snapshots to authenticated;
+grant insert (project_id, created_by, workflow_type, status, input_snapshot, idempotency_key) on table public.analysis_jobs to authenticated;
+grant update (status) on table public.analysis_jobs to authenticated;
 
 create or replace function public.claim_analysis_job(worker_id text, lease_seconds integer default 300)
 returns table (
@@ -147,14 +157,26 @@ $$;
 
 create or replace function public.renew_analysis_job_lease(job_id uuid, worker_id text, lease_seconds integer default 300)
 returns boolean
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+begin
+  if worker_id is null or char_length(worker_id) < 1 or char_length(worker_id) > 200 then
+    raise exception 'invalid worker_id';
+  end if;
+  if lease_seconds < 30 or lease_seconds > 1800 then
+    raise exception 'invalid lease_seconds';
+  end if;
+
   update public.analysis_jobs j
   set lease_expires_at = now() + make_interval(secs => lease_seconds)
-  where j.id = job_id and j.status = 'running' and j.worker_id = worker_id and j.lease_expires_at >= now()
-  returning true;
+  where j.id = renew_analysis_job_lease.job_id
+    and j.status = 'running'
+    and j.worker_id = renew_analysis_job_lease.worker_id
+    and j.lease_expires_at >= now();
+  return found;
+end;
 $$;
 
 create or replace function public.finish_analysis_job_success(
