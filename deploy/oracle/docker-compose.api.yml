@@ -1,0 +1,30 @@
+services:
+  api:
+    image: ${GENITHM_API_IMAGE:?GENITHM_API_IMAGE must be a digest-pinned image reference}
+    container_name: genithm-api
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    environment:
+      GENITHM_ENV: production
+      GENITHM_API_ALLOWED_ORIGINS: ${GENITHM_API_ALLOWED_ORIGINS:?GENITHM_API_ALLOWED_ORIGINS is required}
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+    ports:
+      - "127.0.0.1:${GENITHM_API_HOST_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

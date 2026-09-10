@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import unittest
 
-from validate_worker_release import EXPECTED_WORKERS, validate_release
+from validate_worker_release import EXPECTED_PLATFORMS, EXPECTED_WORKERS, validate_release
 
 DIGEST = "a" * 64
 REVISION = "b" * 40
@@ -20,6 +20,7 @@ def fixture() -> tuple[dict[str, object], bytes]:
     manifest = {
         "schema_version": "genithm-worker-release/1",
         "source": {"repository": "Genithm/Genithm-AI", "commit_sha": REVISION},
+        "platforms": list(EXPECTED_PLATFORMS),
         "deployment": {"sha256": hashlib.sha256(deployment).hexdigest()},
         "workers": [
             {
@@ -37,6 +38,12 @@ class ValidateWorkerReleaseTests(unittest.TestCase):
     def test_accepts_exact_release(self) -> None:
         manifest, deployment = fixture()
         self.assertEqual(validate_release(manifest, deployment, expected_revision=REVISION), [])
+
+    def test_rejects_missing_arm64_platform(self) -> None:
+        manifest, deployment = fixture()
+        manifest["platforms"] = ["linux/amd64"]
+        errors = validate_release(manifest, deployment)
+        self.assertIn("release platforms must declare linux/amd64 and linux/arm64", errors)
 
     def test_rejects_hash_mismatch(self) -> None:
         manifest, deployment = fixture()

@@ -7,10 +7,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 RUN addgroup --system genithm && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm \
+    && arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) mafft_version="7.505-1"; fasttree_version="2.1.11-2" ;; \
+         arm64) mafft_version="7.505-1+b1"; fasttree_version="2.1.11-2+b1" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 2 ;; \
+       esac \
     && apt-get update \
-    && apt-get install --no-install-recommends -y mafft=7.505-1 fasttree=2.1.11-2 \
-    && test "$(dpkg-query -W -f='${Version}' mafft)" = "7.505-1" \
-    && test "$(dpkg-query -W -f='${Version}' fasttree)" = "2.1.11-2" \
+    && apt-get install --no-install-recommends -y "mafft=${mafft_version}" "fasttree=${fasttree_version}" \
+    && test "$(dpkg-query -W -f='${Version}' mafft)" = "$mafft_version" \
+    && test "$(dpkg-query -W -f='${Version}' fasttree)" = "$fasttree_version" \
     && test -x /usr/bin/FastTree \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./

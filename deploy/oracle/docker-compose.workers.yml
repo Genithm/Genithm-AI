@@ -1,0 +1,85 @@
+services:
+  sequence-worker:
+    image: ${GENITHM_SEQUENCE_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    env_file: .env.workers
+    environment:
+      NCBI_TOOL: genithm
+      LOG_LEVEL: INFO
+      GENITHM_SEQUENCE_VISIBILITY_SECONDS: "300"
+      GENITHM_SEQUENCE_MAX_ATTEMPTS: "3"
+      GENITHM_SEQUENCE_POLL_SECONDS: "2"
+
+  source-worker:
+    image: ${GENITHM_SOURCE_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    env_file: .env.workers
+    environment:
+      NCBI_TOOL: genithm
+      LOG_LEVEL: INFO
+      GENITHM_NCBI_VISIBILITY_SECONDS: "300"
+      GENITHM_NCBI_MAX_ATTEMPTS: "3"
+      GENITHM_NCBI_POLL_SECONDS: "2"
+
+  blast-worker:
+    image: ${GENITHM_BLAST_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    env_file: .env.workers
+    environment:
+      NCBI_TOOL: genithm
+      LOG_LEVEL: INFO
+      GENITHM_BLAST_VISIBILITY_SECONDS: "300"
+      GENITHM_BLAST_POLL_SECONDS: "2"
+
+  scientific-worker:
+    image: ${GENITHM_SCIENTIFIC_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
+    env_file: .env.workers
+    environment:
+      LOG_LEVEL: INFO
+      GENITHM_SCIENTIFIC_VISIBILITY_SECONDS: "300"
+      GENITHM_SCIENTIFIC_MAX_ATTEMPTS: "3"
+      GENITHM_SCIENTIFIC_POLL_SECONDS: "2"
+
+  audit-worker:
+    image: ${GENITHM_AUDIT_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    env_file: .env.workers
+    environment:
+      LOG_LEVEL: INFO
+      GENITHM_AUDIT_VISIBILITY_SECONDS: "300"
+      GENITHM_AUDIT_POLL_SECONDS: "2"
+
+  ai-worker:
+    image: ${GENITHM_AI_WORKER_IMAGE}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    env_file: .env.workers
+    environment:
+      LOG_LEVEL: INFO
+      GENITHM_AI_VISIBILITY_SECONDS: "300"
+      GENITHM_AI_POLL_SECONDS: "2"
+      GENITHM_AI_REQUEST_TIMEOUT_SECONDS: "90"
