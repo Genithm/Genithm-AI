@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -52,6 +53,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
           </nav>
         ) : null}
       </div>
+      <DashboardSectionNavigator />
       {children}
     </>
   );
