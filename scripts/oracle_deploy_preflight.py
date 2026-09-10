@@ -6,11 +6,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
-IMAGE_RE = re.compile(r"^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$", re.IGNORECASE)
+IMAGE_RE = re.compile(r"^[a-z0-9.-]+(?:/[a-z0-9._-]+)+@sha256:[0-9a-f]{64}$", re.IGNORECASE)
 PLACEHOLDER_TOKENS = ("REPLACE_ME", "REPLACE_WITH_", "example.com", "<", ">")
 
 API_REQUIRED = {
     "GENITHM_API_IMAGE",
+    "GENITHM_CLOUDFLARED_IMAGE",
+    "GENITHM_CLOUDFLARE_TUNNEL_TOKEN",
     "GENITHM_API_ALLOWED_ORIGINS",
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",
@@ -70,7 +72,7 @@ def validate_env(values: dict[str, str], required: set[str], *, image_keys: set[
     for key in sorted(image_keys):
         value = values.get(key, "")
         if value and not IMAGE_RE.fullmatch(value):
-            errors.append(f"image must be GHCR digest-pinned: {key}")
+            errors.append(f"image must be OCI digest-pinned: {key}")
 
     for key in ("SUPABASE_URL", "GENITHM_R2_ENDPOINT", "GENITHM_API_ALLOWED_ORIGINS", "GENITHM_AI_PRIMARY_ENDPOINT", "GENITHM_AI_BACKUP_ENDPOINT"):
         value = values.get(key)
@@ -107,7 +109,7 @@ def main() -> int:
         env_file = args.env_file or repo / "deploy/oracle/.env.api"
         compose_file = repo / "deploy/oracle/docker-compose.api.yml"
         required = API_REQUIRED
-        image_keys = {"GENITHM_API_IMAGE"}
+        image_keys = {"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"}
     else:
         env_file = args.env_file or repo / "deploy/oracle/.env.workers"
         compose_file = repo / "deploy/oracle/docker-compose.workers.yml"
