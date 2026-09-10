@@ -94,22 +94,6 @@ resource "oci_core_network_security_group" "workers" {
   freeform_tags  = var.tags
 }
 
-resource "oci_core_network_security_group_security_rule" "api_ingress" {
-  for_each                  = toset(var.api_ingress_cidrs)
-  network_security_group_id = oci_core_network_security_group.api.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = each.value
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 8000
-      max = 8000
-    }
-  }
-}
-
 resource "oci_core_network_security_group_security_rule" "api_ssh" {
   for_each                  = toset(var.ssh_ingress_cidrs)
   network_security_group_id = oci_core_network_security_group.api.id
@@ -163,13 +147,6 @@ resource "oci_core_instance" "api" {
 
   metadata = {
     user_data = local.api_user_data
-  }
-
-  lifecycle {
-    precondition {
-      condition     = length(var.api_ingress_cidrs) > 0
-      error_message = "api_ingress_cidrs must explicitly name trusted ingress ranges; public 0.0.0.0/0 is not provided by default."
-    }
   }
 }
 
