@@ -15,7 +15,7 @@ def test_json_http_client_rejects_oversized_payloads_from_provider(monkeypatch):
     def fake_urlopen(*_args, **_kwargs):
         return Response()
 
-    monkeypatch.setattr("genithm_ai_worker.runtime.urlopen", fake_urlopen)
+    monkeypatch.setattr("genithm_ai_worker.providers.urlopen", fake_urlopen)
 
     try:
         JsonHttpClient.request(
