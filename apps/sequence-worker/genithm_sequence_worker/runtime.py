@@ -12,6 +12,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
+
 from .statistics import calculate_sequence_statistics
 from .validator import FastaValidationError, validate_fasta_bytes
 
@@ -28,6 +32,10 @@ class RuntimeConfig:
     visibility_seconds: int = DEFAULT_VISIBILITY_SECONDS
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     poll_seconds: float = DEFAULT_POLL_SECONDS
+    r2_endpoint: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_sequence_bucket: str | None = None
 
     @classmethod
     def from_env(cls) -> "RuntimeConfig":
@@ -49,7 +57,32 @@ class RuntimeConfig:
             raise RuntimeError("GENITHM_SEQUENCE_MAX_ATTEMPTS must be between 1 and 10")
         if not 0.25 <= poll <= 60:
             raise RuntimeError("GENITHM_SEQUENCE_POLL_SECONDS must be between 0.25 and 60")
-        return cls(url, key, visibility, attempts, poll)
+
+        r2_endpoint = os.environ.get("GENITHM_R2_ENDPOINT", "").strip() or None
+        r2_access_key_id = os.environ.get("GENITHM_R2_ACCESS_KEY_ID", "").strip() or None
+        r2_secret_access_key = os.environ.get("GENITHM_R2_SECRET_ACCESS_KEY", "").strip() or None
+        r2_sequence_bucket = os.environ.get("GENITHM_R2_SEQUENCE_BUCKET", "").strip() or None
+        return cls(
+            url,
+            key,
+            visibility,
+            attempts,
+            poll,
+            r2_endpoint,
+            r2_access_key_id,
+            r2_secret_access_key,
+            r2_sequence_bucket,
+        )
+
+    @property
+    def r2_configured(self) -> bool:
+        return bool(
+            self.r2_endpoint
+            and self.r2_endpoint.startswith("https://")
+            and self.r2_access_key_id
+            and self.r2_secret_access_key
+            and self.r2_sequence_bucket
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +93,8 @@ class ValidationJob:
     object_path: str
     file_size_bytes: int
     content_type: str | None
+    storage_provider: str = "supabase"
+    storage_bucket: str = "sequence-inputs"
 
 
 class RuntimeClient(Protocol):
@@ -76,12 +111,13 @@ class SupabaseRuntimeClient:
     def __init__(self, config: RuntimeConfig) -> None:
         self.config = config
         self.max_attempts = config.max_attempts
+        self._r2 = None
 
     def _headers(self, *, json_body: bool = False) -> dict[str, str]:
         headers = {
             "apikey": self.config.supabase_secret_key,
             "Authorization": f"Bearer {self.config.supabase_secret_key}",
-            "User-Agent": "genithm-sequence-worker/0.1",
+            "User-Agent": "genithm-sequence-worker/0.2",
         }
         if json_body:
             headers["Content-Type"] = "application/json"
@@ -122,9 +158,13 @@ class SupabaseRuntimeClient:
             object_path=str(row["object_path"]),
             file_size_bytes=int(row["file_size_bytes"]),
             content_type=row.get("content_type"),
+            storage_provider=str(row.get("storage_provider") or "supabase"),
+            storage_bucket=str(row.get("storage_bucket") or "sequence-inputs"),
         )
 
-    def download(self, job: ValidationJob) -> bytes:
+    def _download_supabase(self, job: ValidationJob) -> bytes:
+        if job.storage_bucket != "sequence-inputs":
+            raise RuntimeError("unsupported Supabase logical bucket")
         encoded_path = quote(job.object_path, safe="/")
         request = Request(
             f"{self.config.supabase_url}/storage/v1/object/authenticated/sequence-inputs/{encoded_path}",
@@ -133,11 +173,44 @@ class SupabaseRuntimeClient:
         )
         try:
             with urlopen(request, timeout=60) as response:
-                data = response.read(job.file_size_bytes + 1)
+                return response.read(job.file_size_bytes + 1)
         except HTTPError as exc:
             raise RuntimeError(f"Private sequence download failed with HTTP {exc.code}") from exc
         except URLError as exc:
             raise RuntimeError("Private sequence download connection failed") from exc
+
+    def _r2_client(self):
+        if not self.config.r2_configured:
+            raise RuntimeError("R2 sequence storage is not configured for this worker")
+        if self._r2 is None:
+            self._r2 = boto3.client(
+                "s3",
+                endpoint_url=self.config.r2_endpoint,
+                aws_access_key_id=self.config.r2_access_key_id,
+                aws_secret_access_key=self.config.r2_secret_access_key,
+                region_name="auto",
+                config=Config(signature_version="s3v4", retries={"max_attempts": 3, "mode": "standard"}),
+            )
+        return self._r2
+
+    def _download_r2(self, job: ValidationJob) -> bytes:
+        if job.storage_bucket != "sequence-inputs":
+            raise RuntimeError("unsupported R2 logical bucket")
+        assert self.config.r2_sequence_bucket is not None
+        try:
+            response = self._r2_client().get_object(Bucket=self.config.r2_sequence_bucket, Key=job.object_path)
+            data = response["Body"].read(job.file_size_bytes + 1)
+        except (BotoCoreError, ClientError, KeyError) as exc:
+            raise RuntimeError("Private R2 sequence download failed") from exc
+        return data
+
+    def download(self, job: ValidationJob) -> bytes:
+        if job.storage_provider == "supabase":
+            data = self._download_supabase(job)
+        elif job.storage_provider == "r2":
+            data = self._download_r2(job)
+        else:
+            raise RuntimeError(f"unsupported sequence storage provider: {job.storage_provider}")
         if len(data) != job.file_size_bytes:
             raise RuntimeError(
                 f"Downloaded object size mismatch: expected {job.file_size_bytes} bytes, got {len(data)}"
@@ -193,7 +266,13 @@ def process_one(client: RuntimeClient) -> bool:
     if job is None:
         return False
 
-    LOGGER.info("claimed validation job upload_id=%s message_id=%s attempt=%s", job.upload_id, job.message_id, job.read_count)
+    LOGGER.info(
+        "claimed validation job upload_id=%s message_id=%s attempt=%s storage_provider=%s",
+        job.upload_id,
+        job.message_id,
+        job.read_count,
+        job.storage_provider,
+    )
     data: bytes | None = None
     try:
         data = client.download(job)
