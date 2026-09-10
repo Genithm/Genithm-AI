@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import tempfile
 import unittest
-from pathlib import Path
 
-from build_worker_release_manifest import WORKER_ORDER, build_manifest, parse_image_args
+from build_worker_release_manifest import SUPPORTED_PLATFORMS, WORKER_ORDER, build_manifest, parse_image_args
 
 DIGEST = "a" * 64
 IMAGES = {worker: f"ghcr.io/genithm/genithm-{worker}-worker@sha256:{DIGEST}" for worker in WORKER_ORDER}
@@ -25,6 +23,7 @@ class WorkerReleaseManifestTests(unittest.TestCase):
         )
         self.assertEqual(manifest["schema_version"], "genithm-worker-release/1")
         self.assertEqual(manifest["source"]["commit_sha"], source_revision)
+        self.assertEqual(manifest["platforms"], list(SUPPORTED_PLATFORMS))
         self.assertEqual(manifest["deployment"]["sha256"], hashlib.sha256(deployment).hexdigest())
         self.assertEqual([item["worker"] for item in manifest["workers"]], list(WORKER_ORDER))
         self.assertTrue(all("@sha256:" in item["image"] for item in manifest["workers"]))
