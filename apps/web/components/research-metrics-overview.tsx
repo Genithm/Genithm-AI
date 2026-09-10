@@ -8,18 +8,19 @@ export function ResearchMetricsOverview({
   analyses: number;
 }) {
   const metrics = [
-    ["Research groups", organizations],
-    ["Active projects", projects],
-    ["Scientific analyses", analyses],
+    { label: "Research groups", value: organizations, hint: "Organizations you can access" },
+    { label: "Projects", value: projects, hint: "Active research workspaces" },
+    { label: "Analyses", value: analyses, hint: "Tracked scientific runs" },
   ];
 
   return (
-    <section className="grid">
-      {metrics.map(([label, value]) => (
-        <div className="card futuristic-card" key={label}>
-          <div className="eyebrow">{label}</div>
-          <h2>{value}</h2>
-        </div>
+    <section className="metric-grid" aria-label="Workspace metrics">
+      {metrics.map((metric) => (
+        <article className="metric-card" key={metric.label}>
+          <div className="metric-label">{metric.label}</div>
+          <div className="metric-value">{metric.value}</div>
+          <div className="metric-hint">{metric.hint}</div>
+        </article>
       ))}
     </section>
   );
