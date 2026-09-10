@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from scripts.build_v1_release_bundle import EXPECTED_WORKERS, build_bundle
+from build_v1_release_bundle import EXPECTED_WORKERS, build_bundle
 
 REVISION = "a" * 40
 DIGEST = "b" * 64
