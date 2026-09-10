@@ -15,8 +15,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  bundle:
+  detect-candidate:
     if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      release_candidate: ${{ steps.detect.outputs.release_candidate }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - id: detect
+        name: Detect intentional V1 candidate commit
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          candidate=false
+          if [[ -f release/v1/candidate.json ]] && git cat-file -e "${SOURCE_REVISION}^" 2>/dev/null; then
+            if git diff --name-only "${SOURCE_REVISION}^" "$SOURCE_REVISION" -- release/v1/candidate.json | grep -qx 'release/v1/candidate.json'; then
+              candidate=true
+            fi
+          fi
+          echo "release_candidate=$candidate" >> "$GITHUB_OUTPUT"
+          echo "V1 release candidate: $candidate"
+
+  bundle:
+    needs: detect-candidate
+    if: needs.detect-candidate.outputs.release_candidate == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -24,19 +52,6 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
           persist-credentials: false
-
-      - name: Require an intentional V1 candidate commit
-        shell: bash
-        env:
-          SOURCE_REVISION: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          test -f release/v1/candidate.json
-          git cat-file -e "${SOURCE_REVISION}^"
-          if ! git diff --name-only "${SOURCE_REVISION}^" "$SOURCE_REVISION" -- release/v1/candidate.json | grep -qx 'release/v1/candidate.json'; then
-            echo 'Worker release was not caused by a V1 candidate marker change; no V1 bundle may be produced.' >&2
-            exit 2
-          fi
 
       - id: artifacts
         name: Locate same-revision API and worker release artifacts
@@ -101,8 +116,7 @@ jobs:
           if api_url is None:
               raise SystemExit(f'no successful same-revision API release artifact named {api_name}')
 
-          output_path = os.environ['GITHUB_OUTPUT']
-          with open(output_path, 'a', encoding='utf-8') as handle:
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
               handle.write(f'api_url={api_url}\n')
               handle.write(f'worker_url={worker_url}\n')
           PY
