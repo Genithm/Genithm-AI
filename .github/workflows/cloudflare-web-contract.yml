@@ -26,6 +26,15 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
+      - name: Generate candidate dependency lockfile
+        working-directory: apps/web
+        run: npm install --package-lock-only --ignore-scripts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloudflare-web-package-lock
+          path: apps/web/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Install locked web dependencies
         working-directory: apps/web
         run: npm ci
