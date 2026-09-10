@@ -45,6 +45,19 @@ Create the private R2 sequence bucket named by `GENITHM_R2_SEQUENCE_BUCKET`. Con
 
 Genithm object keys are generated server-side from authorized organization/project/user/upload identifiers. The browser cannot choose an arbitrary storage key. Existing Supabase Storage objects remain supported during migration.
 
+## Deployment preflight
+
+Before pulling or starting containers, run the repository preflight from the checkout that matches the release being deployed:
+
+```bash
+python scripts/oracle_deploy_preflight.py api --env-file deploy/oracle/.env.api --compose
+python scripts/oracle_deploy_preflight.py workers --env-file deploy/oracle/.env.workers --compose
+```
+
+The preflight fails when required values are missing, example placeholders remain, external endpoints are not HTTPS, an image is not an immutable GHCR `@sha256:` reference, Docker is unavailable, or Compose interpolation/configuration fails. It prints validation errors but never prints secret values.
+
+Worker services intentionally receive only the credentials required by their role. Do not reintroduce a shared Compose `env_file` that exposes AI provider keys or the audit signing private key to unrelated scientific workers.
+
 ## Immutable API deployment
 
 Validate the API Compose contract before starting anything:

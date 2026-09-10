@@ -1,13 +1,21 @@
+x-worker-base: &worker-base
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
 services:
   sequence-worker:
-    image: ${GENITHM_SEQUENCE_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_SEQUENCE_WORKER_IMAGE:?GENITHM_SEQUENCE_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      GENITHM_R2_ENDPOINT: ${GENITHM_R2_ENDPOINT:?GENITHM_R2_ENDPOINT is required}
+      GENITHM_R2_ACCESS_KEY_ID: ${GENITHM_R2_ACCESS_KEY_ID:?GENITHM_R2_ACCESS_KEY_ID is required}
+      GENITHM_R2_SECRET_ACCESS_KEY: ${GENITHM_R2_SECRET_ACCESS_KEY:?GENITHM_R2_SECRET_ACCESS_KEY is required}
+      GENITHM_R2_SEQUENCE_BUCKET: ${GENITHM_R2_SEQUENCE_BUCKET:?GENITHM_R2_SEQUENCE_BUCKET is required}
       NCBI_TOOL: genithm
       LOG_LEVEL: INFO
       GENITHM_SEQUENCE_VISIBILITY_SECONDS: "300"
@@ -15,14 +23,14 @@ services:
       GENITHM_SEQUENCE_POLL_SECONDS: "2"
 
   source-worker:
-    image: ${GENITHM_SOURCE_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_SOURCE_WORKER_IMAGE:?GENITHM_SOURCE_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      NCBI_EMAIL: ${NCBI_EMAIL:?NCBI_EMAIL is required}
+      NCBI_API_KEY: ${NCBI_API_KEY:-}
       NCBI_TOOL: genithm
       LOG_LEVEL: INFO
       GENITHM_NCBI_VISIBILITY_SECONDS: "300"
@@ -30,55 +38,62 @@ services:
       GENITHM_NCBI_POLL_SECONDS: "2"
 
   blast-worker:
-    image: ${GENITHM_BLAST_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_BLAST_WORKER_IMAGE:?GENITHM_BLAST_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      NCBI_EMAIL: ${NCBI_EMAIL:?NCBI_EMAIL is required}
+      NCBI_API_KEY: ${NCBI_API_KEY:-}
       NCBI_TOOL: genithm
       LOG_LEVEL: INFO
       GENITHM_BLAST_VISIBILITY_SECONDS: "300"
       GENITHM_BLAST_POLL_SECONDS: "2"
 
   scientific-worker:
-    image: ${GENITHM_SCIENTIFIC_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_SCIENTIFIC_WORKER_IMAGE:?GENITHM_SCIENTIFIC_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
       LOG_LEVEL: INFO
       GENITHM_SCIENTIFIC_VISIBILITY_SECONDS: "300"
       GENITHM_SCIENTIFIC_MAX_ATTEMPTS: "3"
       GENITHM_SCIENTIFIC_POLL_SECONDS: "2"
 
   audit-worker:
-    image: ${GENITHM_AUDIT_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_AUDIT_WORKER_IMAGE:?GENITHM_AUDIT_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      GENITHM_AUDIT_SIGNING_KEY_ID: ${GENITHM_AUDIT_SIGNING_KEY_ID:?GENITHM_AUDIT_SIGNING_KEY_ID is required}
+      GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64: ${GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64:?GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64 is required}
       LOG_LEVEL: INFO
       GENITHM_AUDIT_VISIBILITY_SECONDS: "300"
       GENITHM_AUDIT_POLL_SECONDS: "2"
 
   ai-worker:
-    image: ${GENITHM_AI_WORKER_IMAGE}
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
+    <<: *worker-base
+    image: ${GENITHM_AI_WORKER_IMAGE:?GENITHM_AI_WORKER_IMAGE must be digest-pinned}
     tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
-    env_file: .env.workers
     environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      GENITHM_AI_PRIMARY_PROVIDER: ${GENITHM_AI_PRIMARY_PROVIDER:-qwen}
+      GENITHM_AI_PRIMARY_API_KEY: ${GENITHM_AI_PRIMARY_API_KEY:?GENITHM_AI_PRIMARY_API_KEY is required}
+      GENITHM_AI_PRIMARY_ENDPOINT: ${GENITHM_AI_PRIMARY_ENDPOINT:?GENITHM_AI_PRIMARY_ENDPOINT is required}
+      GENITHM_AI_PRIMARY_MODEL: ${GENITHM_AI_PRIMARY_MODEL:?GENITHM_AI_PRIMARY_MODEL is required}
+      GENITHM_AI_PRIMARY_PROTOCOL: ${GENITHM_AI_PRIMARY_PROTOCOL:-chat_completions}
+      GENITHM_AI_BACKUP_ENABLED: ${GENITHM_AI_BACKUP_ENABLED:-true}
+      GENITHM_AI_BACKUP_PROVIDER: ${GENITHM_AI_BACKUP_PROVIDER:-deepseek}
+      GENITHM_AI_BACKUP_API_KEY: ${GENITHM_AI_BACKUP_API_KEY:?GENITHM_AI_BACKUP_API_KEY is required}
+      GENITHM_AI_BACKUP_ENDPOINT: ${GENITHM_AI_BACKUP_ENDPOINT:?GENITHM_AI_BACKUP_ENDPOINT is required}
+      GENITHM_AI_BACKUP_MODEL: ${GENITHM_AI_BACKUP_MODEL:?GENITHM_AI_BACKUP_MODEL is required}
+      GENITHM_AI_BACKUP_PROTOCOL: ${GENITHM_AI_BACKUP_PROTOCOL:-chat_completions}
       LOG_LEVEL: INFO
       GENITHM_AI_VISIBILITY_SECONDS: "300"
       GENITHM_AI_POLL_SECONDS: "2"
