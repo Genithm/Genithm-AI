@@ -80,10 +80,10 @@ end;
 $$;
 
 create or replace function public.reserve_r2_sequence_upload(
-  project_id uuid,
-  original_filename text,
-  file_size_bytes bigint,
-  content_type text default null
+  p_project_id uuid,
+  p_original_filename text,
+  p_file_size_bytes bigint,
+  p_content_type text default null
 )
 returns table (
   upload_id uuid,
@@ -99,7 +99,7 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  select * from app_private.reserve_r2_sequence_upload(project_id, original_filename, file_size_bytes, content_type);
+  select * from app_private.reserve_r2_sequence_upload(p_project_id, p_original_filename, p_file_size_bytes, p_content_type);
 $$;
 
 revoke all on function app_private.reserve_r2_sequence_upload(uuid, text, bigint, text) from public, anon, authenticated, service_role;
