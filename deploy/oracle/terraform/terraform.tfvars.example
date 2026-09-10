@@ -12,8 +12,6 @@ worker_shape = "REPLACE_WITH_WORKER_SHAPE"
 worker_ocpus      = 2
 worker_memory_gbs = 12
 
-# Never leave API exposure implicit. Supply only trusted reverse-proxy/VPN ingress ranges.
-api_ingress_cidrs = ["REPLACE_WITH_TRUSTED_CIDR"]
-
+# The API application port is not exposed through OCI ingress. Public traffic enters through Cloudflare Tunnel.
 # Prefer OCI Bastion. Keep empty unless direct SSH from a tightly scoped admin CIDR is required.
 ssh_ingress_cidrs = []
