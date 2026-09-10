@@ -67,14 +67,25 @@ Required runtime values:
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
 - `NCBI_EMAIL`
-- `OPENAI_API_KEY` until the locked Qwen-primary / DeepSeek-backup provider migration is completed
-- `GENITHM_AI_MODEL`
+- `GENITHM_AI_PRIMARY_PROVIDER` — V1 default: `qwen`
+- `GENITHM_AI_PRIMARY_API_KEY`
+- `GENITHM_AI_PRIMARY_ENDPOINT`
+- `GENITHM_AI_PRIMARY_MODEL`
+- `GENITHM_AI_BACKUP_PROVIDER` — V1 default: `deepseek`
+- `GENITHM_AI_BACKUP_API_KEY`
+- `GENITHM_AI_BACKUP_ENDPOINT`
+- `GENITHM_AI_BACKUP_MODEL`
 - `GENITHM_AUDIT_SIGNING_KEY_ID`
 - `GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64`
 
-Optional:
+Optional/configuration values:
 
 - `NCBI_API_KEY`
+- `GENITHM_AI_PRIMARY_PROTOCOL` — defaults to `chat_completions`
+- `GENITHM_AI_BACKUP_ENABLED` — defaults to `true`
+- `GENITHM_AI_BACKUP_PROTOCOL` — defaults to `chat_completions`
+
+Provider endpoints and model identifiers are deployment configuration rather than application constants. V1 sends each operation to Qwen first and uses DeepSeek only when the primary failure is explicitly eligible for fallback. The accepted provider/model identity is persisted with AI provenance.
 
 ## Immutable worker deployment
 
@@ -143,13 +154,13 @@ Do not purge Supabase queues during rollback. Existing visibility timeouts and b
 
 1. Merge and release the multi-architecture worker pipeline.
 2. Build and publish the hardened multi-architecture API image.
-3. Create Oracle networking and the API/worker compute hosts.
-4. Harden the hosts and install Docker/Compose using Oracle-supported packages/instructions.
-5. Deploy the six worker images from one successful release artifact.
-6. Deploy the Genithm API with backend-only Supabase credentials and allowed frontend origins.
-7. Configure the Next.js frontend on Vercel with only public Supabase browser credentials and the production API origin.
-8. Integrate Cloudflare R2 for large uploads/results before enabling large-file production workflows.
-9. Align the AI runtime with the documented Qwen-primary / DeepSeek-backup provider strategy.
+3. Align the AI runtime with the documented Qwen-primary / DeepSeek-backup provider layer.
+4. Create Oracle networking and the API/worker compute hosts.
+5. Harden the hosts and install Docker/Compose using Oracle-supported packages/instructions.
+6. Deploy the six worker images from one successful release artifact.
+7. Deploy the Genithm API with backend-only Supabase credentials and allowed frontend origins.
+8. Configure the Next.js frontend on Vercel with only public Supabase browser credentials and the production API origin.
+9. Integrate Cloudflare R2 through the controlled storage-gateway/provider abstraction before enabling large-file production workflows.
 10. Run end-to-end production validation and only then tag V1.
 
 ## Kubernetes boundary
