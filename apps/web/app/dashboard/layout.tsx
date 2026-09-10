@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
 import { createClient } from "@/lib/supabase/server";
+import "./dashboard-section-nav.css";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const supabase = await createClient();
