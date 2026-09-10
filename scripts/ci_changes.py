@@ -7,11 +7,13 @@ from pathlib import Path
 
 WORKERS = ("sequence", "source", "blast", "audit", "scientific", "ai")
 WORKER_DIRS = {worker: f"apps/{worker}-worker/" for worker in WORKERS}
+V1_RELEASE_TRIGGER = "release/v1/candidate.json"
 
 FULL_CI_TRIGGERS = {
     ".github/workflows/ci.yml",
     "scripts/ci_changes.py",
     "scripts/test_ci_changes.py",
+    V1_RELEASE_TRIGGER,
 }
 
 CHEAP_PREFIXES = ("docs/", "supabase/")
@@ -32,6 +34,7 @@ KNOWN_WORKFLOW_EXACT = {
     ".github/workflows/worker-image.yml",
     ".github/workflows/worker-release.yml",
     ".github/workflows/worker-deployment-contract.yml",
+    ".github/workflows/v1-release-bundle.yml",
 }
 
 KNOWN_DEPLOY_PREFIXES = ("deploy/",)
@@ -42,6 +45,8 @@ KNOWN_RELEASE_SCRIPTS = {
     "scripts/test_worker_deployment.py",
     "scripts/test_worker_release_manifest.py",
     "scripts/test_validate_worker_release.py",
+    "scripts/build_v1_release_bundle.py",
+    "scripts/test_v1_release_bundle.py",
 }
 
 RELEASE_SHARED_PATHS = {
@@ -99,6 +104,7 @@ def _worker_runtime_changed(path: str, worker: str) -> bool:
 def classify(paths: list[str]) -> dict[str, bool]:
     paths = _normalize_paths(paths)
     unknown = [path for path in paths if not _is_known(path)]
+    force_v1_release = V1_RELEASE_TRIGGER in paths
     full_ci = bool(unknown) or any(path in FULL_CI_TRIGGERS for path in paths)
 
     result = {key: False for key in OUTPUT_KEYS}
@@ -111,7 +117,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
     for worker in WORKERS:
         prefix = WORKER_DIRS[worker]
         result[f"{worker}_worker"] = any(path.startswith(prefix) for path in paths)
-        result[f"{worker}_image"] = worker_image_workflow_changed or any(
+        result[f"{worker}_image"] = force_v1_release or worker_image_workflow_changed or any(
             _worker_runtime_changed(path, worker) for path in paths
         )
 
@@ -132,9 +138,6 @@ def classify(paths: list[str]) -> dict[str, bool]:
         for worker in WORKERS:
             result[f"audit_{worker}"] = True
 
-        # Unknown areas are conservative: validate every image too. Known CI-routing
-        # changes run full code/security validation without paying for six unrelated
-        # Docker builds solely because the routing implementation changed.
         if unknown:
             for worker in WORKERS:
                 result[f"{worker}_image"] = True
@@ -143,9 +146,9 @@ def classify(paths: list[str]) -> dict[str, bool]:
         result[key]
         for key in ("audit_web", "audit_api", *(f"audit_{worker}" for worker in WORKERS))
     )
-    result["release_required"] = bool(unknown) or any(result[f"{worker}_image"] for worker in WORKERS) or any(
-        path in RELEASE_SHARED_PATHS for path in paths
-    )
+    result["release_required"] = force_v1_release or bool(unknown) or any(
+        result[f"{worker}_image"] for worker in WORKERS
+    ) or any(path in RELEASE_SHARED_PATHS for path in paths)
     return result
 
 

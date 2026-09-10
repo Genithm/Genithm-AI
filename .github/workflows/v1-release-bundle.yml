@@ -1,0 +1,186 @@
+name: V1 release bundle
+
+on:
+  workflow_run:
+    workflows: [Worker release]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v1-release-bundle-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  detect-candidate:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      release_candidate: ${{ steps.detect.outputs.release_candidate }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - id: detect
+        name: Detect intentional V1 candidate commit
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          candidate=false
+          if [[ -f release/v1/candidate.json ]] && git cat-file -e "${SOURCE_REVISION}^" 2>/dev/null; then
+            if git diff --name-only "${SOURCE_REVISION}^" "$SOURCE_REVISION" -- release/v1/candidate.json | grep -qx 'release/v1/candidate.json'; then
+              candidate=true
+            fi
+          fi
+          echo "release_candidate=$candidate" >> "$GITHUB_OUTPUT"
+          echo "V1 release candidate: $candidate"
+
+  bundle:
+    needs: detect-candidate
+    if: needs.detect-candidate.outputs.release_candidate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - id: artifacts
+        name: Locate same-revision API and worker release artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REVISION: ${{ github.event.workflow_run.head_sha }}
+          WORKER_RUN_ID: ${{ github.event.workflow_run.id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ['GH_TOKEN']
+          repository = os.environ['REPOSITORY']
+          revision = os.environ['SOURCE_REVISION']
+          worker_run_id = os.environ['WORKER_RUN_ID']
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+
+          def get_json(url: str) -> dict:
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          def artifact_url(run_id: str, expected_name: str) -> str | None:
+              payload = get_json(f'https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100')
+              matches = [item for item in payload.get('artifacts', []) if item.get('name') == expected_name and not item.get('expired')]
+              if len(matches) != 1:
+                  return None
+              return matches[0]['archive_download_url']
+
+          worker_name = f'genithm-worker-release-{revision}'
+          worker_url = artifact_url(worker_run_id, worker_name)
+          if worker_url is None:
+              raise SystemExit(f'expected exactly one worker release artifact named {worker_name}')
+
+          api_name = f'genithm-api-release-{revision}'
+          api_url = None
+          for attempt in range(40):
+              query = urllib.parse.urlencode({'branch': 'main', 'head_sha': revision, 'per_page': 20})
+              payload = get_json(f'https://api.github.com/repos/{repository}/actions/workflows/api-release.yml/runs?{query}')
+              successful = [
+                  run for run in payload.get('workflow_runs', [])
+                  if run.get('head_sha') == revision and run.get('status') == 'completed' and run.get('conclusion') == 'success'
+              ]
+              if successful:
+                  successful.sort(key=lambda run: run.get('run_number', 0), reverse=True)
+                  api_url = artifact_url(str(successful[0]['id']), api_name)
+                  if api_url:
+                      break
+              if attempt < 39:
+                  time.sleep(15)
+          if api_url is None:
+              raise SystemExit(f'no successful same-revision API release artifact named {api_name}')
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
+              handle.write(f'api_url={api_url}\n')
+              handle.write(f'worker_url={worker_url}\n')
+          PY
+
+      - name: Download release manifests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ steps.artifacts.outputs.api_url }}
+          WORKER_URL: ${{ steps.artifacts.outputs.worker_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/api-release /tmp/worker-release
+          curl --fail --silent --show-error --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$API_URL" -o /tmp/api-release.zip
+          curl --fail --silent --show-error --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$WORKER_URL" -o /tmp/worker-release.zip
+          unzip -q /tmp/api-release.zip -d /tmp/api-release
+          unzip -q /tmp/worker-release.zip -d /tmp/worker-release
+          test -f /tmp/api-release/api-release.json
+          test -f /tmp/worker-release/worker-release.json
+          test -f /tmp/worker-release/genithm-workers.yaml
+
+      - name: Build immutable V1 deployment candidate
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p bundle
+          python scripts/build_v1_release_bundle.py \
+            --candidate release/v1/candidate.json \
+            --api-release /tmp/api-release/api-release.json \
+            --worker-release /tmp/worker-release/worker-release.json \
+            --output bundle/v1-release.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          revision = os.environ['SOURCE_REVISION']
+          bundle = json.loads(Path('bundle/v1-release.json').read_text(encoding='utf-8'))
+          if bundle.get('source_revision') != revision:
+              raise SystemExit('V1 bundle source revision does not match triggering worker release')
+          PY
+          cp release/v1/candidate.json bundle/candidate.json
+          cp /tmp/api-release/api-release.json bundle/api-release.json
+          cp /tmp/worker-release/worker-release.json bundle/worker-release.json
+          cp /tmp/worker-release/genithm-workers.yaml bundle/genithm-workers.yaml
+          cp deploy/oracle/docker-compose.api.yml bundle/docker-compose.api.yml
+          cp deploy/oracle/docker-compose.workers.yml bundle/docker-compose.workers.yml
+          cp deploy/oracle/.env.api.example bundle/env.api.example
+          cp deploy/oracle/.env.workers.example bundle/env.workers.example
+          printf 'repository=%s\nsource_revision=%s\nstatus=deployment_candidate\n' \
+            "$GITHUB_REPOSITORY" "$SOURCE_REVISION" > bundle/DEPLOYMENT_SOURCE.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: genithm-v1-release-${{ github.event.workflow_run.head_sha }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 90

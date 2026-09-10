@@ -74,6 +74,8 @@ jobs:
         run: python scripts/security_policy.py
       - name: Test CI change classification
         run: python scripts/test_ci_changes.py
+      - name: Test V1 release bundle contract
+        run: python scripts/test_v1_release_bundle.py
 
   dependency-audit:
     needs: changes
