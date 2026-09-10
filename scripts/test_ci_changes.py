@@ -45,6 +45,13 @@ def run_tests() -> None:
     assert not result["full_ci"]
     assert not result["release_required"]
 
+    result = classify([".github/workflows/api-release.yml"])
+    assert not result["full_ci"]
+    assert not result["api"]
+    assert not result["dependency_audit"]
+    assert not result["release_required"]
+    assert not any(result[f"{worker}_image"] for worker in WORKERS)
+
     result = classify([".github/workflows/ci.yml"])
     assert result["full_ci"]
     assert result["web"]
