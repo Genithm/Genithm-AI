@@ -34,7 +34,7 @@ def _request_json(url: str, *, timeout_seconds: float, attempts: int) -> tuple[i
         request = Request(
             url,
             method="GET",
-            headers={"Accept": "application/json", "User-Agent": "genithm-release-smoke/1.0"},
+            headers={"Accept": "application/json", "User-Agent": "genithm-release-smoke/1.1"},
         )
         try:
             with urlopen(request, timeout=timeout_seconds) as response:
@@ -98,14 +98,36 @@ def run_api_checks(base_url: str, *, timeout_seconds: float, attempts: int) -> l
         status, payload, _ = _request_json(
             f"{base_url}/api/v1/ready", timeout_seconds=timeout_seconds, attempts=attempts
         )
-        ready = status == 200 and payload.get("status") == "ready"
-        detail_parts = [f"http={status}", f"status={payload.get('status', 'missing')}"]
-        if "expected_queue_count" in payload:
-            detail_parts.append(f"queues={payload.get('expected_queue_count')}")
-        if payload.get("missing_queues"):
-            detail_parts.append("missing_queues=" + ",".join(str(item) for item in payload["missing_queues"]))
-        if payload.get("stale_queues"):
-            detail_parts.append("stale_queues=" + ",".join(str(item) for item in payload["stale_queues"]))
+        missing_workers = payload.get("missing_workers") or []
+        stale_workers = payload.get("stale_workers") or []
+        missing_queues = payload.get("missing_queues") or []
+        stale_queues = payload.get("stale_queues") or []
+        expected_workers = payload.get("expected_worker_count")
+        expected_queues = payload.get("expected_queue_count")
+        ready = (
+            status == 200
+            and payload.get("status") == "ready"
+            and expected_workers == 6
+            and expected_queues == 9
+            and not missing_workers
+            and not stale_workers
+            and not missing_queues
+            and not stale_queues
+        )
+        detail_parts = [
+            f"http={status}",
+            f"status={payload.get('status', 'missing')}",
+            f"workers={expected_workers}",
+            f"queues={expected_queues}",
+        ]
+        if missing_workers:
+            detail_parts.append("missing_workers=" + ",".join(str(item) for item in missing_workers))
+        if stale_workers:
+            detail_parts.append("stale_workers=" + ",".join(str(item) for item in stale_workers))
+        if missing_queues:
+            detail_parts.append("missing_queues=" + ",".join(str(item) for item in missing_queues))
+        if stale_queues:
+            detail_parts.append("stale_queues=" + ",".join(str(item) for item in stale_queues))
         if payload.get("reason"):
             detail_parts.append(f"reason={payload.get('reason')}")
         results.append(CheckResult("api_readiness", ready, " ".join(detail_parts)))
@@ -115,20 +137,26 @@ def run_api_checks(base_url: str, *, timeout_seconds: float, attempts: int) -> l
     return results
 
 
-def run_web_check(base_url: str, *, timeout_seconds: float, attempts: int) -> CheckResult:
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        request = Request(base_url, method="GET", headers={"User-Agent": "genithm-release-smoke/1.0"})
-        try:
-            with urlopen(request, timeout=timeout_seconds) as response:
-                return CheckResult("web_reachable", 200 <= response.status < 400, f"http={response.status}")
-        except HTTPError as exc:
-            return CheckResult("web_reachable", False, f"http={exc.code}")
-        except (URLError, TimeoutError) as exc:
-            last_error = exc
-            if attempt < attempts:
-                time.sleep(min(attempt, 2))
-    return CheckResult("web_reachable", False, f"request failed: {type(last_error).__name__}")
+def run_web_checks(base_url: str, *, timeout_seconds: float, attempts: int) -> list[CheckResult]:
+    results: list[CheckResult] = []
+    try:
+        status, payload, headers = _request_json(
+            f"{base_url}/api/health", timeout_seconds=timeout_seconds, attempts=attempts
+        )
+        valid = status == 200 and payload == {"status": "ok", "service": "genithm-web"}
+        results.append(CheckResult("web_health", valid, f"http={status} service={payload.get('service', 'missing')}"))
+        missing_headers = _check_security_headers(headers)
+        results.append(
+            CheckResult(
+                "web_security_headers",
+                not missing_headers,
+                "ok" if not missing_headers else "invalid=" + ",".join(sorted(missing_headers)),
+            )
+        )
+    except RuntimeError as exc:
+        results.append(CheckResult("web_health", False, str(exc)))
+        results.append(CheckResult("web_security_headers", False, "health endpoint unavailable"))
+    return results
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -161,7 +189,7 @@ def main() -> int:
 
     results = run_api_checks(api_base_url, timeout_seconds=args.timeout_seconds, attempts=args.attempts)
     if web_base_url:
-        results.append(run_web_check(web_base_url, timeout_seconds=args.timeout_seconds, attempts=args.attempts))
+        results.extend(run_web_checks(web_base_url, timeout_seconds=args.timeout_seconds, attempts=args.attempts))
 
     for result in results:
         marker = "PASS" if result.ok else "FAIL"

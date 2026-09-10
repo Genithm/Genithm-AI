@@ -37,7 +37,10 @@ def test_api_checks_accept_expected_health_and_ready_contract(monkeypatch: pytes
                 200,
                 {
                     "status": "ready",
+                    "expected_worker_count": 6,
                     "expected_queue_count": 9,
+                    "missing_workers": [],
+                    "stale_workers": [],
                     "missing_queues": [],
                     "stale_queues": [],
                     "total_backlog": 0,
@@ -71,6 +74,10 @@ def test_api_checks_fail_on_not_ready_without_exposing_payload(monkeypatch: pyte
                 503,
                 {
                     "status": "not_ready",
+                    "expected_worker_count": 6,
+                    "expected_queue_count": 9,
+                    "missing_workers": ["ai_worker"],
+                    "stale_workers": [],
                     "missing_queues": ["ai_planning"],
                     "stale_queues": [],
                     "unexpected_sensitive_field": "must-not-be-printed",
@@ -85,5 +92,6 @@ def test_api_checks_fail_on_not_ready_without_exposing_payload(monkeypatch: pyte
     readiness = results[-1]
 
     assert readiness.ok is False
+    assert "ai_worker" in readiness.detail
     assert "ai_planning" in readiness.detail
     assert "must-not-be-printed" not in readiness.detail
