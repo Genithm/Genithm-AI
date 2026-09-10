@@ -1,0 +1,52 @@
+name: Cloudflare web contract
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/cloudflare-web-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/cloudflare-web-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Typecheck web
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Build Next.js for Cloudflare Workers
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_contract_test
+          GENITHM_APP_URL: https://example.com
+        run: npm run cf:build
+      - name: Verify OpenNext deployment output
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .open-next/worker.js
+          test -d .open-next/assets
+          test -f middleware.ts
+          test ! -e proxy.ts
+          grep -q '"main": ".open-next/worker.js"' wrangler.jsonc
+          grep -q '"nodejs_compat"' wrangler.jsonc
