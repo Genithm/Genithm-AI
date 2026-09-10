@@ -5,12 +5,12 @@ import { ResearchMetricsOverview } from "./research-metrics-overview";
 import { WorkspaceHealthIndicator } from "./workspace-health-indicator";
 
 export function DashboardModuleIndex({
-  user,
+  user = "Authenticated researcher",
   organizations,
   projects,
   analyses,
 }: {
-  user: string;
+  user?: string;
   organizations: number;
   projects: number;
   analyses: number;
