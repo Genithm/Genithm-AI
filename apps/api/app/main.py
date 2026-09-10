@@ -10,12 +10,13 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from .settings import get_settings
+from .storage_routes import router as storage_router
 
 settings = get_settings()
 
 app = FastAPI(
     title="Genithm API",
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs" if settings.environment != "production" else None,
     redoc_url=None,
 )
@@ -41,6 +42,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.include_router(storage_router)
 
 
 @app.get("/api/v1/health", tags=["operations"])
@@ -54,6 +56,9 @@ def _fetch_release_readiness() -> dict[str, object]:
             return {"status": "not_ready", "reason": "supabase_readiness_not_configured"}
         return {"status": "ready", "dependency_check": "skipped_not_configured"}
 
+    if settings.environment == "production" and not settings.storage_gateway_configured:
+        return {"status": "not_ready", "reason": "storage_gateway_not_configured"}
+
     assert settings.supabase_url is not None
     assert settings.supabase_secret_key is not None
     request = Request(
@@ -62,6 +67,7 @@ def _fetch_release_readiness() -> dict[str, object]:
         method="POST",
         headers={
             "apikey": settings.supabase_secret_key,
+            "Authorization": f"Bearer {settings.supabase_secret_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
             "User-Agent": "genithm-api-readiness/1.0",
