@@ -25,10 +25,16 @@ def _valid_base() -> dict[str, str]:
     }
 
 
-def test_api_contract_accepts_digest_pinned_image() -> None:
+def test_api_contract_accepts_digest_pinned_images_and_tunnel_token() -> None:
     values = _valid_base()
     values["GENITHM_API_IMAGE"] = "ghcr.io/genithm/genithm-api@sha256:" + "a" * 64
-    assert validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE"}) == []
+    values["GENITHM_CLOUDFLARED_IMAGE"] = "cloudflare/cloudflared@sha256:" + "b" * 64
+    values["GENITHM_CLOUDFLARE_TUNNEL_TOKEN"] = "opaque-runtime-token"
+    assert validate_env(
+        values,
+        API_REQUIRED,
+        image_keys={"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"},
+    ) == []
 
 
 def test_worker_contract_accepts_six_digest_pinned_images() -> None:
@@ -42,17 +48,27 @@ def test_worker_contract_accepts_six_digest_pinned_images() -> None:
 def test_rejects_tagged_or_placeholder_images() -> None:
     values = _valid_base()
     values["GENITHM_API_IMAGE"] = "ghcr.io/genithm/genithm-api:latest"
-    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE"})
-    assert "image must be GHCR digest-pinned: GENITHM_API_IMAGE" in errors
+    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"})
+    assert "image must be OCI digest-pinned: GENITHM_API_IMAGE" in errors
 
     values["GENITHM_API_IMAGE"] = "ghcr.io/genithm/genithm-api@sha256:REPLACE_WITH_64_HEX_DIGEST"
-    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE"})
+    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"})
     assert "placeholder value remains: GENITHM_API_IMAGE" in errors
+
+
+def test_requires_cloudflare_tunnel_inputs() -> None:
+    values = _valid_base()
+    values["GENITHM_API_IMAGE"] = "ghcr.io/genithm/genithm-api@sha256:" + "a" * 64
+    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"})
+    assert "missing required value: GENITHM_CLOUDFLARED_IMAGE" in errors
+    assert "missing required value: GENITHM_CLOUDFLARE_TUNNEL_TOKEN" in errors
 
 
 def test_requires_https_for_external_endpoints() -> None:
     values = _valid_base()
     values["GENITHM_API_IMAGE"] = "ghcr.io/genithm/genithm-api@sha256:" + "a" * 64
+    values["GENITHM_CLOUDFLARED_IMAGE"] = "cloudflare/cloudflared@sha256:" + "b" * 64
+    values["GENITHM_CLOUDFLARE_TUNNEL_TOKEN"] = "opaque-runtime-token"
     values["GENITHM_R2_ENDPOINT"] = "http://r2.invalid"
-    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE"})
+    errors = validate_env(values, API_REQUIRED, image_keys={"GENITHM_API_IMAGE", "GENITHM_CLOUDFLARED_IMAGE"})
     assert "HTTPS required: GENITHM_R2_ENDPOINT" in errors
