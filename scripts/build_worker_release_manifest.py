@@ -15,6 +15,7 @@ IMAGE_REFERENCE = re.compile(
 )
 
 WORKER_ORDER = ("sequence", "source", "blast", "scientific", "audit", "ai")
+SUPPORTED_PLATFORMS = ("linux/amd64", "linux/arm64")
 WORKERS: dict[str, dict[str, Any]] = {
     "sequence": {
         "deployment": "sequence-worker",
@@ -128,7 +129,7 @@ def build_manifest(
             "repository": repository,
             "commit_sha": source_revision,
         },
-        "platforms": ["linux/amd64"],
+        "platforms": list(SUPPORTED_PLATFORMS),
         "supply_chain": {
             "image_reference_policy": "sha256-digest-only",
             "provenance_attestation": "buildkit-mode-max",

@@ -12,6 +12,7 @@ SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_REF = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
 EXPECTED_WORKERS = ("sequence", "source", "blast", "scientific", "audit", "ai")
 EXPECTED_DEPLOYMENTS = tuple(f"{worker}-worker" for worker in EXPECTED_WORKERS)
+EXPECTED_PLATFORMS = ("linux/amd64", "linux/arm64")
 
 
 def validate_release(
@@ -31,6 +32,10 @@ def validate_release(
         errors.append("release source commit is not a full lowercase SHA")
     elif expected_revision is not None and revision != expected_revision:
         errors.append("release source commit does not match expected revision")
+
+    platforms = manifest.get("platforms")
+    if platforms != list(EXPECTED_PLATFORMS):
+        errors.append("release platforms must declare linux/amd64 and linux/arm64")
 
     deployment_info = manifest.get("deployment")
     expected_hash = deployment_info.get("sha256") if isinstance(deployment_info, dict) else None

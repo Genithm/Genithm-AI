@@ -116,6 +116,9 @@ jobs:
         with:
           ref: ${{ needs.validate-source.outputs.source_revision }}
           persist-credentials: false
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
       - name: Log in to GHCR with repository token
         shell: bash
         env:
@@ -125,7 +128,7 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
       - name: Create Buildx builder
         run: docker buildx create --use --name genithm-release
-      - name: Build and publish immutable worker image
+      - name: Build and publish immutable multi-architecture worker image
         shell: bash
         run: |
           set -euo pipefail
@@ -133,7 +136,7 @@ jobs:
           repository="ghcr.io/${owner}/${{ matrix.image }}"
           tag="sha-${{ needs.validate-source.outputs.source_revision }}"
           docker buildx build \
-            --platform linux/amd64 \
+            --platform linux/amd64,linux/arm64 \
             --provenance=mode=max \
             --sbom=true \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
@@ -150,6 +153,22 @@ jobs:
           if not isinstance(digest, str) or not digest.startswith('sha256:') or len(digest) != 71:
               raise SystemExit('Buildx did not return a valid containerimage.digest')
           Path('/tmp/image.txt').write_text(digest + '\n', encoding='utf-8')
+          PY
+          digest="$(cat /tmp/image.txt)"
+          docker buildx imagetools inspect --raw "${repository}@${digest}" > /tmp/image-index.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/image-index.json').read_text())
+          platforms = {
+              (item.get('platform', {}).get('os'), item.get('platform', {}).get('architecture'))
+              for item in payload.get('manifests', [])
+              if isinstance(item, dict)
+          }
+          required = {('linux', 'amd64'), ('linux', 'arm64')}
+          missing = sorted(required - platforms)
+          if missing:
+              raise SystemExit(f'multi-architecture image missing required platforms: {missing}')
           PY
       - name: Write worker image result
         shell: bash
@@ -209,6 +228,8 @@ jobs:
           rendered = (release / 'genithm-workers.yaml').read_bytes()
           if manifest['deployment']['sha256'] != hashlib.sha256(rendered).hexdigest():
               raise SystemExit('release manifest deployment hash mismatch')
+          if manifest.get('platforms') != ['linux/amd64', 'linux/arm64']:
+              raise SystemExit('release manifest does not declare both supported platforms')
           if len(manifest['workers']) != 6:
               raise SystemExit('release manifest does not contain six workers')
           PY

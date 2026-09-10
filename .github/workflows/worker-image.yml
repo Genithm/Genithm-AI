@@ -23,38 +23,71 @@ jobs:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
-      - name: Build worker image
-        run: docker build --pull -t "${{ inputs.image_name }}:ci" "${{ inputs.context }}"
-      - name: Verify image declares non-root user
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+      - name: Build AMD64 worker image
+        run: docker build --pull --platform linux/amd64 -t "${{ inputs.image_name }}:amd64-ci" "${{ inputs.context }}"
+      - name: Create Buildx builder
+        run: docker buildx create --use --name genithm-ci-multiarch
+      - name: Build ARM64 worker image
+        run: docker buildx build --pull --platform linux/arm64 --load -t "${{ inputs.image_name }}:arm64-ci" "${{ inputs.context }}"
+      - name: Verify images declare non-root users
+        shell: bash
         run: |
-          user="$(docker image inspect --format '{{.Config.User}}' '${{ inputs.image_name }}:ci')"
-          test "$user" != ""
-          test "$user" != "root"
-          test "$user" != "0"
-      - name: Verify hardened runtime
-        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m "${{ inputs.image_name }}:ci" --help
-      - name: Block fixable HIGH or CRITICAL image vulnerabilities
+          set -euo pipefail
+          for tag in amd64-ci arm64-ci; do
+            user="$(docker image inspect --format '{{.Config.User}}' '${{ inputs.image_name }}:'"$tag")"
+            test "$user" != ""
+            test "$user" != "root"
+            test "$user" != "0"
+          done
+      - name: Verify hardened AMD64 runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m "${{ inputs.image_name }}:amd64-ci" --help
+      - name: Verify hardened ARM64 runtime
+        run: docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges --pids-limit=64 --memory=256m --cpus=1 --network=none --tmpfs /tmp:rw,noexec,nosuid,size=16m "${{ inputs.image_name }}:arm64-ci" --help
+      - name: Block fixable HIGH or CRITICAL AMD64 vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ inputs.image_name }}:ci
+          image-ref: ${{ inputs.image_name }}:amd64-ci
           format: table
           exit-code: '1'
           ignore-unfixed: 'true'
           severity: HIGH,CRITICAL
           vuln-type: os,library
           scanners: vuln
-      - name: Generate CycloneDX SBOM
+      - name: Block fixable HIGH or CRITICAL ARM64 vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ inputs.image_name }}:ci
+          image-ref: ${{ inputs.image_name }}:arm64-ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: 'true'
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+          scanners: vuln
+      - name: Generate AMD64 CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.image_name }}:amd64-ci
           format: cyclonedx
-          output: ${{ inputs.artifact_prefix }}.sbom.cdx.json
+          output: ${{ inputs.artifact_prefix }}.amd64.sbom.cdx.json
           exit-code: '0'
           list-all-pkgs: 'true'
-      - name: Upload SBOM
+      - name: Generate ARM64 CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ inputs.image_name }}:arm64-ci
+          format: cyclonedx
+          output: ${{ inputs.artifact_prefix }}.arm64.sbom.cdx.json
+          exit-code: '0'
+          list-all-pkgs: 'true'
+      - name: Upload SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.artifact_prefix }}-sbom-${{ github.sha }}
-          path: ${{ inputs.artifact_prefix }}.sbom.cdx.json
+          path: |
+            ${{ inputs.artifact_prefix }}.amd64.sbom.cdx.json
+            ${{ inputs.artifact_prefix }}.arm64.sbom.cdx.json
           if-no-files-found: error
           retention-days: 14
