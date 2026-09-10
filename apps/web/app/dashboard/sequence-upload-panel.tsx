@@ -13,6 +13,7 @@ type ProjectOption = {
 
 type Props = {
   projects: ProjectOption[];
+  userId?: string;
 };
 
 type ReservationResponse = {
