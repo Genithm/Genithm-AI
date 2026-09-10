@@ -34,3 +34,29 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  cloudflared:
+    image: ${GENITHM_CLOUDFLARED_IMAGE:?GENITHM_CLOUDFLARED_IMAGE must be a digest-pinned Cloudflare image reference}
+    container_name: genithm-cloudflared
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    environment:
+      TUNNEL_TOKEN: ${GENITHM_CLOUDFLARE_TUNNEL_TOKEN:?GENITHM_CLOUDFLARE_TUNNEL_TOKEN is required}
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --loglevel
+      - info
+      - --metrics
+      - 0.0.0.0:2000
+      - run
+    depends_on:
+      api:
+        condition: service_healthy
