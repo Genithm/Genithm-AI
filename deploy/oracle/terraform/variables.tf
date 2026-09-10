@@ -45,12 +45,6 @@ variable "worker_memory_gbs" {
   default     = 12
 }
 
-variable "api_ingress_cidrs" {
-  description = "CIDRs allowed to reach the Genithm API on TCP/8000. Prefer Cloudflare/VPN-controlled ranges."
-  type        = list(string)
-  default     = []
-}
-
 variable "ssh_ingress_cidrs" {
   description = "Administrative CIDRs allowed to reach API-host SSH. Keep empty when using OCI Bastion."
   type        = list(string)
