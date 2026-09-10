@@ -1,0 +1,44 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - docker.io
+
+users:
+  - default
+  - name: genithm
+    gecos: Genithm deployment account
+    groups: [docker]
+    shell: /bin/bash
+    sudo: []
+    ssh_authorized_keys:
+      - ${ssh_authorized_key}
+
+write_files:
+  - path: /etc/genithm-role
+    permissions: '0644'
+    owner: root:root
+    content: |
+      ${role}
+  - path: /etc/docker/daemon.json
+    permissions: '0644'
+    owner: root:root
+    content: |
+      {
+        "live-restore": true,
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      }
+
+runcmd:
+  - systemctl enable --now docker
+  - install -d -m 0750 -o genithm -g genithm /opt/genithm
+  - install -d -m 0750 -o root -g genithm /etc/genithm
+  - chmod 0750 /home/genithm || true
+
+final_message: "Genithm ${role} host bootstrap complete"
