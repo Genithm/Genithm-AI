@@ -13,11 +13,20 @@ type ProjectOption = {
 
 type Props = {
   projects: ProjectOption[];
-  userId: string;
+};
+
+type ReservationResponse = {
+  upload_id: string;
+  object_path: string;
+  upload_url: string;
+  method: "PUT";
+  required_headers: Record<string, string>;
+  expires_seconds: number;
 };
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(["fa", "fasta", "fna", "faa", "fas", "txt"]);
+const API_BASE = (process.env.NEXT_PUBLIC_GENITHM_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 function safeDisplayFilename(name: string) {
   const trimmed = name.trim().slice(0, 255);
@@ -27,11 +36,6 @@ function safeDisplayFilename(name: string) {
 function extensionOf(name: string) {
   const index = name.lastIndexOf(".");
   return index >= 0 ? name.slice(index + 1).toLowerCase() : "";
-}
-
-function storageFilename(name: string) {
-  const ext = extensionOf(name);
-  return ext && ALLOWED_EXTENSIONS.has(ext) ? `input.${ext}` : "input.fasta";
 }
 
 async function validateFastaEnvelope(file: File) {
@@ -53,7 +57,17 @@ async function validateFastaEnvelope(file: File) {
   }
 }
 
-export function SequenceUploadPanel({ projects, userId }: Props) {
+async function responseError(response: Response, fallback: string) {
+  try {
+    const payload = await response.json();
+    if (payload && typeof payload.detail === "string") return payload.detail;
+  } catch {
+    // Use the stable fallback below.
+  }
+  return fallback;
+}
+
+export function SequenceUploadPanel({ projects }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
@@ -76,50 +90,55 @@ export function SequenceUploadPanel({ projects, userId }: Props) {
 
     try {
       await validateFastaEnvelope(file);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (sessionError || !accessToken) throw new Error("Your session expired. Sign in again before uploading.");
 
-      const uploadId = crypto.randomUUID();
       const originalFilename = safeDisplayFilename(file.name);
-      const objectPath = `${selectedProject.organization_id}/${selectedProject.id}/${userId}/${uploadId}/${storageFilename(originalFilename)}`;
-
-      const { error: reservationError } = await supabase.from("sequence_uploads").insert({
-        id: uploadId,
-        organization_id: selectedProject.organization_id,
-        project_id: selectedProject.id,
-        created_by: userId,
-        original_filename: originalFilename,
-        object_path: objectPath,
-        file_size_bytes: file.size,
-        content_type: file.type || "application/octet-stream",
+      const contentType = file.type || "application/octet-stream";
+      const reservationResponse = await fetch(`${API_BASE}/api/v1/storage/sequence-uploads`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          project_id: selectedProject.id,
+          original_filename: originalFilename,
+          file_size_bytes: file.size,
+          content_type: contentType,
+        }),
       });
+      if (!reservationResponse.ok) {
+        throw new Error(await responseError(reservationResponse, "Could not reserve a secure upload slot."));
+      }
+      const reservation = (await reservationResponse.json()) as ReservationResponse;
 
-      if (reservationError) {
-        throw new Error("Could not reserve a secure upload slot for this project.");
+      const uploadResponse = await fetch(reservation.upload_url, {
+        method: reservation.method,
+        headers: reservation.required_headers,
+        body: file,
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("The secure R2 upload failed. The reservation remains pending and is not queued for validation.");
       }
 
-      const { error: uploadError } = await supabase.storage
-        .from("sequence-inputs")
-        .upload(objectPath, file, {
-          upsert: false,
-          contentType: file.type || "application/octet-stream",
-          cacheControl: "0",
-        });
-
-      if (uploadError) {
-        throw new Error("The upload reservation was created, but private Storage upload failed. The record remains marked as pending upload and is not queued for validation.");
-      }
-
-      const { data: completionStatus, error: completionError } = await supabase.rpc("complete_sequence_upload", {
-        upload_id: uploadId,
+      const completionResponse = await fetch(`${API_BASE}/api/v1/storage/sequence-uploads/${reservation.upload_id}/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
-
-      if (completionError || completionStatus !== "pending_validation") {
-        throw new Error("The file is stored privately, but validation could not be queued. The upload remains recoverable and has not been reported as validated.");
+      if (!completionResponse.ok) {
+        throw new Error(await responseError(completionResponse, "The file was uploaded but could not be queued for validation."));
+      }
+      const completion = (await completionResponse.json()) as { status?: string };
+      if (completion.status !== "pending_validation") {
+        throw new Error(`Unexpected upload state: ${completion.status ?? "unknown"}.`);
       }
 
       setFile(null);
       const input = document.getElementById("sequence-file") as HTMLInputElement | null;
       if (input) input.value = "";
-      setMessage("Upload complete. The private file has been verified and queued for deterministic server-side validation.");
+      setMessage("Upload complete. The private R2 object was verified and queued for deterministic server-side validation.");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Upload failed.");
@@ -152,7 +171,7 @@ export function SequenceUploadPanel({ projects, userId }: Props) {
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
       </label>
-      <div className="small">Private input · max 50 MiB · no overwrite · deterministic server-side validation after upload.</div>
+      <div className="small">Private R2 input · max 50 MiB · short-lived signed upload · deterministic server-side validation.</div>
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="notice">{message}</div> : null}
       <button className="button primary" type="button" onClick={upload} disabled={busy || !file}>
