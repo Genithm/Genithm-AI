@@ -105,10 +105,10 @@ def reserve_sequence_upload(
                 user,
                 "reserve_r2_sequence_upload",
                 {
-                    "project_id": str(payload.project_id),
-                    "original_filename": filename,
-                    "file_size_bytes": payload.file_size_bytes,
-                    "content_type": content_type,
+                    "p_project_id": str(payload.project_id),
+                    "p_original_filename": filename,
+                    "p_file_size_bytes": payload.file_size_bytes,
+                    "p_content_type": content_type,
                 },
             )
         )
