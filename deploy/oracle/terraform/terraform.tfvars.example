@@ -1,0 +1,19 @@
+region              = "REPLACE_WITH_OCI_REGION"
+compartment_ocid    = "ocid1.compartment.REPLACE_ME"
+availability_domain = "REPLACE_WITH_AVAILABILITY_DOMAIN"
+image_ocid          = "ocid1.image.REPLACE_ME"
+ssh_authorized_key  = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY genithm-deploy"
+
+# Choose these only after checking current OCI capacity and benchmarking the workload.
+api_shape    = "REPLACE_WITH_API_SHAPE"
+worker_shape = "REPLACE_WITH_WORKER_SHAPE"
+
+# Used only when worker_shape ends with Flex.
+worker_ocpus      = 2
+worker_memory_gbs = 12
+
+# Never leave API exposure implicit. Supply only trusted reverse-proxy/VPN ingress ranges.
+api_ingress_cidrs = ["REPLACE_WITH_TRUSTED_CIDR"]
+
+# Prefer OCI Bastion. Keep empty unless direct SSH from a tightly scoped admin CIDR is required.
+ssh_ingress_cidrs = []
