@@ -75,7 +75,7 @@ jobs:
           release_required=false
           for path in "${changed[@]}"; do
             case "$path" in
-              apps/api/*|.github/workflows/api-release.yml)
+              apps/api/*|.github/workflows/api-release.yml|release/v1/candidate.json)
                 release_required=true
                 break
                 ;;
@@ -83,7 +83,7 @@ jobs:
           done
           echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
           if [[ "$release_required" == 'false' ]]; then
-            echo 'No API runtime or API release workflow change detected; skipping publish.'
+            echo 'No API runtime or V1 release trigger change detected; skipping publish.'
           fi
 
   publish:
