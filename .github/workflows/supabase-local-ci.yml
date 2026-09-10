@@ -1,0 +1,88 @@
+name: Supabase Local CI
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/supabase-local-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/supabase-local-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-local-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.117.0
+      - name: Verify Supabase CLI version
+        run: supabase --version
+      - name: Start local Supabase database
+        run: supabase db start
+      - name: Replay all migrations from scratch
+        run: supabase db reset --local
+      - name: Verify V1 scientific runtime security contract
+        shell: bash
+        run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            proc text;
+          begin
+            if to_regclass('public.analysis_jobs') is null
+              or to_regclass('public.analysis_results') is null
+              or to_regclass('public.evidence_snapshots') is null then
+              raise exception 'V1 scientific runtime tables are missing';
+            end if;
+
+            if exists (
+              select 1
+              from pg_class c
+              join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public'
+                and c.relname in ('analysis_jobs', 'analysis_results', 'evidence_snapshots')
+                and (not c.relrowsecurity or not c.relforcerowsecurity)
+            ) then
+              raise exception 'V1 scientific runtime tables must have RLS enabled and forced';
+            end if;
+
+            foreach proc in array array[
+              'public.claim_analysis_job(text,integer)',
+              'public.renew_analysis_job_lease(uuid,text,integer)',
+              'public.finish_analysis_job_success(uuid,text,jsonb,text,text,jsonb,text,timestamptz,jsonb)',
+              'public.finish_analysis_job_error(uuid,text,text,boolean)'
+            ] loop
+              if to_regprocedure(proc) is null then
+                raise exception 'required worker RPC is missing: %', proc;
+              end if;
+              if not has_function_privilege('service_role', proc, 'EXECUTE') then
+                raise exception 'service_role lacks EXECUTE on %', proc;
+              end if;
+              if has_function_privilege('anon', proc, 'EXECUTE')
+                or has_function_privilege('authenticated', proc, 'EXECUTE')
+                or has_function_privilege('public', proc, 'EXECUTE') then
+                raise exception 'client/public role can execute privileged worker RPC: %', proc;
+              end if;
+            end loop;
+          end
+          $$;
+          SQL
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
