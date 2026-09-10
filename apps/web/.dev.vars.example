@@ -1,0 +1,5 @@
+# Local Cloudflare Workers preview only. Copy to .dev.vars and keep real values uncommitted.
+NEXTJS_ENV=development
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
+GENITHM_APP_URL=http://localhost:8787
