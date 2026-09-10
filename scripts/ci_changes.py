@@ -31,6 +31,7 @@ CHEAP_EXACT = {
 
 KNOWN_WORKFLOW_EXACT = {
     ".github/workflows/api-release.yml",
+    ".github/workflows/cloudflare-web-contract.yml",
     ".github/workflows/worker-image.yml",
     ".github/workflows/worker-release.yml",
     ".github/workflows/worker-deployment-contract.yml",
