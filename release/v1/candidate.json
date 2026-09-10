@@ -1,0 +1,18 @@
+{
+  "schema_version": "genithm-v1-candidate/1",
+  "release_target": "v1.0.0",
+  "stage": "deployment_candidate",
+  "repository": "Genithm/Genithm-AI",
+  "platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
+  "cloudflared": {
+    "version": "2026.9.0",
+    "image": "docker.io/cloudflare/cloudflared@sha256:ff69a2225ad7c6f85ed84fbd5f3087df46202426b2388ec60214098e0adf05e9"
+  },
+  "runtime_contract": {
+    "expected_workers": 6,
+    "expected_queues": 9
+  }
+}
