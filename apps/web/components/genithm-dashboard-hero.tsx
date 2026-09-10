@@ -1,17 +1,23 @@
-export function GenithmDashboardHero({
-  user,
-}: {
-  user: string;
-}) {
+export function GenithmDashboardHero({ user }: { user: string }) {
+  const displayName = user.split("@")[0] || "Researcher";
+
   return (
-    <section className="card futuristic-card">
-      <div className="eyebrow">Genithm Research OS</div>
-      <h1>Scientific intelligence workspace</h1>
-      <p>
-        Manage experiments, execute validated workflows, inspect evidence,
-        and review reproducible scientific results from one interface.
-      </p>
-      <div className="small">Authenticated researcher: {user}</div>
+    <section className="workspace-hero">
+      <div>
+        <div className="workspace-kicker">
+          <span className="workspace-status-dot" aria-hidden="true" />
+          Genithm Research Workspace
+        </div>
+        <h1 className="workspace-title">Welcome back, {displayName}</h1>
+        <p className="workspace-summary">
+          Run reproducible bioinformatics workflows, inspect evidence, and move from sequence input to scientific interpretation in one workspace.
+        </p>
+      </div>
+      <div className="workspace-identity">
+        <span className="workspace-identity-label">Signed in as</span>
+        <strong>{user}</strong>
+        <span className="workspace-identity-meta">Private research session</span>
+      </div>
     </section>
   );
 }
