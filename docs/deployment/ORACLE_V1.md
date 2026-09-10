@@ -19,18 +19,31 @@ The API and worker release pipelines are multi-architecture so the same immutabl
 - Restrict SSH to an administrative source range or private access path. Do not expose database ports because PostgreSQL/Auth remain managed by Supabase.
 - Use Oracle VCN security lists/network security groups as an outer boundary in addition to host firewall rules.
 
-## API secrets
+## API and Storage Gateway secrets
 
 Create `deploy/oracle/.env.api` on the API host from `.env.api.example`. The real file must never be committed.
 
-Required runtime values:
+Required runtime values include:
 
 - `GENITHM_API_IMAGE` — digest-pinned API image reference
 - `GENITHM_API_ALLOWED_ORIGINS` — production frontend origin(s)
 - `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
+- `GENITHM_R2_ENDPOINT`
+- `GENITHM_R2_ACCESS_KEY_ID`
+- `GENITHM_R2_SECRET_ACCESS_KEY`
+- `GENITHM_R2_SEQUENCE_BUCKET`
 
-The Supabase secret/service credential is backend-only. Never copy it into Next.js `NEXT_PUBLIC_*` variables or any browser bundle.
+The Supabase secret/service credential and R2 credentials are backend-only. Never copy them into Next.js `NEXT_PUBLIC_*` variables or any browser bundle.
+
+The browser receives only short-lived object-specific R2 presigned URLs. The database stores provider-neutral metadata, logical bucket, scoped object key, size, validation checksum, and provenance rather than object bytes.
+
+## R2 bucket boundary
+
+Create the private R2 sequence bucket named by `GENITHM_R2_SEQUENCE_BUCKET`. Configure browser CORS only for the production Vercel origin(s) that need direct upload access. Allow `PUT` with `Content-Type` for signed uploads and `GET` only where signed downloads are used. Do not make the bucket public and do not expose R2 API credentials to the browser.
+
+Genithm object keys are generated server-side from authorized organization/project/user/upload identifiers. The browser cannot choose an arbitrary storage key. Existing Supabase Storage objects remain supported during migration.
 
 ## Immutable API deployment
 
@@ -56,7 +69,19 @@ curl --fail --silent http://127.0.0.1:8000/api/v1/health
 curl --fail --silent http://127.0.0.1:8000/api/v1/ready
 ```
 
-`/api/v1/health` verifies the process is alive. `/api/v1/ready` is the release gate and remains HTTP 503 until required worker/dependency readiness is satisfied.
+`/api/v1/health` verifies the process is alive. `/api/v1/ready` is the release gate and remains HTTP 503 in production until Supabase readiness and the R2 Storage Gateway configuration are present.
+
+## Frontend configuration
+
+Vercel needs only browser-safe configuration. Set the existing public Supabase browser values and:
+
+```text
+NEXT_PUBLIC_GENITHM_API_URL=https://<production-api-origin>
+```
+
+Do not place `SUPABASE_SECRET_KEY`, R2 access keys, AI provider keys, or audit private keys in Vercel `NEXT_PUBLIC_*` variables.
+
+Sequence upload flow is: browser session → authenticated Genithm API reservation → short-lived R2 presigned PUT → API metadata verification → service-only queue completion → deterministic sequence worker validation.
 
 ## Worker secrets
 
@@ -67,6 +92,7 @@ Required runtime values:
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
 - `NCBI_EMAIL`
+- R2 endpoint/access-key/secret/bucket values for the sequence worker
 - `GENITHM_AI_PRIMARY_PROVIDER` — V1 default: `qwen`
 - `GENITHM_AI_PRIMARY_API_KEY`
 - `GENITHM_AI_PRIMARY_ENDPOINT`
@@ -95,40 +121,16 @@ On the worker host, place the release references in `.env.workers`, then validat
 
 ```bash
 docker compose --env-file deploy/oracle/.env.workers -f deploy/oracle/docker-compose.workers.yml config
-```
-
-Pull all immutable images:
-
-```bash
 docker compose --env-file deploy/oracle/.env.workers -f deploy/oracle/docker-compose.workers.yml pull
-```
-
-Start or replace the worker set:
-
-```bash
 docker compose --env-file deploy/oracle/.env.workers -f deploy/oracle/docker-compose.workers.yml up -d --remove-orphans
-```
-
-Inspect process state:
-
-```bash
 docker compose --env-file deploy/oracle/.env.workers -f deploy/oracle/docker-compose.workers.yml ps
 ```
 
-All six services must remain running:
-
-- `sequence-worker`
-- `source-worker`
-- `blast-worker`
-- `scientific-worker`
-- `audit-worker`
-- `ai-worker`
+All six services must remain running: sequence, source, BLAST, scientific, audit, and AI workers.
 
 ## Release readiness gate
 
 Workers report heartbeats through the existing Genithm operational contract. Do not declare the release ready merely because containers are running.
-
-The public API readiness endpoint must ultimately return HTTP 200 with `status=ready`, with no missing or stale workers/queues. Before the workers are deployed the expected state is `not_ready` with the six workers listed as missing.
 
 After deployment:
 
@@ -138,7 +140,8 @@ After deployment:
 4. confirm Supabase `get_release_readiness()` reports zero missing/stale workers;
 5. confirm `/api/v1/health` returns 200;
 6. confirm `/api/v1/ready` returns 200 and `status=ready`;
-7. only then run a controlled real-user scientific workflow.
+7. perform an authenticated R2 FASTA upload and confirm deterministic validation reaches `ready`;
+8. only then run the complete controlled real-user scientific workflow.
 
 ## Rollback
 
@@ -148,20 +151,21 @@ For the API, replace `GENITHM_API_IMAGE` in `.env.api` with the previous digest,
 
 For workers, replace the six digest references in `.env.workers` with the previous release's immutable references, then run `docker compose pull` followed by `docker compose up -d --remove-orphans`.
 
-Do not purge Supabase queues during rollback. Existing visibility timeouts and bounded retry/finalization semantics are designed so queued work can recover after a worker replacement.
+Do not purge Supabase queues during rollback. Existing visibility timeouts and bounded retry/finalization semantics allow queued work to recover after worker replacement. Legacy Supabase Storage rows remain readable while R2-backed rows are distinguished by storage-provider metadata.
 
 ## V1 deployment order
 
 1. Merge and release the multi-architecture worker pipeline.
 2. Build and publish the hardened multi-architecture API image.
 3. Align the AI runtime with the documented Qwen-primary / DeepSeek-backup provider layer.
-4. Create Oracle networking and the API/worker compute hosts.
-5. Harden the hosts and install Docker/Compose using Oracle-supported packages/instructions.
-6. Deploy the six worker images from one successful release artifact.
-7. Deploy the Genithm API with backend-only Supabase credentials and allowed frontend origins.
-8. Configure the Next.js frontend on Vercel with only public Supabase browser credentials and the production API origin.
-9. Integrate Cloudflare R2 through the controlled storage-gateway/provider abstraction before enabling large-file production workflows.
-10. Run end-to-end production validation and only then tag V1.
+4. Merge the R2 Storage Gateway and provider-aware sequence worker path.
+5. Create Oracle networking and the API/worker compute hosts.
+6. Harden the hosts and install Docker/Compose using Oracle-supported packages/instructions.
+7. Create/configure the private R2 sequence bucket and restricted browser CORS.
+8. Deploy the six worker images from one successful release artifact.
+9. Deploy the Genithm API with backend-only Supabase/R2 credentials and allowed frontend origins.
+10. Configure the Next.js frontend on Vercel with public Supabase browser credentials and `NEXT_PUBLIC_GENITHM_API_URL`.
+11. Run end-to-end production validation and only then tag V1.
 
 ## Kubernetes boundary
 

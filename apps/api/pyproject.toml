@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genithm-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "Genithm AI API service"
 requires-python = ">=3.11"
 dependencies = [
+  "boto3==1.43.91",
   "fastapi==0.141.1",
   "pydantic-settings==2.15.0",
   "uvicorn[standard]==0.52.4",
