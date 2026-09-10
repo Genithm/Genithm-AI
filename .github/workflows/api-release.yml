@@ -1,0 +1,180 @@
+name: API release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Full tested main-branch commit SHA to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: api-release-${{ github.event.workflow_run.head_sha || inputs.source_revision }}
+  cancel-in-progress: false
+
+jobs:
+  validate-source:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      source_revision: ${{ steps.validate.outputs.source_revision }}
+      release_required: ${{ steps.validate.outputs.release_required }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.source_revision }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: validate
+        name: Validate tested main revision and API release scope
+        shell: bash
+        env:
+          DISPATCH_REVISION: ${{ inputs.source_revision }}
+          CI_REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_run' ]]; then
+            revision="$CI_REVISION"
+          else
+            revision="$DISPATCH_REVISION"
+          fi
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'source_revision must be a full lowercase 40-character Git commit SHA' >&2
+            exit 2
+          fi
+          main_sha="$(git rev-parse --verify origin/main^{commit})"
+          git cat-file -e "${revision}^{commit}"
+          if ! git merge-base --is-ancestor "$revision" "$main_sha"; then
+            echo 'source_revision is not reachable from the checked-out origin/main ref' >&2
+            exit 2
+          fi
+          echo "source_revision=$revision" >> "$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            echo 'release_required=true' >> "$GITHUB_OUTPUT"
+            echo 'Manual dispatch explicitly requested an API release.'
+            exit 0
+          fi
+
+          if ! git cat-file -e "${revision}^" 2>/dev/null; then
+            echo 'release_required=true' >> "$GITHUB_OUTPUT"
+            echo 'No parent revision available; fail closed to an API release.'
+            exit 0
+          fi
+
+          mapfile -t changed < <(git diff --name-only "${revision}^" "$revision")
+          printf '%s\n' "${changed[@]}"
+          release_required=false
+          for path in "${changed[@]}"; do
+            case "$path" in
+              apps/api/*|.github/workflows/api-release.yml)
+                release_required=true
+                break
+                ;;
+            esac
+          done
+          echo "release_required=$release_required" >> "$GITHUB_OUTPUT"
+          if [[ "$release_required" == 'false' ]]; then
+            echo 'No API runtime or API release workflow change detected; skipping publish.'
+          fi
+
+  publish:
+    needs: validate-source
+    if: needs.validate-source.outputs.release_required == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ needs.validate-source.outputs.source_revision }}
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+      - name: Log in to GHCR with repository token
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - name: Create Buildx builder
+        run: docker buildx create --use --name genithm-api-release
+      - name: Build and publish immutable multi-architecture API image
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repository="ghcr.io/${owner}/genithm-api"
+          tag="sha-${{ needs.validate-source.outputs.source_revision }}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --provenance=mode=max \
+            --sbom=true \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${{ needs.validate-source.outputs.source_revision }}" \
+            --tag "${repository}:${tag}" \
+            --metadata-file /tmp/build-metadata.json \
+            --push \
+            apps/api
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('/tmp/build-metadata.json').read_text())
+          digest = metadata.get('containerimage.digest')
+          if not isinstance(digest, str) or not digest.startswith('sha256:') or len(digest) != 71:
+              raise SystemExit('Buildx did not return a valid containerimage.digest')
+          Path('/tmp/image.txt').write_text(digest + '\n', encoding='utf-8')
+          PY
+          digest="$(cat /tmp/image.txt)"
+          docker buildx imagetools inspect --raw "${repository}@${digest}" > /tmp/image-index.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/image-index.json').read_text())
+          platforms = {
+              (item.get('platform', {}).get('os'), item.get('platform', {}).get('architecture'))
+              for item in payload.get('manifests', [])
+              if isinstance(item, dict)
+          }
+          required = {('linux', 'amd64'), ('linux', 'arm64')}
+          missing = sorted(required - platforms)
+          if missing:
+              raise SystemExit(f'multi-architecture image missing required platforms: {missing}')
+          PY
+      - name: Write API release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$(cat /tmp/image.txt)"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repository="ghcr.io/${owner}/genithm-api"
+          mkdir -p release
+          printf '%s\n' "${repository}@${digest}" > release/api.image
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          image = Path('release/api.image').read_text(encoding='utf-8').strip()
+          payload = {
+              'schema_version': 1,
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'source_revision': '${{ needs.validate-source.outputs.source_revision }}',
+              'platforms': ['linux/amd64', 'linux/arm64'],
+              'image': image,
+          }
+          Path('release/api-release.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: genithm-api-release-${{ needs.validate-source.outputs.source_revision }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 90
