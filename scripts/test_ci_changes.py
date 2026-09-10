@@ -1,4 +1,4 @@
-from ci_changes import classify
+from ci_changes import V1_RELEASE_TRIGGER, classify
 
 WORKERS = ("sequence", "source", "blast", "audit", "scientific", "ai")
 
@@ -51,6 +51,16 @@ def run_tests() -> None:
     assert not result["dependency_audit"]
     assert not result["release_required"]
     assert not any(result[f"{worker}_image"] for worker in WORKERS)
+
+    result = classify([V1_RELEASE_TRIGGER])
+    assert result["full_ci"]
+    assert result["web"]
+    assert result["api"]
+    assert result["dependency_audit"]
+    assert result["release_required"]
+    for worker in WORKERS:
+        assert result[f"{worker}_worker"]
+        assert result[f"{worker}_image"]
 
     result = classify([".github/workflows/ci.yml"])
     assert result["full_ci"]
