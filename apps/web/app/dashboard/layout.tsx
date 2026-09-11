@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AnalysisLaunchGuard } from "@/components/analysis-launch-guard";
 import { DashboardHomeOverview } from "@/components/dashboard-home-overview";
 import { DashboardPrimaryNav } from "@/components/dashboard-primary-nav";
 import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
@@ -51,6 +52,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
       </div>
       <DashboardHomeOverview />
       <DashboardSectionNavigator />
+      <AnalysisLaunchGuard />
       {children}
     </>
   );
