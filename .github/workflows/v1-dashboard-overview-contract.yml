@@ -1,0 +1,41 @@
+name: V1 dashboard overview contract
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/app/dashboard/layout.tsx'
+      - 'apps/web/components/dashboard-home-overview.tsx'
+      - 'apps/web/components/dashboard-home-overview.module.css'
+      - 'apps/web/components/dashboard-section-navigator.tsx'
+      - 'scripts/test_v1_dashboard_overview_contract.py'
+      - '.github/workflows/v1-dashboard-overview-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/app/dashboard/layout.tsx'
+      - 'apps/web/components/dashboard-home-overview.tsx'
+      - 'apps/web/components/dashboard-home-overview.module.css'
+      - 'apps/web/components/dashboard-section-navigator.tsx'
+      - 'scripts/test_v1_dashboard_overview_contract.py'
+      - '.github/workflows/v1-dashboard-overview-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard-overview-contract:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test V1 dashboard overview contract
+        working-directory: .
+        run: python scripts/test_v1_dashboard_overview_contract.py
+      - name: Install web dependencies
+        run: npm ci
+      - name: Typecheck web
+        run: npm run typecheck
