@@ -1,0 +1,31 @@
+name: Production rollback contract
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/production_rollback.py'
+      - 'scripts/test_production_rollback_contract.py'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/production-rollback-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/production_rollback.py'
+      - 'scripts/test_production_rollback_contract.py'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/production-rollback-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rollback-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test production rollback contract
+        run: python scripts/test_production_rollback_contract.py
+      - name: Compile rollback controller
+        run: python -m py_compile scripts/production_rollback.py
