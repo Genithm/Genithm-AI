@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 const sections = [
   { label: "Setup", heading: "Organizations" },
@@ -26,9 +27,12 @@ function scrollToHeading(heading: string) {
 }
 
 export function DashboardSectionNavigator() {
+  const pathname = usePathname();
   const [activeHeading, setActiveHeading] = useState<SectionHeading>(sections[0].heading);
 
   useEffect(() => {
+    if (pathname !== "/dashboard") return;
+
     const observed: Array<{ heading: SectionHeading; element: HTMLElement }> = [];
     for (const section of sections) {
       const element = sectionElement(section.heading);
@@ -51,7 +55,9 @@ export function DashboardSectionNavigator() {
 
     observed.forEach((entry) => observer.observe(entry.element));
     return () => observer.disconnect();
-  }, []);
+  }, [pathname]);
+
+  if (pathname !== "/dashboard") return null;
 
   return (
     <nav className="dashboard-section-nav" aria-label="Scientific workflow sections">

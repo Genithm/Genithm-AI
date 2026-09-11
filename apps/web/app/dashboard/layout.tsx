@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DashboardHomeOverview } from "@/components/dashboard-home-overview";
 import { DashboardPrimaryNav } from "@/components/dashboard-primary-nav";
 import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
 import { createClient } from "@/lib/supabase/server";
@@ -48,6 +49,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
           </nav>
         ) : null}
       </div>
+      <DashboardHomeOverview />
       <DashboardSectionNavigator />
       {children}
     </>
