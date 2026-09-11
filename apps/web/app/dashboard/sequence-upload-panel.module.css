@@ -1,0 +1,189 @@
+.emptyState {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--panel-soft);
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dropzone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 118px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.dropzoneActive {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-1px);
+}
+
+.dropzoneReady {
+  border-style: solid;
+}
+
+.fileInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fileLabel {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.fileLabel > span:last-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.fileLabel strong {
+  overflow-wrap: anywhere;
+}
+
+.fileLabel small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.fileIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.fileInput:focus-visible + .fileLabel {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+  border-radius: 8px;
+}
+
+.clearButton {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clearButton:hover,
+.clearButton:focus-visible {
+  color: var(--text);
+  outline: none;
+  text-decoration: underline;
+}
+
+.guardrails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.guardrails span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.progressPanel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+}
+
+.progressStep {
+  display: grid;
+  grid-template-columns: 31px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 9px 10px;
+  border-radius: 9px;
+  opacity: 0.52;
+}
+
+.progressStep > span {
+  display: inline-grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.progressStep > div {
+  display: grid;
+  gap: 3px;
+}
+
+.progressStep small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.progressActive {
+  background: var(--accent-soft);
+  opacity: 1;
+}
+
+@media (max-width: 620px) {
+  .dropzone {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .clearButton {
+    margin-left: 57px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropzone {
+    transition: none;
+  }
+}
