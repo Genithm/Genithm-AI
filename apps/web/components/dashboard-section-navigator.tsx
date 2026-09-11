@@ -13,6 +13,8 @@ const sections = [
   { label: "History", heading: "Recent scientific analyses" },
 ] as const;
 
+type SectionHeading = (typeof sections)[number]["heading"];
+
 function sectionElement(heading: string) {
   const headings = Array.from(document.querySelectorAll<HTMLElement>("main.dashboard h2"));
   const target = headings.find((element) => element.textContent?.trim() === heading);
@@ -24,12 +26,14 @@ function scrollToHeading(heading: string) {
 }
 
 export function DashboardSectionNavigator() {
-  const [activeHeading, setActiveHeading] = useState<string>(sections[0].heading);
+  const [activeHeading, setActiveHeading] = useState<SectionHeading>(sections[0].heading);
 
   useEffect(() => {
-    const observed = sections
-      .map((section) => ({ heading: section.heading, element: sectionElement(section.heading) }))
-      .filter((entry): entry is { heading: string; element: HTMLElement } => Boolean(entry.element));
+    const observed: Array<{ heading: SectionHeading; element: HTMLElement }> = [];
+    for (const section of sections) {
+      const element = sectionElement(section.heading);
+      if (element) observed.push({ heading: section.heading, element });
+    }
 
     if (!observed.length) return;
 
