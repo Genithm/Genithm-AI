@@ -1,0 +1,33 @@
+name: V1 final evidence contract
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/validate_v1_final_evidence.py'
+      - 'scripts/test_v1_final_evidence_contract.py'
+      - 'release/v1/final-evidence.example.json'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/v1-final-evidence-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/validate_v1_final_evidence.py'
+      - 'scripts/test_v1_final_evidence_contract.py'
+      - 'release/v1/final-evidence.example.json'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/v1-final-evidence-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  final-evidence-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test V1 final release evidence contract
+        run: python scripts/test_v1_final_evidence_contract.py
+      - name: Compile validator
+        run: python -m py_compile scripts/validate_v1_final_evidence.py
