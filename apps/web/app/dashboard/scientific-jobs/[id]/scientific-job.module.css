@@ -1,0 +1,198 @@
+.resultHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(120deg, rgba(119, 230, 210, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(17, 31, 43, 0.98), rgba(11, 23, 32, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.resultHero h1 {
+  margin: 8px 0 8px;
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.04;
+}
+
+.jobId {
+  color: var(--subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.statusPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.statusHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.statusBadge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.statusCompleted { color: var(--success); }
+.statusFailed { color: var(--danger); }
+.statusActive { color: var(--accent); }
+.statusQueued { color: var(--info); }
+
+.refreshNote {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.timelineStep {
+  min-height: 86px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 14, 21, 0.56);
+}
+
+.timelineStep strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.timelineStep span {
+  color: var(--subtle);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.timelineDone {
+  border-color: rgba(124, 231, 174, 0.24);
+  background: rgba(124, 231, 174, 0.04);
+}
+
+.timelineCurrent {
+  border-color: rgba(119, 230, 210, 0.34);
+  background: var(--accent-soft);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric {
+  min-height: 92px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 14, 21, 0.56);
+}
+
+.metricLabel {
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metricValue {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.disclosure {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(5, 14, 21, 0.48);
+  overflow: hidden;
+}
+
+.disclosure summary {
+  cursor: pointer;
+  padding: 15px 17px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.disclosure summary::-webkit-details-marker { display: none; }
+.disclosure summary::after { content: "+"; float: right; color: var(--accent); }
+.disclosure[open] summary::after { content: "−"; }
+
+.codeBlock {
+  margin: 0;
+  padding: 0 17px 17px;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.failurePanel {
+  border: 1px solid rgba(255, 155, 155, 0.24);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255, 155, 155, 0.05);
+}
+
+.failurePanel strong { color: var(--danger); }
+.failurePanel p { margin-bottom: 0; }
+
+.hash {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+@media (max-width: 760px) {
+  .resultHero { grid-template-columns: 1fr; padding: 20px; }
+  .timeline, .metricGrid, .evidenceGrid { grid-template-columns: 1fr; }
+  .statusHeader { flex-direction: column; }
+}
