@@ -1,0 +1,33 @@
+name: V1 scientific result UI contract
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/app/dashboard/scientific-jobs/**'
+      - 'scripts/test_v1_scientific_result_ui_contract.py'
+      - '.github/workflows/v1-scientific-result-ui-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/app/dashboard/scientific-jobs/**'
+      - 'scripts/test_v1_scientific_result_ui_contract.py'
+      - '.github/workflows/v1-scientific-result-ui-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scientific-result-ui-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test scientific result UI contract
+        run: python scripts/test_v1_scientific_result_ui_contract.py
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Typecheck web
+        working-directory: apps/web
+        run: npm run typecheck
