@@ -1,0 +1,36 @@
+name: V1 UI shell contract
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/app/dashboard/layout.tsx'
+      - 'apps/web/app/dashboard/dashboard-section-nav.css'
+      - 'apps/web/components/dashboard-primary-nav.tsx'
+      - 'apps/web/components/dashboard-section-navigator.tsx'
+      - 'scripts/test_v1_ui_shell_contract.py'
+      - '.github/workflows/v1-ui-shell-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/app/dashboard/layout.tsx'
+      - 'apps/web/app/dashboard/dashboard-section-nav.css'
+      - 'apps/web/components/dashboard-primary-nav.tsx'
+      - 'apps/web/components/dashboard-section-navigator.tsx'
+      - 'scripts/test_v1_ui_shell_contract.py'
+      - '.github/workflows/v1-ui-shell-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ui-shell-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test dashboard UI shell contract
+        run: python scripts/test_v1_ui_shell_contract.py
+      - name: Typecheck web
+        working-directory: apps/web
+        run: npm ci && npm run typecheck
