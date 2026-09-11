@@ -52,6 +52,28 @@ python scripts/production_launch.py api --env-file deploy/oracle/.env.api
 
 Workers are deployed first so API readiness can become green as soon as the API starts.
 
+## Controlled rollback
+
+Before every production promotion, retain the previously approved API and worker runtime env files, including their digest-pinned image references, in the protected operator environment. Do not store those runtime env files in Git.
+
+If a deployment fails health, readiness, smoke, scientific validation, or causes material regression, rollback workers first and then the API to the previously approved digests:
+
+```bash
+python scripts/production_rollback.py workers \
+  --env-file /secure/genithm/previous/.env.workers \
+  --expected-source-sha <previous-approved-release-sha> \
+  --evidence-out /secure/genithm/evidence/rollback-workers.txt
+
+python scripts/production_rollback.py api \
+  --env-file /secure/genithm/previous/.env.api \
+  --expected-source-sha <previous-approved-release-sha> \
+  --evidence-out /secure/genithm/evidence/rollback-api.txt
+```
+
+The rollback controller runs the same Oracle deployment preflight, requires immutable digest-pinned images, pulls the prior images, recreates the Compose services, and records secretless rollback evidence when requested. A rollback is not considered complete until `/health`, `/ready`, and production smoke have been re-run against the restored deployment.
+
+Database migrations must remain backward-compatible for the rollback window. If a release includes an irreversible database change, that change requires a separately reviewed recovery procedure before production promotion.
+
 ## Cloudflare Tunnel
 
 The remotely managed Tunnel public hostname forwards to `http://api:8000` inside the API Compose network. Do not expose Oracle TCP/8000 publicly. The tunnel token is backend-only.
@@ -92,6 +114,7 @@ Then run the authenticated production scientific E2E harness from an authorized 
 - Qwen primary and DeepSeek fallback provenance are verified.
 - Production smoke passes.
 - Production scientific E2E passes.
-- Rollback and backup/recovery procedures have been checked.
+- A controlled rollback drill has been executed against previously approved digest-pinned images and rollback evidence retained.
+- Backup/recovery procedures have been checked, including integrity validation of restored critical data where the selected service tier supports restore testing.
 
 Until these live gates pass, the build remains a deployment candidate, not a production release.
