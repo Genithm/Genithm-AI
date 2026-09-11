@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Check auth entry UI contract
-        run: python -m pytest -q scripts/test_v1_auth_entry_ui_contract.py
+        run: python scripts/test_v1_auth_entry_ui_contract.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
