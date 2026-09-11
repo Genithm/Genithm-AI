@@ -1,0 +1,130 @@
+.statePage {
+  width: min(1180px, calc(100% - 36px));
+  margin: 0 auto;
+  padding: 34px 0 88px;
+}
+
+.stateHero {
+  display: grid;
+  gap: 10px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(17, 31, 43, 0.96), rgba(12, 24, 34, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.stateHero h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.stateHero p {
+  max-width: 720px;
+  margin: 0;
+}
+
+.stateKicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.loadingGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.loadingCard {
+  min-height: 150px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(11, 23, 32, 0.84);
+}
+
+.skeletonLine,
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(143, 164, 178, 0.12);
+}
+
+.skeletonLine::after,
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(237, 247, 251, 0.07), transparent);
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+.skeletonLine {
+  width: 52%;
+  height: 12px;
+  margin-bottom: 14px;
+}
+
+.skeletonLineShort {
+  width: 34%;
+}
+
+.skeletonBlock {
+  height: 62px;
+}
+
+.errorPanel {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  margin: 44px auto 0;
+  padding: 30px;
+  border: 1px solid rgba(255, 155, 155, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(46, 22, 27, 0.38), rgba(12, 24, 34, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.errorPanel h1 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 48px);
+}
+
+.errorPanel p {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reference {
+  color: var(--subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+@keyframes sweep {
+  to { transform: translateX(100%); }
+}
+
+@media (max-width: 760px) {
+  .loadingGrid { grid-template-columns: 1fr; }
+  .loadingCard { min-height: 112px; }
+  .statePage { padding-top: 22px; }
+  .errorPanel { margin-top: 24px; padding: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonLine::after,
+  .skeletonBlock::after { animation: none; }
+}
