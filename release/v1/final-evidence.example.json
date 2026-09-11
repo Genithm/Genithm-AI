@@ -1,0 +1,53 @@
+{
+  "schema": "genithm-v1-final-evidence/1",
+  "release": "v1.0.0",
+  "source_sha": "0000000000000000000000000000000000000000",
+  "checks": {
+    "api_health": true,
+    "web_health": true,
+    "production_readiness": true,
+    "r2_flow": true,
+    "ncbi_flow": true,
+    "blast_flow": true,
+    "pairwise_flow": true,
+    "msa_flow": true,
+    "phylogeny_flow": true,
+    "protein_flow": true,
+    "audit_flow": true,
+    "qwen_primary": true,
+    "deepseek_fallback": true,
+    "production_smoke": true,
+    "scientific_e2e": true,
+    "rollback_drill": true,
+    "backup_recovery": true
+  },
+  "readiness": {
+    "expected_workers": 6,
+    "healthy_workers": 6,
+    "expected_queues": 9,
+    "healthy_queues": 9,
+    "missing_workers": [],
+    "stale_workers": [],
+    "missing_queues": [],
+    "stale_queues": []
+  },
+  "evidence_refs": {
+    "api_health": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "web_health": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "production_readiness": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "r2_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "ncbi_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "blast_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "pairwise_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "msa_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "phylogeny_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "protein_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "audit_flow": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "qwen_primary": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "deepseek_fallback": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "production_smoke": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "scientific_e2e": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "rollback_drill": "REPLACE_WITH_EVIDENCE_REFERENCE",
+    "backup_recovery": "REPLACE_WITH_EVIDENCE_REFERENCE"
+  }
+}

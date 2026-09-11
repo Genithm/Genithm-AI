@@ -117,4 +117,18 @@ Then run the authenticated production scientific E2E harness from an authorized 
 - A controlled rollback drill has been executed against previously approved digest-pinned images and rollback evidence retained.
 - Backup/recovery procedures have been checked, including integrity validation of restored critical data where the selected service tier supports restore testing.
 
-Until these live gates pass, the build remains a deployment candidate, not a production release.
+## Final evidence manifest
+
+Before creating the final `v1.0.0` tag, create a secretless evidence manifest from `release/v1/final-evidence.example.json`. It must reference the exact approved candidate source SHA and provide a non-empty evidence reference for every required live gate. Do not put credentials, tokens, private keys, scientific payloads, or user data in this file.
+
+Validate it locally from the protected release environment:
+
+```bash
+python scripts/validate_v1_final_evidence.py \
+  --evidence /secure/genithm/evidence/final-evidence.json \
+  --expected-source-sha <approved-candidate-source-sha>
+```
+
+The validator requires all live checks to be true and readiness to report exactly 6/6 healthy workers and 9/9 healthy queues with no missing or stale entries. A failed validation blocks the final tag.
+
+Until these live gates pass and the final evidence manifest validates, the build remains a deployment candidate, not a production release.
