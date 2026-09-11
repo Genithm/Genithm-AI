@@ -11,6 +11,13 @@ SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_REFERENCE = re.compile(r"^[a-z0-9.-]+(?:/[a-z0-9._/-]+)+@sha256:[0-9a-f]{64}$", re.IGNORECASE)
 EXPECTED_WORKERS = ("sequence", "source", "blast", "scientific", "audit", "ai")
 EXPECTED_PLATFORMS = ["linux/amd64", "linux/arm64"]
+EXPECTED_WEB_CONTRACT = {
+    "platform": "cloudflare_workers",
+    "adapter": "@opennextjs/cloudflare@1.20.6",
+    "wrangler": "4.130.0",
+    "free_plan_max_gzip_kib": 3072,
+    "health_path": "/api/health",
+}
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -33,6 +40,10 @@ def build_bundle(candidate: dict[str, Any], api: dict[str, Any], workers: dict[s
         raise ValueError("candidate repository must use owner/name form")
     if candidate.get("platforms") != EXPECTED_PLATFORMS:
         raise ValueError("candidate must declare linux/amd64 and linux/arm64")
+
+    web_contract = candidate.get("web_contract")
+    if web_contract != EXPECTED_WEB_CONTRACT:
+        raise ValueError("candidate web contract must pin the approved Cloudflare Workers Free runtime")
 
     revision = api.get("source_revision")
     if not isinstance(revision, str) or SOURCE_REVISION.fullmatch(revision) is None:
@@ -90,6 +101,7 @@ def build_bundle(candidate: dict[str, Any], api: dict[str, Any], workers: dict[s
         "repository": repository,
         "source_revision": revision,
         "platforms": EXPECTED_PLATFORMS,
+        "web_contract": web_contract,
         "images": {
             "api": api_image,
             "cloudflared": cloudflared_image,
@@ -97,6 +109,7 @@ def build_bundle(candidate: dict[str, Any], api: dict[str, Any], workers: dict[s
         },
         "runtime_contract": runtime,
         "verification": {
+            "cloudflare_web_contract_required": True,
             "production_smoke_required": True,
             "production_scientific_e2e_required": True,
             "tag_allowed_only_after_live_gates": True,
