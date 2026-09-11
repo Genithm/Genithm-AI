@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DashboardPrimaryNav } from "@/components/dashboard-primary-nav";
 import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
 import { createClient } from "@/lib/supabase/server";
 import "./dashboard-section-nav.css";
@@ -25,14 +26,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
             </span>
           </Link>
 
-          <nav className="dashboard-nav" aria-label="Workspace navigation">
-            <Link href="/dashboard">Workspace</Link>
-            <Link href="/dashboard/ai">AI</Link>
-            <Link href="/dashboard/reports">Reports</Link>
-            <Link href="/dashboard/billing">Plan & usage</Link>
-            <Link href="/dashboard/billing/payments">Payments</Link>
-            {isPlatformAdmin ? <Link href="/dashboard/admin">Admin</Link> : null}
-          </nav>
+          <DashboardPrimaryNav isPlatformAdmin={Boolean(isPlatformAdmin)} />
 
           <div className="dashboard-account">
             <span className="dashboard-account-copy">
