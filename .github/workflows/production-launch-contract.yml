@@ -1,0 +1,33 @@
+name: Production launch contract
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/production_launch.py'
+      - 'scripts/test_production_launch_contract.py'
+      - 'apps/web/.dev.vars.example'
+      - 'docs/deployment/CLOUDFLARE_WEB_V1.md'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/production-launch-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/production_launch.py'
+      - 'scripts/test_production_launch_contract.py'
+      - 'apps/web/.dev.vars.example'
+      - 'docs/deployment/CLOUDFLARE_WEB_V1.md'
+      - 'docs/deployment/PRODUCTION_LAUNCH_V1.md'
+      - '.github/workflows/production-launch-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  launch-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test production launch contract
+        run: python scripts/test_production_launch_contract.py
