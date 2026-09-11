@@ -52,6 +52,13 @@ def run_tests() -> None:
     assert not result["release_required"]
     assert not any(result[f"{worker}_image"] for worker in WORKERS)
 
+    result = classify([".github/workflows/cloudflare-web-contract.yml"])
+    assert not result["full_ci"]
+    assert not result["web"]
+    assert not result["dependency_audit"]
+    assert not result["release_required"]
+    assert not any(result[f"{worker}_image"] for worker in WORKERS)
+
     result = classify([V1_RELEASE_TRIGGER])
     assert result["full_ci"]
     assert result["web"]
