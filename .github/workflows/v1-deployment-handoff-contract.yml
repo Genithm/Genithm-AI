@@ -1,0 +1,27 @@
+name: V1 deployment handoff contract
+
+on:
+  pull_request:
+    paths:
+      - scripts/render_v1_deployment_env.py
+      - scripts/test_render_v1_deployment_env.py
+      - .github/workflows/v1-deployment-handoff-contract.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/render_v1_deployment_env.py
+      - scripts/test_render_v1_deployment_env.py
+      - .github/workflows/v1-deployment-handoff-contract.yml
+
+permissions:
+  contents: read
+
+jobs:
+  handoff-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Test deployment handoff renderer
+        run: python scripts/test_render_v1_deployment_env.py
