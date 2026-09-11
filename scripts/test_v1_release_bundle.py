@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from build_v1_release_bundle import EXPECTED_WORKERS, build_bundle
+from build_v1_release_bundle import EXPECTED_WEB_CONTRACT, EXPECTED_WORKERS, build_bundle
 
 REVISION = "a" * 40
 DIGEST = "b" * 64
@@ -15,6 +15,7 @@ def _candidate() -> dict:
         "stage": "deployment_candidate",
         "repository": "Genithm/Genithm-AI",
         "platforms": ["linux/amd64", "linux/arm64"],
+        "web_contract": deepcopy(EXPECTED_WEB_CONTRACT),
         "cloudflared": {
             "version": "2026.9.0",
             "image": f"docker.io/cloudflare/cloudflared@sha256:{DIGEST}",
@@ -61,7 +62,9 @@ def run_tests() -> None:
     bundle = build_bundle(_candidate(), _api(), _workers())
     assert bundle["release_target"] == "v1.0.0"
     assert bundle["source_revision"] == REVISION
+    assert bundle["web_contract"] == EXPECTED_WEB_CONTRACT
     assert list(bundle["images"]["workers"]) == list(EXPECTED_WORKERS)
+    assert bundle["verification"]["cloudflare_web_contract_required"] is True
     assert bundle["verification"]["tag_allowed_only_after_live_gates"] is True
 
     api = _api()
@@ -79,6 +82,10 @@ def run_tests() -> None:
     candidate = deepcopy(_candidate())
     candidate["cloudflared"]["image"] = "cloudflare/cloudflared:latest"
     _expect_failure(candidate, _api(), _workers(), "cloudflared image must be digest pinned")
+
+    candidate = deepcopy(_candidate())
+    candidate["web_contract"]["free_plan_max_gzip_kib"] = 4096
+    _expect_failure(candidate, _api(), _workers(), "approved Cloudflare Workers Free runtime")
 
     candidate = _candidate()
     candidate["release_target"] = "v2.0.0"
