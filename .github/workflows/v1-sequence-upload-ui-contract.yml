@@ -1,0 +1,26 @@
+name: V1 sequence upload UI contract
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/app/dashboard/sequence-upload-panel.tsx"
+      - "apps/web/app/dashboard/sequence-upload-panel.module.css"
+      - "scripts/test_v1_sequence_upload_ui_contract.py"
+      - ".github/workflows/v1-sequence-upload-ui-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sequence-upload-ui-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - name: Test FASTA onboarding UI contract
+        run: python scripts/test_v1_sequence_upload_ui_contract.py
+      - name: Typecheck web
+        working-directory: apps/web
+        run: npm ci && npm run typecheck
