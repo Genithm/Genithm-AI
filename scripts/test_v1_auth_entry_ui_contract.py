@@ -28,3 +28,12 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert "service_role" not in actions.lower()
     assert "@media (max-width: 600px)" in styles
     assert "prefers-reduced-motion" in styles
+
+
+def main():
+    test_auth_entry_preserves_supabase_server_actions_and_secure_contract()
+    print("V1 auth entry UI contract: PASS")
+
+
+if __name__ == "__main__":
+    main()
