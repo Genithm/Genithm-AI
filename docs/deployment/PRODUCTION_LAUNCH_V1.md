@@ -54,23 +54,27 @@ Workers are deployed first so API readiness can become green as soon as the API 
 
 ## Controlled rollback
 
-Before every production promotion, retain the previously approved API and worker runtime env files, including their digest-pinned image references, in the protected operator environment. Do not store those runtime env files in Git.
+Before every production promotion, retain the previously approved `v1-release.json` plus the previous API and worker runtime env files in the protected operator environment. The runtime env files contain secrets and must never be stored in Git.
 
-If a deployment fails health, readiness, smoke, scientific validation, or causes material regression, rollback workers first and then the API to the previously approved digests:
+If a deployment fails health, readiness, smoke, scientific validation, or causes material regression, rollback workers first and then the API. The controller verifies that the image variables in the runtime env file exactly match the previously approved release bundle before Compose is allowed to recreate services:
 
 ```bash
 python scripts/production_rollback.py workers \
   --env-file /secure/genithm/previous/.env.workers \
+  --bundle /secure/genithm/previous/v1-release.json \
   --expected-source-sha <previous-approved-release-sha> \
-  --evidence-out /secure/genithm/evidence/rollback-workers.txt
+  --evidence-out /secure/genithm/evidence/rollback-workers.json \
+  --confirm ROLLBACK
 
 python scripts/production_rollback.py api \
   --env-file /secure/genithm/previous/.env.api \
+  --bundle /secure/genithm/previous/v1-release.json \
   --expected-source-sha <previous-approved-release-sha> \
-  --evidence-out /secure/genithm/evidence/rollback-api.txt
+  --evidence-out /secure/genithm/evidence/rollback-api.json \
+  --confirm ROLLBACK
 ```
 
-The rollback controller runs the same Oracle deployment preflight, requires immutable digest-pinned images, pulls the prior images, recreates the Compose services, and records secretless rollback evidence when requested. A rollback is not considered complete until `/health`, `/ready`, and production smoke have been re-run against the restored deployment.
+The rollback controller validates the release schema and source SHA, requires exact digest-pinned image matches, runs the same Oracle deployment preflight, pulls the prior images, recreates the Compose services, and optionally records secretless rollback evidence containing only role, source SHA, release-bundle SHA-256, completion time, and result. A rollback is not considered complete until `/health`, `/ready`, and production smoke have been re-run against the restored deployment.
 
 Database migrations must remain backward-compatible for the rollback window. If a release includes an irreversible database change, that change requires a separately reviewed recovery procedure before production promotion.
 
