@@ -7,6 +7,13 @@
     "linux/amd64",
     "linux/arm64"
   ],
+  "web_contract": {
+    "platform": "cloudflare_workers",
+    "adapter": "@opennextjs/cloudflare@1.20.6",
+    "wrangler": "4.130.0",
+    "free_plan_max_gzip_kib": 3072,
+    "health_path": "/api/health"
+  },
   "cloudflared": {
     "version": "2026.9.0",
     "image": "docker.io/cloudflare/cloudflared@sha256:ff69a2225ad7c6f85ed84fbd5f3087df46202426b2388ec60214098e0adf05e9"
