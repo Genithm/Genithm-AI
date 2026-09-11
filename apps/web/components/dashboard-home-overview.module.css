@@ -1,0 +1,114 @@
+.overview {
+  padding: 22px 0 6px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.72fr);
+  gap: 22px;
+  align-items: stretch;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(120deg, rgba(119, 230, 210, 0.09), transparent 38%),
+    linear-gradient(180deg, rgba(17, 31, 43, 0.98), rgba(10, 22, 31, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.title {
+  margin: 14px 0 12px;
+  max-width: 720px;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.01;
+  letter-spacing: -0.05em;
+}
+
+.summary {
+  max-width: 720px;
+  margin: 0;
+  font-size: 14.5px;
+}
+
+.nextAction {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(5, 14, 21, 0.58);
+}
+
+.nextAction strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.nextAction p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.nextLabel {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.metric {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(11, 23, 32, 0.86);
+}
+
+.metric span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.metric strong {
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.metric small {
+  color: var(--subtle);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.loadNotice {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .overview { padding-top: 14px; }
+  .hero { padding: 20px; }
+  .title { font-size: 36px; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .metric { padding: 14px; }
+  .metric strong { font-size: 26px; }
+}
