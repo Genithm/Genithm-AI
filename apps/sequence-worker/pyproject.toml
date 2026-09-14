@@ -7,7 +7,7 @@ name = "genithm-sequence-worker"
 version = "0.2.0"
 description = "Deterministic scientific validation core for Genithm sequence inputs"
 requires-python = ">=3.11"
-dependencies = ["boto3==1.43.91"]
+dependencies = ["boto3==1.43.92"]
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
