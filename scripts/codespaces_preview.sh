@@ -13,7 +13,7 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 1
 fi
 
-required=(SUPABASE_SECRET_KEY QWEN_API_KEY DEEPSEEK_API_KEY)
+required=(SUPABASE_SECRET_KEY DEEPSEEK_API_KEY)
 missing=()
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -22,7 +22,7 @@ for name in "${required[@]}"; do
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing Codespaces secrets: ${missing[*]}"
-  echo "Add these three repository Codespaces secrets, then run this command again."
+  echo "Add the required repository Codespaces secrets, then run this command again."
   exit 2
 fi
 
@@ -39,7 +39,6 @@ cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
-QWEN_API_KEY=$QWEN_API_KEY
 DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
 NCBI_EMAIL=$NCBI_EMAIL
 NCBI_API_KEY=${NCBI_API_KEY:-}
@@ -50,10 +49,8 @@ GENITHM_PREVIEW_STORAGE_SECRET_KEY=$GENITHM_PREVIEW_STORAGE_SECRET_KEY
 GENITHM_R2_SEQUENCE_BUCKET=genithm-preview-sequences
 GENITHM_AUDIT_SIGNING_KEY_ID=codespaces-preview-ed25519
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64=$GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64
-GENITHM_AI_PRIMARY_ENDPOINT=${GENITHM_AI_PRIMARY_ENDPOINT:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-qwen-plus}
-GENITHM_AI_BACKUP_ENDPOINT=${GENITHM_AI_BACKUP_ENDPOINT:-https://api.deepseek.com}
-GENITHM_AI_BACKUP_MODEL=${GENITHM_AI_BACKUP_MODEL:-deepseek-v4-flash}
+GENITHM_AI_PRIMARY_ENDPOINT=${GENITHM_AI_PRIMARY_ENDPOINT:-https://api.deepseek.com}
+GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -108,6 +105,7 @@ echo
 echo "Genithm preview is running."
 echo "Open: $WEB_ORIGIN"
 echo "API and all six workers are connected to the real Supabase project."
+echo "DeepSeek is configured as the preview AI provider."
 echo "Preview object storage is temporary and isolated to this Codespace."
 echo
 echo "Useful commands:"
