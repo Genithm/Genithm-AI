@@ -9,12 +9,6 @@
       "description": "DeepSeek API key used by the Genithm AI provider."
     }
   },
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "24"
-    }
-  },
   "forwardPorts": [3000, 8000, 9000],
   "portsAttributes": {
     "3000": {
@@ -31,7 +25,6 @@
       "visibility": "public"
     }
   },
-  "postCreateCommand": "cd apps/web && npm ci",
   "remoteEnv": {
     "GENITHM_CODESPACES_PREVIEW": "1"
   }
