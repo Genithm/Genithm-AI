@@ -1,6 +1,17 @@
 {
   "name": "Genithm Full Preview",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "secrets": {
+    "SUPABASE_SECRET_KEY": {
+      "description": "Server-side Supabase secret key for the Genithm preview. Do not use the publishable key."
+    },
+    "QWEN_API_KEY": {
+      "description": "Qwen API key used by the Genithm AI primary provider."
+    },
+    "DEEPSEEK_API_KEY": {
+      "description": "DeepSeek API key used by the Genithm AI backup provider."
+    }
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/node:1": {
