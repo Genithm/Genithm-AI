@@ -9,7 +9,8 @@ This is a preview-only runtime for exercising the real Genithm application witho
 - all six production worker images
 - real Supabase project for auth, queues, and application data
 - isolated temporary S3-compatible object storage inside the Codespace for FASTA uploads
-- real NCBI, BLAST, Qwen, and DeepSeek integrations when their credentials are available
+- real NCBI and BLAST integrations
+- DeepSeek as the preview AI provider
 
 The production Oracle + Cloudflare deployment files are not changed by this preview runtime.
 
@@ -18,15 +19,16 @@ The production Oracle + Cloudflare deployment files are not changed by this prev
 Create these repository Codespaces secrets before launching:
 
 - `SUPABASE_SECRET_KEY`
-- `QWEN_API_KEY`
 - `DEEPSEEK_API_KEY`
+
+Qwen is not required for the Codespaces preview.
 
 Optional:
 
 - `NCBI_API_KEY` for higher NCBI request limits
 - `NCBI_EMAIL` to override the repository contact email
-- `GENITHM_AI_PRIMARY_ENDPOINT` and `GENITHM_AI_PRIMARY_MODEL` for a different Qwen workspace/region
-- `GENITHM_AI_BACKUP_ENDPOINT` and `GENITHM_AI_BACKUP_MODEL` for a different DeepSeek deployment
+- `GENITHM_AI_PRIMARY_ENDPOINT` to override the DeepSeek API endpoint
+- `GENITHM_AI_PRIMARY_MODEL` to override the DeepSeek model; the preview default is `deepseek-flash`
 
 Never commit these values to the repository.
 
