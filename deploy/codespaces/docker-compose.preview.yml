@@ -11,6 +11,24 @@ services:
     volumes:
       - genithm-preview-storage:/data
 
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      ACCESS_KEY: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
+      SECRET_KEY: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
+      BUCKET: ${GENITHM_R2_SEQUENCE_BUCKET}
+      WEB_ORIGIN: ${GENITHM_PREVIEW_WEB_ORIGIN}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set preview http://minio:9000 "$$ACCESS_KEY" "$$SECRET_KEY"; do sleep 1; done
+        mc mb --ignore-existing "preview/$$BUCKET"
+        printf '{"CORSRules":[{"AllowedOrigins":["%s"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}' "$$WEB_ORIGIN" > /tmp/cors.json
+        mc cors set "preview/$$BUCKET" /tmp/cors.json
+
   api:
     image: ghcr.io/genithm/genithm-api@sha256:75d0c43ab098baacaa59c200c29ecd69d5a5858356fd859a68520b9cb4b0ab6d
     restart: unless-stopped
@@ -28,7 +46,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
-      - minio
+      minio-setup:
+        condition: service_completed_successfully
 
   sequence-worker:
     image: ghcr.io/genithm/genithm-sequence-worker@sha256:5946ae3ce8d9b515ec73cc329dcabf51e509c12a5e23857a25e439323d4210f1
