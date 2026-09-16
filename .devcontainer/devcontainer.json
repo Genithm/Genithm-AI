@@ -5,11 +5,8 @@
     "SUPABASE_SECRET_KEY": {
       "description": "Server-side Supabase secret key for the Genithm preview. Do not use the publishable key."
     },
-    "QWEN_API_KEY": {
-      "description": "Qwen API key used by the Genithm AI primary provider."
-    },
     "DEEPSEEK_API_KEY": {
-      "description": "DeepSeek API key used by the Genithm AI backup provider."
+      "description": "DeepSeek API key used by the Genithm AI provider."
     }
   },
   "features": {
