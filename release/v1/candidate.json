@@ -2,8 +2,8 @@
   "schema_version": "genithm-v1-candidate/1",
   "release_target": "v1.0.0",
   "stage": "deployment_candidate",
-  "candidate_generation": 3,
-  "refresh_reason": "debian_13_security_refresh",
+  "candidate_generation": 4,
+  "refresh_reason": "dashboard_polish_preview_refresh",
   "repository": "Genithm/Genithm-AI",
   "platforms": [
     "linux/amd64",
