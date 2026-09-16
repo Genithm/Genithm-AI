@@ -22,9 +22,17 @@ for name in "${required[@]}"; do
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing Codespaces secrets: ${missing[*]}"
-  echo "Add the required repository Codespaces secrets, then run this command again."
+  echo "Add the required repository Codespaces secrets, restart the Codespace, then run this command again."
   exit 2
 fi
+
+for tool in docker npm curl base64 od head tr; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Required tool is missing: $tool"
+    echo "Rebuild the Codespace container from main, then run this command again."
+    exit 3
+  fi
+done
 
 SUPABASE_URL="https://vowmjjgkjoxcvlfamukh.supabase.co"
 SUPABASE_PUBLISHABLE_KEY="sb_publishable_uuFaIXmkIG2PpCDMD3Jd4w_jXkMc-Qt"
@@ -32,8 +40,8 @@ WEB_ORIGIN="https://${CODESPACE_NAME}-3000.${GITHUB_CODESPACES_PORT_FORWARDING_D
 STORAGE_ORIGIN="https://${CODESPACE_NAME}-9000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 NCBI_EMAIL="${NCBI_EMAIL:-genithmai@gmail.com}"
 GENITHM_PREVIEW_STORAGE_ACCESS_KEY="genithmpreview"
-GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(openssl rand -hex 24)"
-GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(openssl rand 32 | base64 | tr -d '\n')"
+GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
 
 cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
@@ -54,11 +62,15 @@ GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}
 EOF
 chmod 600 "$ENV_FILE"
 
-# Signed upload URLs must be reachable directly by the browser. The devcontainer
-# requests public visibility for 9000; this best-effort command also enforces it.
 if command -v gh >/dev/null 2>&1; then
   gh codespace ports visibility 9000:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
 fi
+
+echo "Preparing web dependencies..."
+(
+  cd "$WEB_DIR"
+  npm ci
+)
 
 echo "Starting Genithm API, six workers, and preview object storage..."
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull
