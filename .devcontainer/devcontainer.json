@@ -1,0 +1,30 @@
+{
+  "name": "Genithm Full Preview",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+  "forwardPorts": [3000, 8000, 9000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Genithm Web",
+      "onAutoForward": "openBrowser"
+    },
+    "8000": {
+      "label": "Genithm API",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "Preview Object Storage",
+      "onAutoForward": "silent",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "cd apps/web && npm ci",
+  "remoteEnv": {
+    "GENITHM_CODESPACES_PREVIEW": "1"
+  }
+}

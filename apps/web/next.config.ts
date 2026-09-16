@@ -9,11 +9,22 @@ const securityHeaders = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
+const localApiProxyTarget = process.env.GENITHM_LOCAL_API_PROXY_TARGET?.replace(/\/$/, "");
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
+  },
+  async rewrites() {
+    if (!localApiProxyTarget) return [];
+    return [
+      {
+        source: "/genithm-api/:path*",
+        destination: `${localApiProxyTarget}/:path*`,
+      },
+    ];
   },
 };
 
