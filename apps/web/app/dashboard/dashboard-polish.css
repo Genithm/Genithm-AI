@@ -1,0 +1,250 @@
+/* Home dashboard visual system.
+   Scoped behind .dashboard-home-overview so nested dashboard routes keep their
+   own information density and layout. */
+
+.dashboard-home-overview ~ main.dashboard {
+  width: min(1220px, calc(100% - 36px));
+  padding-top: 18px;
+}
+
+/* The persistent dashboard shell already contains identity + sign out. */
+.dashboard-home-overview ~ main.dashboard > .dashboard-header:first-child {
+  display: none;
+}
+
+.dashboard-home-overview ~ main.dashboard > .error:first-child,
+.dashboard-home-overview ~ main.dashboard > .dashboard-header:first-child + .error {
+  margin-top: 0;
+}
+
+.dashboard-home-overview ~ main.dashboard > .section-grid:first-of-type {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 18px;
+}
+
+.dashboard-home-overview ~ main.dashboard section.card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(161, 201, 216, 0.13);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(16, 29, 40, 0.96), rgba(9, 20, 29, 0.98));
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.18);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.dashboard-home-overview ~ main.dashboard section.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(119, 230, 210, 0.55), rgba(134, 191, 245, 0.18), transparent 72%);
+  pointer-events: none;
+}
+
+.dashboard-home-overview ~ main.dashboard section.card:hover {
+  border-color: rgba(161, 201, 216, 0.22);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.22);
+}
+
+.dashboard-home-overview ~ main.dashboard section.card > h2,
+.dashboard-home-overview ~ main.dashboard section.card > .dashboard-header h2 {
+  margin-bottom: 8px;
+  font-size: clamp(22px, 2.2vw, 29px);
+}
+
+.dashboard-home-overview ~ main.dashboard section.card > p,
+.dashboard-home-overview ~ main.dashboard section.card > .dashboard-header p {
+  max-width: 880px;
+  margin-top: 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.dashboard-home-overview ~ main.dashboard .eyebrow {
+  margin-bottom: 7px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.dashboard-home-overview ~ main.dashboard form.stack {
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(161, 201, 216, 0.1);
+  border-radius: 13px;
+  background: rgba(5, 14, 21, 0.44);
+}
+
+.dashboard-home-overview ~ main.dashboard label {
+  gap: 6px;
+  color: #9eb0bb;
+  font-size: 11.5px;
+  font-weight: 760;
+  letter-spacing: 0.01em;
+}
+
+.dashboard-home-overview ~ main.dashboard input,
+.dashboard-home-overview ~ main.dashboard textarea,
+.dashboard-home-overview ~ main.dashboard .select {
+  border-color: rgba(161, 201, 216, 0.18);
+  border-radius: 9px;
+  background: rgba(5, 14, 21, 0.86);
+}
+
+.dashboard-home-overview ~ main.dashboard input:hover,
+.dashboard-home-overview ~ main.dashboard textarea:hover,
+.dashboard-home-overview ~ main.dashboard .select:hover {
+  border-color: rgba(161, 201, 216, 0.3);
+}
+
+.dashboard-home-overview ~ main.dashboard input[type="checkbox"],
+.dashboard-home-overview ~ main.dashboard input[type="radio"] {
+  width: 17px;
+  height: 17px;
+  min-height: 0;
+  flex: 0 0 17px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.dashboard-home-overview ~ main.dashboard label:has(> input[type="checkbox"]),
+.dashboard-home-overview ~ main.dashboard label:has(> input[type="radio"]) {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+}
+
+.dashboard-home-overview ~ main.dashboard select[multiple] {
+  min-height: 150px;
+  padding: 8px;
+}
+
+.dashboard-home-overview ~ main.dashboard select[multiple] option {
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+
+.dashboard-home-overview ~ main.dashboard .button {
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.dashboard-home-overview ~ main.dashboard form.stack > .button.primary {
+  justify-self: start;
+  min-width: 180px;
+  margin-top: 2px;
+}
+
+.dashboard-home-overview ~ main.dashboard .section-grid {
+  gap: 18px;
+}
+
+.dashboard-home-overview ~ main.dashboard section.card > .section-grid > div:not(.item) > h3 {
+  margin-bottom: 10px;
+  color: #dcebf0;
+  font-size: 15px;
+}
+
+.dashboard-home-overview ~ main.dashboard .list {
+  gap: 9px;
+}
+
+.dashboard-home-overview ~ main.dashboard .item {
+  border-color: rgba(161, 201, 216, 0.11);
+  border-radius: 11px;
+  background: rgba(5, 14, 21, 0.46);
+  box-shadow: inset 2px 0 0 rgba(119, 230, 210, 0.08);
+}
+
+.dashboard-home-overview ~ main.dashboard .item:hover {
+  border-color: rgba(161, 201, 216, 0.21);
+  background: rgba(11, 24, 34, 0.82);
+  box-shadow: inset 2px 0 0 rgba(119, 230, 210, 0.28);
+}
+
+.dashboard-home-overview ~ main.dashboard .item > strong {
+  display: inline-block;
+  margin-bottom: 3px;
+  color: #e7f4f7;
+  font-size: 13px;
+}
+
+.dashboard-home-overview ~ main.dashboard .item > .dashboard-header {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dashboard-home-overview ~ main.dashboard .small {
+  color: #8298a6;
+  font-size: 11.5px;
+}
+
+.dashboard-home-overview ~ main.dashboard .notice {
+  border-color: rgba(134, 191, 245, 0.12);
+  border-radius: 10px;
+  background: rgba(134, 191, 245, 0.035);
+  font-size: 12px;
+}
+
+.dashboard-home-overview ~ main.dashboard .error {
+  border-color: rgba(255, 155, 155, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 155, 155, 0.055);
+  font-size: 12px;
+}
+
+.dashboard-home-overview ~ main.dashboard code {
+  border: 1px solid rgba(161, 201, 216, 0.14);
+  border-radius: 6px;
+  background: rgba(5, 14, 21, 0.72);
+  padding: 2px 5px;
+  color: #bad9e2;
+  font-size: 0.92em;
+}
+
+/* The setup cards should feel like onboarding, not raw admin forms. */
+.dashboard-home-overview ~ main.dashboard > .section-grid:first-of-type > .card {
+  min-height: 100%;
+  background:
+    linear-gradient(135deg, rgba(119, 230, 210, 0.045), transparent 36%),
+    linear-gradient(180deg, rgba(16, 29, 40, 0.97), rgba(9, 20, 29, 0.98));
+}
+
+/* Keep dense operational histories readable without turning the page into a wall. */
+.dashboard-home-overview ~ main.dashboard section.card .list .notice + .notice {
+  margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-home-overview ~ main.dashboard > .section-grid:first-of-type {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-home-overview ~ main.dashboard {
+    width: min(100% - 24px, 1220px);
+    padding-top: 12px;
+  }
+
+  .dashboard-home-overview ~ main.dashboard section.card {
+    border-radius: 15px;
+  }
+
+  .dashboard-home-overview ~ main.dashboard form.stack {
+    padding: 14px;
+  }
+
+  .dashboard-home-overview ~ main.dashboard form.stack > .button.primary {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-home-overview ~ main.dashboard section.card {
+    transition: none;
+  }
+}
