@@ -110,6 +110,21 @@ resource "oci_core_network_security_group_security_rule" "api_ssh" {
   }
 }
 
+resource "oci_core_network_security_group_security_rule" "worker_ssh_from_api_subnet" {
+  network_security_group_id = oci_core_network_security_group.workers.id
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = var.api_subnet_cidr
+  source_type               = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = 22
+      max = 22
+    }
+  }
+}
+
 resource "oci_core_network_security_group_security_rule" "api_egress" {
   network_security_group_id = oci_core_network_security_group.api.id
   direction                 = "EGRESS"
