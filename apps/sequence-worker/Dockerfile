@@ -7,7 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN addgroup --system genithm \
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system genithm \
     && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm
 
 COPY pyproject.toml ./
