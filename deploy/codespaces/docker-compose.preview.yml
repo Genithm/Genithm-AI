@@ -1,0 +1,87 @@
+services:
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address :9001
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
+    ports:
+      - "9000:9000"
+    volumes:
+      - genithm-preview-storage:/data
+
+  api:
+    image: ghcr.io/genithm/genithm-api@sha256:75d0c43ab098baacaa59c200c29ecd69d5a5858356fd859a68520b9cb4b0ab6d
+    restart: unless-stopped
+    environment:
+      GENITHM_ENV: development
+      GENITHM_API_ALLOWED_ORIGINS: ${GENITHM_PREVIEW_WEB_ORIGIN}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+      GENITHM_R2_ENDPOINT: ${GENITHM_PREVIEW_STORAGE_PUBLIC_ENDPOINT}
+      GENITHM_R2_ACCESS_KEY_ID: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
+      GENITHM_R2_SECRET_ACCESS_KEY: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
+      GENITHM_R2_SEQUENCE_BUCKET: ${GENITHM_R2_SEQUENCE_BUCKET}
+      GENITHM_STORAGE_SIGNED_URL_SECONDS: "900"
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      - minio
+
+  sequence-worker:
+    image: ghcr.io/genithm/genithm-sequence-worker@sha256:5946ae3ce8d9b515ec73cc329dcabf51e509c12a5e23857a25e439323d4210f1
+    restart: unless-stopped
+    environment: &common-worker-env
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+      GENITHM_R2_ENDPOINT: ${GENITHM_PREVIEW_STORAGE_PUBLIC_ENDPOINT}
+      GENITHM_R2_ACCESS_KEY_ID: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
+      GENITHM_R2_SECRET_ACCESS_KEY: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
+      GENITHM_R2_SEQUENCE_BUCKET: ${GENITHM_R2_SEQUENCE_BUCKET}
+      NCBI_EMAIL: ${NCBI_EMAIL}
+      NCBI_API_KEY: ${NCBI_API_KEY:-}
+
+  source-worker:
+    image: ghcr.io/genithm/genithm-source-worker@sha256:37da42867b235e813cc42ee737ef43dfb047a5bce164877d0b67fe69f9dbfae8
+    restart: unless-stopped
+    environment: *common-worker-env
+
+  blast-worker:
+    image: ghcr.io/genithm/genithm-blast-worker@sha256:7ede6a462e74f763ce5001e07272ad680f0f27d6fcaa5778b30d46b653a9e0ca
+    restart: unless-stopped
+    environment: *common-worker-env
+
+  scientific-worker:
+    image: ghcr.io/genithm/genithm-scientific-worker@sha256:5a98b270a71934aa8d70929053a66570cd0d1b77bf944b0be84e744b242efef6
+    restart: unless-stopped
+    environment: *common-worker-env
+
+  audit-worker:
+    image: ghcr.io/genithm/genithm-audit-worker@sha256:a61c3cecd15e1305d20e8a52e19b90118e8727a5bc01987f140f8aaa3963df91
+    restart: unless-stopped
+    environment:
+      <<: *common-worker-env
+      GENITHM_AUDIT_SIGNING_KEY_ID: ${GENITHM_AUDIT_SIGNING_KEY_ID}
+      GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64: ${GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64}
+
+  ai-worker:
+    image: ghcr.io/genithm/genithm-ai-worker@sha256:938f50e3b0c2a6079ad10ac0e9065fab654b67d2e23b86ffe97cd5955b0e17fc
+    restart: unless-stopped
+    environment:
+      <<: *common-worker-env
+      GENITHM_AI_PRIMARY_PROVIDER: qwen
+      GENITHM_AI_PRIMARY_API_KEY: ${QWEN_API_KEY}
+      GENITHM_AI_PRIMARY_ENDPOINT: ${GENITHM_AI_PRIMARY_ENDPOINT}
+      GENITHM_AI_PRIMARY_MODEL: ${GENITHM_AI_PRIMARY_MODEL}
+      GENITHM_AI_PRIMARY_PROTOCOL: chat_completions
+      GENITHM_AI_BACKUP_ENABLED: "true"
+      GENITHM_AI_BACKUP_PROVIDER: deepseek
+      GENITHM_AI_BACKUP_API_KEY: ${DEEPSEEK_API_KEY}
+      GENITHM_AI_BACKUP_ENDPOINT: ${GENITHM_AI_BACKUP_ENDPOINT}
+      GENITHM_AI_BACKUP_MODEL: ${GENITHM_AI_BACKUP_MODEL}
+      GENITHM_AI_BACKUP_PROTOCOL: chat_completions
+
+volumes:
+  genithm-preview-storage:
