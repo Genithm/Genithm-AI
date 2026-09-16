@@ -6,7 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
-RUN addgroup --system genithm && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system genithm \
+    && adduser --system --ingroup genithm --home /nonexistent --no-create-home genithm
 COPY pyproject.toml ./
 COPY genithm_blast_worker ./genithm_blast_worker
 RUN python -m pip install . \
