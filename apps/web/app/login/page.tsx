@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { login } from "./actions";
 import styles from "./login.module.css";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; message?: string }> }) {
@@ -56,7 +55,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           {params.error ? <div className={`error ${styles.feedback}`} role="alert">{params.error}</div> : null}
           {params.message ? <div className={`notice ${styles.feedback}`} role="status">{params.message}</div> : null}
 
-          <form className={styles.form} action={login}>
+          <form className={styles.form} action="/auth/login" method="post">
             <label>
               Email address
               <input name="email" type="email" autoComplete="email" inputMode="email" required aria-describedby="email-hint" />
