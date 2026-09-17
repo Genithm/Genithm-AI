@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 
-import { signup } from "../login/actions";
 import styles from "../login/login.module.css";
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  const origin = `${protocol}://${host}`;
 
   return (
     <main className={`container ${styles.page}`}>
@@ -60,8 +54,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
 
           {params.error ? <div className={`error ${styles.feedback}`} role="alert">{params.error}</div> : null}
 
-          <form className={styles.form} action={signup}>
-            <input type="hidden" name="origin" value={origin} />
+          <form className={styles.form} action="/auth/signup" method="post">
             <label>
               Email address
               <input name="email" type="email" autoComplete="email" inputMode="email" required />
