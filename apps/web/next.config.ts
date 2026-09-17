@@ -14,7 +14,9 @@ const codespaceWebHost =
   process.env.CODESPACE_NAME && process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
     ? `${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`
     : undefined;
-const codespaceAllowedOrigins = codespaceWebHost ? [codespaceWebHost] : [];
+const codespaceAllowedOrigins = codespaceWebHost
+  ? [codespaceWebHost, "localhost:3000", "127.0.0.1:3000"]
+  : [];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
