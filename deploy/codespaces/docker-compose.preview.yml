@@ -12,7 +12,7 @@ services:
       - genithm-preview-storage:/data
 
   minio-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       - minio
     environment:
