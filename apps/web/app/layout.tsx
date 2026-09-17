@@ -18,6 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div className="navlinks">
               <Link href="/legal/privacy">Privacy</Link>
               <Link href="/legal/terms">Terms</Link>
+              <Link href="/signup">Create account</Link>
               <Link className="button" href="/login">Sign in</Link>
             </div>
           </nav>
