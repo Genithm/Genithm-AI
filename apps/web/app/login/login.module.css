@@ -135,11 +135,19 @@
 
 .secondaryAction {
   min-height: 42px;
+  display: grid;
+  place-items: center;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   color: var(--accent);
   cursor: pointer;
   font-weight: 750;
+  text-decoration: none;
+}
+
+.secondaryAction:hover {
+  background: rgba(119, 230, 210, 0.07);
 }
 
 .divider {

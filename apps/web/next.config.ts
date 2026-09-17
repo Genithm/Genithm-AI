@@ -10,10 +10,21 @@ const securityHeaders = [
 ];
 
 const localApiProxyTarget = process.env.GENITHM_LOCAL_API_PROXY_TARGET?.replace(/\/$/, "");
+const codespaceWebHost =
+  process.env.CODESPACE_NAME && process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+    ? `${process.env.CODESPACE_NAME}-3000.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`
+    : undefined;
+const codespaceAllowedOrigins = codespaceWebHost ? [codespaceWebHost] : [];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  allowedDevOrigins: codespaceAllowedOrigins,
+  experimental: {
+    serverActions: {
+      allowedOrigins: codespaceAllowedOrigins,
+    },
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
