@@ -11,7 +11,8 @@ export default function HomePage() {
           trusted computational tools, evidence tracking, and provenance-first research execution.
         </p>
         <div className="actions">
-          <Link className="button primary glow" href="/login">Enter Research Workspace</Link>
+          <Link className="button primary glow" href="/signup">Create Research Account</Link>
+          <Link className="button" href="/login">Sign In</Link>
           <a className="button" href="#capabilities">Explore Platform</a>
         </div>
         <div className="status-orb">
