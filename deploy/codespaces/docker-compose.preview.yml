@@ -6,6 +6,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${GENITHM_PREVIEW_WEB_ORIGIN}
     ports:
       - "9000:9000"
     volumes:
@@ -19,14 +20,13 @@ services:
       ACCESS_KEY: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
       SECRET_KEY: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
       BUCKET: ${GENITHM_R2_SEQUENCE_BUCKET}
-      WEB_ORIGIN: ${GENITHM_PREVIEW_WEB_ORIGIN}
     entrypoint:
       - /bin/sh
       - -c
       - |
+        set -eu
         until mc alias set preview http://minio:9000 "$$ACCESS_KEY" "$$SECRET_KEY"; do sleep 1; done
         mc mb --ignore-existing "preview/$$BUCKET"
-        printf '<CORSConfiguration><CORSRule><AllowedOrigin>%s</AllowedOrigin><AllowedMethod>GET</AllowedMethod><AllowedMethod>PUT</AllowedMethod><AllowedMethod>HEAD</AllowedMethod><AllowedHeader>*</AllowedHeader><ExposeHeader>ETag</ExposeHeader><MaxAgeSeconds>3600</MaxAgeSeconds></CORSRule></CORSConfiguration>' "$$WEB_ORIGIN" | mc cors set "preview/$$BUCKET" -
 
   api:
     image: ghcr.io/genithm/genithm-api@sha256:75d0c43ab098baacaa59c200c29ecd69d5a5858356fd859a68520b9cb4b0ab6d
