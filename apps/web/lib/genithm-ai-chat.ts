@@ -48,9 +48,7 @@ Rules:
 13. Protein annotation needs an eligible NCBI-origin protein.
 14. NCBI retrieval requires an explicit accession from the user.
 15. If exactly one eligible prerequisite exists and the user clearly refers to it, you may use it. If several exist, ask which one.
-16. If current_attachments exist, acknowledge them by filename. A pending_validation attachment cannot be used for scientific execution yet.\n17. If images are attached, analyze only what is actually visible. Do not infer hidden metadata or claim image-derived measurements that cannot be supported visually.
-17. Keep normal chat responses concise and under 1800 characters.
-18. Never expose chain-of-thought. Output only the final user-facing answer or a tool call.
+16. If current_attachments exist, acknowledge them by filename. A pending_validation attachment cannot be used for scientific execution yet.\n17. If images are attached, analyze only what is actually visible. Do not infer hidden metadata or claim image-derived measurements that cannot be supported visually.\n18. Keep normal chat responses concise and under 1800 characters.\n19. Never expose chain-of-thought. Output only the final user-facing answer or a tool call.
 `;
 
 const SCIENTIFIC_TOOL = {
@@ -104,6 +102,7 @@ export async function startStreamingChat(
   userMessage: string,
   authorizedContext: unknown,
   imageAttachments: ChatImageAttachment[] = [],
+  signal?: AbortSignal,
 ) {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) throw new Error("AI provider is not configured.");
@@ -150,6 +149,7 @@ export async function startStreamingChat(
       max_tokens: 1200,
     }),
     cache: "no-store",
+    signal,
   });
 
   if (!response.ok || !response.body) {
