@@ -254,6 +254,10 @@ type AiFunctions = LivePublic["Functions"] & {
     Args: { plan_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
     Returns: string;
   };
+  finish_ai_plan_inline_error: {
+    Args: { plan_request_id: string; processing_error: string };
+    Returns: undefined;
+  };
   approve_ai_plan: {
     Args: { plan_request_id: string };
     Returns: { resource_type: string; resource_id: string }[];
