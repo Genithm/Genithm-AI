@@ -5,7 +5,7 @@ LOGIN_PAGE = ROOT / "apps/web/app/login/page.tsx"
 SIGNUP_PAGE = ROOT / "apps/web/app/signup/page.tsx"
 ACTIONS = ROOT / "apps/web/app/login/actions.ts"
 STYLES = ROOT / "apps/web/app/login/login.module.css"
-NEXT_CONFIG = ROOT / "apps/web/next.config.ts"
+NEXT_CONFIG = ROOT / "apps/web/next.config.ts"\nPREVIEW_LAUNCHER = ROOT / "scripts/codespaces_preview.sh"
 
 
 def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
@@ -13,7 +13,7 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     signup_page = SIGNUP_PAGE.read_text()
     actions = ACTIONS.read_text()
     styles = STYLES.read_text()
-    next_config = NEXT_CONFIG.read_text()
+    next_config = NEXT_CONFIG.read_text()\n    preview_launcher = PREVIEW_LAUNCHER.read_text()
 
     assert 'import { login } from "./actions"' in login_page
     assert 'action={login}' in login_page
