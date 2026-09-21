@@ -43,7 +43,24 @@ GENITHM_PREVIEW_STORAGE_ACCESS_KEY="genithmpreview"
 GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
 HEAD_SHA="$(git -C "$ROOT_DIR" rev-parse HEAD)"
-GENITHM_AI_WORKER_IMAGE="ghcr.io/genithm/genithm-ai-worker:sha-$HEAD_SHA"
+RUNTIME_SHA="${GENITHM_PREVIEW_RUNTIME_SHA:-$(git -C "$ROOT_DIR" log -n 1 --format=%H -- release/v1/candidate.json)}"
+
+if [[ ! "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "Could not resolve a valid coordinated V1 runtime revision."
+  exit 4
+fi
+if ! git -C "$ROOT_DIR" merge-base --is-ancestor "$RUNTIME_SHA" "$HEAD_SHA"; then
+  echo "Resolved runtime revision $RUNTIME_SHA is not an ancestor of the checked-out commit $HEAD_SHA."
+  exit 4
+fi
+
+GENITHM_API_IMAGE="ghcr.io/genithm/genithm-api:sha-$RUNTIME_SHA"
+GENITHM_SEQUENCE_WORKER_IMAGE="ghcr.io/genithm/genithm-sequence-worker:sha-$RUNTIME_SHA"
+GENITHM_SOURCE_WORKER_IMAGE="ghcr.io/genithm/genithm-source-worker:sha-$RUNTIME_SHA"
+GENITHM_BLAST_WORKER_IMAGE="ghcr.io/genithm/genithm-blast-worker:sha-$RUNTIME_SHA"
+GENITHM_SCIENTIFIC_WORKER_IMAGE="ghcr.io/genithm/genithm-scientific-worker:sha-$RUNTIME_SHA"
+GENITHM_AUDIT_WORKER_IMAGE="ghcr.io/genithm/genithm-audit-worker:sha-$RUNTIME_SHA"
+GENITHM_AI_WORKER_IMAGE="ghcr.io/genithm/genithm-ai-worker:sha-$RUNTIME_SHA"
 
 cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
@@ -59,6 +76,12 @@ GENITHM_PREVIEW_STORAGE_SECRET_KEY=$GENITHM_PREVIEW_STORAGE_SECRET_KEY
 GENITHM_R2_SEQUENCE_BUCKET=genithm-preview-sequences
 GENITHM_AUDIT_SIGNING_KEY_ID=codespaces-preview-ed25519
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64=$GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64
+GENITHM_API_IMAGE=$GENITHM_API_IMAGE
+GENITHM_SEQUENCE_WORKER_IMAGE=$GENITHM_SEQUENCE_WORKER_IMAGE
+GENITHM_SOURCE_WORKER_IMAGE=$GENITHM_SOURCE_WORKER_IMAGE
+GENITHM_BLAST_WORKER_IMAGE=$GENITHM_BLAST_WORKER_IMAGE
+GENITHM_SCIENTIFIC_WORKER_IMAGE=$GENITHM_SCIENTIFIC_WORKER_IMAGE
+GENITHM_AUDIT_WORKER_IMAGE=$GENITHM_AUDIT_WORKER_IMAGE
 GENITHM_AI_WORKER_IMAGE=$GENITHM_AI_WORKER_IMAGE
 GENITHM_AI_PRIMARY_ENDPOINT=https://api.deepseek.com/chat/completions
 GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}
@@ -88,12 +111,27 @@ if ! printf '%s' "$DEEPSEEK_MODELS" | grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\
   exit 4
 fi
 
-echo "Checking commit-matched AI worker image..."
-if ! docker pull "$GENITHM_AI_WORKER_IMAGE" >/dev/null 2>&1; then
-  echo "The AI worker image for commit $HEAD_SHA is not published yet."
-  echo "Use the latest main commit only after its Worker release has completed successfully."
-  exit 4
+echo "Checking coordinated preview runtime images for revision $RUNTIME_SHA..."
+if [[ "$RUNTIME_SHA" != "$HEAD_SHA" ]]; then
+  echo "Web source is $HEAD_SHA; backend runtime uses the latest coordinated V1 candidate $RUNTIME_SHA."
 fi
+
+runtime_images=(
+  "$GENITHM_API_IMAGE"
+  "$GENITHM_SEQUENCE_WORKER_IMAGE"
+  "$GENITHM_SOURCE_WORKER_IMAGE"
+  "$GENITHM_BLAST_WORKER_IMAGE"
+  "$GENITHM_SCIENTIFIC_WORKER_IMAGE"
+  "$GENITHM_AUDIT_WORKER_IMAGE"
+  "$GENITHM_AI_WORKER_IMAGE"
+)
+for image in "${runtime_images[@]}"; do
+  if ! docker pull "$image" >/dev/null 2>&1; then
+    echo "Required preview runtime image is not published: $image"
+    echo "Use a coordinated V1 candidate revision whose API and Worker release workflows completed successfully."
+    exit 4
+  fi
+done
 
 echo "Preparing web dependencies..."
 (
@@ -165,6 +203,7 @@ echo "Genithm preview is running and passed readiness checks."
 echo "Open: $WEB_ORIGIN"
 echo "Supabase Auth is reachable, API/web health checks passed, and all six worker heartbeats are current."
 echo "DeepSeek is configured as the preview AI provider."
+echo "Runtime images are coordinated from V1 candidate revision: $RUNTIME_SHA"
 echo "Preview object storage is temporary and isolated to this Codespace."
 echo
 echo "Useful commands:"

@@ -58,7 +58,16 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'SUPABASE_SECRET_KEY' in preview_launcher
     assert 'https://api.deepseek.com/models' in preview_launcher
     assert 'https://api.deepseek.com/chat/completions' in preview_launcher
+    assert 'GENITHM_API_IMAGE' in preview_launcher
+    assert 'GENITHM_SEQUENCE_WORKER_IMAGE' in preview_launcher
+    assert 'GENITHM_SOURCE_WORKER_IMAGE' in preview_launcher
+    assert 'GENITHM_BLAST_WORKER_IMAGE' in preview_launcher
+    assert 'GENITHM_SCIENTIFIC_WORKER_IMAGE' in preview_launcher
+    assert 'GENITHM_AUDIT_WORKER_IMAGE' in preview_launcher
     assert 'GENITHM_AI_WORKER_IMAGE' in preview_launcher
+    assert 'RUNTIME_SHA' in preview_launcher
+    assert 'release/v1/candidate.json' in preview_launcher
+    assert 'runtime_images=(' in preview_launcher
     assert 'git -C "$ROOT_DIR" rev-parse HEAD' in preview_launcher
 
     assert "@media (max-width: 600px)" in styles
