@@ -199,6 +199,7 @@ export default async function AiConversationPage({
         </div>
 
         <AiChatComposer
+          key={`${conversation.id}:${messages?.length ?? 0}`}
           projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
           conversationId={conversation.id}
           defaultProjectId={conversation.project_id}

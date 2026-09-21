@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     start(controller) {
       void (async () => {
         const service = createServiceClient();
+        let partialVisible = "";
         try {
           controller.enqueue(sse("meta", {
             conversation_id: row.conversation_id,
@@ -128,7 +129,6 @@ export async function POST(request: Request) {
           const reader = providerBody.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
-          let visible = "";
           let toolArguments = "";
           let toolName = "";
           let toolSeen = false;
@@ -172,14 +172,14 @@ export async function POST(request: Request) {
               }
 
               if (!toolSeen && typeof delta.content === "string" && delta.content) {
-                const remaining = 2000 - visible.length;
+                const remaining = 2000 - partialVisible.length;
                 if (remaining <= 0) {
                   await reader.cancel();
                   providerDone = true;
                   break;
                 }
                 const piece = delta.content.slice(0, remaining);
-                visible += piece;
+                partialVisible += piece;
                 controller.enqueue(sse("delta", { text: piece }));
               }
             }
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
                 }
                 return scientificPlanFromToolArguments(toolArguments);
               })()
-            : conversationalPlan(visible);
+            : conversationalPlan(partialVisible);
 
           const { data: finalStatus, error: finishError } = await service.rpc("finish_ai_plan_inline", {
             plan_request_id: row.plan_request_id,
@@ -214,17 +214,24 @@ export async function POST(request: Request) {
           }));
         } catch (caught) {
           const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
-          const message = stopped
-            ? "Generation stopped by user."
-            : caught instanceof Error
-              ? caught.message
-              : "AI response failed.";
-          await service.rpc("finish_ai_plan_inline_error", {
-            plan_request_id: row.plan_request_id,
-            expected_user_id: userId,
-            processing_error: message,
-          });
-          if (!request.signal.aborted) {
+          if (stopped) {
+            const stoppedPlan = conversationalPlan(partialVisible || "Generation stopped.");
+            await service.rpc("finish_ai_plan_inline", {
+              plan_request_id: row.plan_request_id,
+              expected_user_id: userId,
+              provider: "deepseek",
+              model: currentAiModel(),
+              prompt_version: PROMPT_VERSION,
+              policy_version: POLICY_VERSION,
+              plan: stoppedPlan as unknown as Json,
+            });
+          } else {
+            const message = caught instanceof Error ? caught.message : "AI response failed.";
+            await service.rpc("finish_ai_plan_inline_error", {
+              plan_request_id: row.plan_request_id,
+              expected_user_id: userId,
+              processing_error: message,
+            });
             controller.enqueue(sse("error", {
               conversation_id: row.conversation_id,
               error: message,
