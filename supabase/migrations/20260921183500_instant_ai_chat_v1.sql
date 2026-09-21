@@ -170,7 +170,7 @@ begin
   where id=message_id;
 
   select jsonb_build_object(
-    'project',jsonb_build_object('id',request_id),
+    'project',jsonb_build_object('id',p_project_id),
     'conversation_history',coalesce((
       select jsonb_agg(
         jsonb_build_object(
@@ -676,3 +676,111 @@ $$;
 
 revoke all on function app_private.validate_ai_plan_for_request(public.ai_plan_requests,jsonb)
 from public, anon, authenticated, service_role;
+
+
+create or replace function app_private.finish_ai_plan_success(
+  p_message_id bigint,
+  p_plan_request_id uuid,
+  p_provider text,
+  p_model text,
+  p_prompt_version text,
+  p_policy_version text,
+  p_plan jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target public.ai_plan_requests%rowtype;
+  action text;
+  canonical text;
+  plan_hash text;
+  summary text;
+  final_status text;
+begin
+  select * into target
+  from public.ai_plan_requests
+  where id=p_plan_request_id
+  for update;
+
+  if not found or target.status <> 'planning' then
+    raise exception 'AI planning request is not active' using errcode='P0002';
+  end if;
+
+  if trim(p_provider) !~ '^[a-z0-9_-]{2,64}$'
+     or nullif(trim(p_model),'') is null
+     or char_length(trim(p_model)) > 128
+     or nullif(trim(p_prompt_version),'') is null
+     or char_length(trim(p_prompt_version)) > 128
+     or p_policy_version is distinct from 'ai-policy-v1' then
+    raise exception 'AI planner provenance is invalid';
+  end if;
+
+  if char_length(coalesce(p_plan->>'summary','')) < 1
+     or char_length(p_plan->>'summary') > 2000
+     or jsonb_typeof(coalesce(p_plan->'limitations','[]'::jsonb)) <> 'array' then
+    raise exception 'AI plan summary is invalid';
+  end if;
+
+  action := app_private.validate_ai_plan_for_request(target,p_plan);
+
+  final_status := case p_plan->>'intent'
+    when 'conversation' then 'conversation'
+    when 'clarification_required' then 'clarification_required'
+    when 'unsupported' then 'unsupported'
+    else 'ready'
+  end;
+
+  canonical := p_plan::text;
+  plan_hash := encode(extensions.digest(convert_to(canonical,'UTF8'),'sha256'),'hex');
+  summary := left(p_plan->>'summary',2000);
+
+  update public.ai_plan_requests
+  set status=final_status,
+      provider=trim(p_provider),
+      model=trim(p_model),
+      prompt_version=trim(p_prompt_version),
+      policy_version=p_policy_version,
+      plan_schema_version='ai-plan-v1',
+      plan=p_plan,
+      plan_sha256=plan_hash,
+      action_type=action,
+      requires_confirmation=(final_status='ready'),
+      processing_finished_at=now(),
+      processing_error=null,
+      updated_at=now()
+  where id=target.id;
+
+  insert into public.ai_messages(
+    conversation_id,
+    organization_id,
+    project_id,
+    conversation_owner_id,
+    role,
+    content,
+    message_kind,
+    plan_request_id
+  )
+  values(
+    target.conversation_id,
+    target.organization_id,
+    target.project_id,
+    target.requested_by,
+    'assistant',
+    summary,
+    case when final_status='conversation' then 'text' else 'plan_summary' end,
+    target.id
+  );
+
+  if not pgmq.delete('ai_planning',p_message_id) then
+    raise exception 'AI planning queue message delete failed';
+  end if;
+end;
+$$;
+
+revoke all on function app_private.finish_ai_plan_success(bigint,uuid,text,text,text,text,jsonb)
+from public, anon, authenticated;
+grant execute on function app_private.finish_ai_plan_success(bigint,uuid,text,text,text,text,jsonb)
+to service_role;
