@@ -70,7 +70,7 @@ export default async function AiConversationPage({
       .limit(250),
     supabase
       .from("ai_plan_requests")
-      .select("id,status,plan,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_error,created_at,updated_at")
+      .select("id,status,plan,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_error,attachment_upload_ids,created_at,updated_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .limit(100),
@@ -81,6 +81,20 @@ export default async function AiConversationPage({
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
+
+  const attachmentIds = [...new Set((plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []))];
+  const { data: attachmentRows } = attachmentIds.length
+    ? await supabase.from("sequence_uploads").select("id,original_filename,status").in("id", attachmentIds)
+    : { data: [] as Array<{ id: string; original_filename: string; status: string }> };
+
+  const attachmentById = new Map((attachmentRows ?? []).map((row) => [row.id, row]));
+  const attachmentsByPlan = new Map<string, Array<{ id: string; original_filename: string; status: string }>>();
+  for (const plan of plans ?? []) {
+    const rows = (plan.attachment_upload_ids ?? [])
+      .map((attachmentId) => attachmentById.get(attachmentId))
+      .filter((row): row is { id: string; original_filename: string; status: string } => Boolean(row));
+    if (rows.length) attachmentsByPlan.set(plan.id, rows);
+  }
 
   const dispatched = (plans ?? []).filter(
     (plan) => plan.dispatched_resource_type && plan.dispatched_resource_id,
@@ -159,6 +173,16 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
+              {message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length ? (
+                <div className={styles.messageAttachments}>
+                  {attachmentsByPlan.get(message.plan_request_id)?.map((attachment) => (
+                    <span key={attachment.id}>
+                      <strong>{attachment.original_filename}</strong>
+                      <small>{readable(attachment.status)}</small>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
           {!messages?.length ? (
