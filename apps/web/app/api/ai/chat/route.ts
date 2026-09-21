@@ -213,7 +213,7 @@ export async function POST(request: Request) {
             requires_confirmation: plan.intent === "scientific_action",
           }));
         } catch (caught) {
-          const stopped = request.signal.aborted || (caught instanceof DOMException && caught.name === "AbortError");
+          const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
           const message = stopped
             ? "Generation stopped by user."
             : caught instanceof Error
