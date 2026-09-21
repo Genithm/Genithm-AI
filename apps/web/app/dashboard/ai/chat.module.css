@@ -1,0 +1,248 @@
+.shell {
+  min-height: calc(100vh - 110px);
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(9, 14, 25, 0.72);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 720px;
+  padding: 18px;
+  border-right: 1px solid var(--border);
+  background: rgba(5, 9, 17, 0.86);
+}
+
+.brandRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brandRow strong {
+  display: block;
+  margin-top: 3px;
+}
+
+.newChat {
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.historyLabel {
+  margin: 24px 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.history {
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.historyItem {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+}
+
+.historyItem:hover {
+  background: rgba(255,255,255,.05);
+}
+
+.historyItem strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyItem span,
+.emptyHistory {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
+  padding-top: 18px;
+}
+
+.sidebarFooter a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 64px clamp(24px, 7vw, 100px);
+}
+
+.hero {
+  width: min(860px, 100%);
+  margin: 0 auto 28px;
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 10px 0 14px;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.04;
+}
+
+.hero p {
+  margin: 0 auto;
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.feedback,
+.composer,
+.noProject,
+.starters,
+.capabilityNote {
+  width: min(860px, 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.composer {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 14px;
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 28px 70px rgba(0,0,0,.22);
+}
+
+.projectRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.projectRow select {
+  max-width: 260px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 10px;
+}
+
+.composerFooter span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.starters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.starter {
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(255,255,255,.025);
+}
+
+.noProject {
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  text-align: center;
+}
+
+.capabilityNote {
+  display: grid;
+  gap: 6px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.capabilityNote strong {
+  color: var(--foreground);
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history,
+  .historyLabel,
+  .sidebarFooter {
+    display: none;
+  }
+
+  .main {
+    padding: 38px 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .starters {
+    grid-template-columns: 1fr;
+  }
+
+  .composerFooter {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .hero {
+    text-align: left;
+  }
+}
