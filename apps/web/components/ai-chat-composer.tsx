@@ -113,6 +113,8 @@ export function AiChatComposer({
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -237,6 +239,15 @@ export function AiChatComposer({
     setAttachments((current) => current.filter((item) => item.key !== key));
   }
 
+  function resizeTextarea(element: HTMLTextAreaElement) {
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 220)}px`;
+  }
+
+  function stopGeneration() {
+    abortRef.current?.abort();
+  }
+
   async function send() {
     const trimmed = message.trim();
     if (!projectId) {
@@ -256,6 +267,8 @@ export function AiChatComposer({
       return;
     }
 
+    const abortController = new AbortController();
+    abortRef.current = abortController;
     setSending(true);
     setError(null);
     setLiveAssistantMessage("");
@@ -264,6 +277,7 @@ export function AiChatComposer({
     try {
       const response = await fetch("/api/ai/chat", {
         method: "POST",
+        signal: abortController.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_id: projectId,
@@ -337,6 +351,9 @@ export function AiChatComposer({
 
       setMessage("");
       setAttachments([]);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
 
       if (!conversationId) {
         router.push(`/dashboard/ai/${resolvedConversationId}`);
@@ -344,9 +361,16 @@ export function AiChatComposer({
         router.refresh();
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Genithm could not answer that message.");
-      if (!liveAssistantMessage) setLiveAssistantMessage(null);
+      const stopped = caught instanceof Error && caught.name === "AbortError";
+      if (stopped) {
+        setError(null);
+        setLiveAssistantMessage((current) => current || "Generation stopped.");
+      } else {
+        setError(caught instanceof Error ? caught.message : "Genithm could not answer that message.");
+        if (!liveAssistantMessage) setLiveAssistantMessage(null);
+      }
     } finally {
+      if (abortRef.current === abortController) abortRef.current = null;
       setSending(false);
     }
   }
@@ -432,12 +456,25 @@ export function AiChatComposer({
         ) : null}
 
         <textarea
+          ref={textareaRef}
           value={message}
-          onChange={(event) => setMessage(event.target.value)}
+          onChange={(event) => {
+            setMessage(event.target.value);
+            resizeTextarea(event.currentTarget);
+          }}
           maxLength={8000}
           aria-label={conversationId ? "Reply to Genithm" : "Message Genithm"}
           placeholder={placeholder}
           disabled={sending}
+          onPaste={(event) => {
+            const imageFiles = Array.from(event.clipboardData.files).filter((file) =>
+              file.type.startsWith("image/"),
+            );
+            if (imageFiles.length) {
+              if (!event.clipboardData.getData("text")) event.preventDefault();
+              void addFiles(imageFiles);
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -472,8 +509,13 @@ export function AiChatComposer({
             </button>
             <span className={styles.hint}>FASTA/text or images · drag & drop supported</span>
           </div>
-          <button className="button primary" type="button" onClick={() => void send()} disabled={sending || busyUploading}>
-            {sending ? "Thinking…" : "Send"}
+          <button
+            className="button primary"
+            type="button"
+            onClick={() => sending ? stopGeneration() : void send()}
+            disabled={!sending && busyUploading}
+          >
+            {sending ? "Stop" : "Send"}
           </button>
         </div>
       </div>
