@@ -49,6 +49,9 @@ def main() -> int:
     assert 'thinking: { type: "disabled" }' in chat_provider
     assert 'reasoning_effort: "none"' in chat_provider
     assert 'propose_scientific_action' in chat_provider
+    assert 'msa_phylogeny_workflow' in chat_provider
+    assert 'ai_workflow_runs' in chat_conversation
+    assert 'phylogeny_job_id' in chat_conversation
     assert 'media_attachments' in chat_api
     assert 'image/jpeg' in chat_api
     assert 'image/png' in chat_api

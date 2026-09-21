@@ -5,3 +5,5 @@ def test_planner_has_execution_boundary_instructions():
     assert "do NOT execute tools" in SYSTEM_INSTRUCTIONS
     assert "Never invent" in SYSTEM_INSTRUCTIONS
     assert "User approval is required" in SYSTEM_INSTRUCTIONS
+    assert "msa_phylogeny_workflow" in SYSTEM_INSTRUCTIONS
+    assert "exactly MSA followed by phylogeny" in SYSTEM_INSTRUCTIONS
