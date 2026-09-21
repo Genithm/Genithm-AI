@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +12,17 @@ function readCredentials(formData: FormData, errorPath: "/login" | "/signup") {
     redirect(`${errorPath}?error=${encodeURIComponent("Please enter a valid email and a password of at least 10 characters.")}`);
   }
   return { email, password };
+}
+
+async function getTrustedAppOrigin() {
+  const configured = process.env.GENITHM_APP_URL?.trim().replace(/\/$/, "");
+  if (configured) return configured;
+
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  if (!host) return undefined;
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  return `${protocol}://${host}`;
 }
 
 export async function login(formData: FormData) {
@@ -28,7 +40,7 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent("Passwords do not match.")}`);
   }
 
-  const origin = String(formData.get("origin") ?? "").replace(/\/$/, "");
+  const origin = await getTrustedAppOrigin();
   const { data, error } = await supabase.auth.signUp({
     ...credentials,
     options: origin ? { emailRedirectTo: `${origin}/auth/confirm` } : undefined,
