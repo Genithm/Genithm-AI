@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'apps/web/app/dashboard/layout.tsx'
+      - 'apps/web/app/dashboard/page.tsx'
+      - 'apps/web/app/dashboard/ai/**'
+      - 'apps/web/app/dashboard/tools/**'
       - 'apps/web/app/dashboard/dashboard-section-nav.css'
       - 'apps/web/components/dashboard-primary-nav.tsx'
       - 'apps/web/components/dashboard-section-navigator.tsx'
