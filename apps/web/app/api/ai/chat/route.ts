@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import type { Json } from "@/lib/ai-database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
   currentAiModel,
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
       model: currentAiModel(),
       prompt_version: PROMPT_VERSION,
       policy_version: POLICY_VERSION,
-      plan,
+      plan: plan as unknown as Json,
     });
 
     if (finishError) throw new Error(finishError.message);
