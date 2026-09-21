@@ -49,6 +49,17 @@ def main() -> int:
     assert 'thinking: { type: "disabled" }' in chat_provider
     assert 'reasoning_effort: "none"' in chat_provider
     assert 'propose_scientific_action' in chat_provider
+    assert 'media_attachments' in chat_api
+    assert 'image/jpeg' in chat_api
+    assert 'image/png' in chat_api
+    assert 'image/gif' in chat_api
+    assert 'image/webp' in chat_api
+    assert 'onDrop={(event)' in chat_composer
+    assert 'attachmentPreview' in chat_composer
+    assert 'readyMediaAttachments' in chat_composer
+    assert 'media_attachments: readyMediaAttachments' in chat_composer
+    assert 'liveAssistantMessage ? (' in chat_composer
+    assert 'image_url' in chat_provider
 
     print("PASS: V1 dashboard UI shell contract")
     return 0
