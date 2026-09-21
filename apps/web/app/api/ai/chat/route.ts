@@ -15,6 +15,7 @@ type ChatRequest = {
   conversation_id?: string | null;
   user_message?: string;
   attachment_upload_ids?: string[];
+  media_attachments?: Array<{ filename?: string; mime_type?: string; data_url?: string }>;
 };
 
 type ProviderChunk = {
@@ -61,18 +62,47 @@ export async function POST(request: Request) {
   const attachmentIds = Array.isArray(body.attachment_upload_ids)
     ? [...new Set(body.attachment_upload_ids.map((value) => String(value).trim()).filter(Boolean))]
     : [];
+  const mediaAttachments = Array.isArray(body.media_attachments)
+    ? body.media_attachments.map((attachment) => ({
+        filename: String(attachment.filename ?? "").trim().slice(0, 255),
+        mime_type: String(attachment.mime_type ?? "").trim().toLowerCase(),
+        data_url: String(attachment.data_url ?? "").trim(),
+      }))
+    : [];
 
-  if (!projectId || userMessage.length > 8000 || attachmentIds.length > 10 || (!userMessage && attachmentIds.length === 0)) {
+  const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+  const mediaInvalid = mediaAttachments.some((attachment) => {
+    if (!attachment.filename || !allowedImageTypes.has(attachment.mime_type)) return true;
+    const prefix = `data:${attachment.mime_type};base64,`;
+    return !attachment.data_url.startsWith(prefix) || attachment.data_url.length > 12_000_000;
+  });
+  const totalMediaLength = mediaAttachments.reduce((sum, attachment) => sum + attachment.data_url.length, 0);
+
+  if (
+    !projectId ||
+    userMessage.length > 8000 ||
+    attachmentIds.length > 10 ||
+    mediaAttachments.length > 4 ||
+    mediaInvalid ||
+    totalMediaLength > 44_000_000 ||
+    (!userMessage && attachmentIds.length === 0 && mediaAttachments.length === 0)
+  ) {
     return Response.json(
-      { error: "Choose a project and send a message or up to 10 attachments." },
+      { error: "Choose a project and send a message, sequence files, or up to 4 supported images." },
       { status: 422 },
     );
   }
 
+  const recordedUserMessage = userMessage || (
+    mediaAttachments.length
+      ? `Attached image${mediaAttachments.length === 1 ? "" : "s"}: ${mediaAttachments.map((attachment) => attachment.filename).join(", ")}`
+      : ""
+  );
+
   const { data: prepared, error: prepareError } = await supabase.rpc("request_ai_plan_inline", {
     project_id: projectId,
     conversation_id: conversationId,
-    user_message: userMessage,
+    user_message: recordedUserMessage,
     attachment_upload_ids: attachmentIds,
   });
   const row = prepared?.[0];
@@ -94,7 +124,7 @@ export async function POST(request: Request) {
             plan_request_id: row.plan_request_id,
           }));
 
-          const providerBody = await startStreamingChat(row.user_message, row.authorized_context);
+          const providerBody = await startStreamingChat(row.user_message, row.authorized_context, mediaAttachments);
           const reader = providerBody.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
