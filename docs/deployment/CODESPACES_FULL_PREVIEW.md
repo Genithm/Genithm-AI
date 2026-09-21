@@ -40,7 +40,7 @@ Create a Codespace from `main`, then run from the repository root:
 bash scripts/codespaces_preview.sh
 ```
 
-The launcher prints the Genithm web preview URL only after Supabase Auth is reachable, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
+The launcher prints the Genithm web preview URL only after Supabase Auth confirms email login/signup are enabled, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
 
 ## Notes
 
