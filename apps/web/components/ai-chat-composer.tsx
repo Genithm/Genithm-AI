@@ -28,14 +28,21 @@ type ReservationResponse = {
 type Attachment = {
   key: string;
   file: File;
+  kind: "sequence" | "image";
   uploadId?: string;
+  dataUrl?: string;
+  mimeType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
   status: "checking" | "uploading" | "ready" | "error";
   error?: string;
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_GENITHM_API_URL || "http://localhost:8000").replace(/\/$/, "");
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENTS = 10;
+const MAX_IMAGES = 4;
 const ALLOWED_EXTENSIONS = new Set(["fa", "fasta", "fna", "faa", "fas", "txt"]);
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 function extensionOf(name: string) {
   const index = name.lastIndexOf(".");
@@ -61,6 +68,31 @@ async function validateSequenceFile(file: File) {
   if (normalized.includes("\u0000")) throw new Error("Binary files are not accepted.");
 }
 
+async function detectImageMime(file: File): Promise<Attachment["mimeType"]> {
+  if (file.size < 1) throw new Error("Image is empty.");
+  if (file.size > MAX_IMAGE_BYTES) throw new Error("Images are limited to 8 MiB each.");
+
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const ascii = String.fromCharCode(...bytes);
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return "image/png";
+  if (ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a")) return "image/gif";
+  if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP") return "image/webp";
+  throw new Error("Use a valid JPEG, PNG, GIF, or WebP image.");
+}
+
+function readAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function responseError(response: Response, fallback: string) {
   try {
     const payload = await response.json();
@@ -84,6 +116,7 @@ export function AiChatComposer({
   const [projectId, setProjectId] = useState(defaultProjectId || projects[0]?.id || "");
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const [sending, setSending] = useState(false);
   const [liveUserMessage, setLiveUserMessage] = useState<string | null>(null);
   const [liveAssistantMessage, setLiveAssistantMessage] = useState<string | null>(null);
@@ -91,11 +124,28 @@ export function AiChatComposer({
 
   const busyUploading = attachments.some((attachment) => attachment.status === "checking" || attachment.status === "uploading");
   const readyAttachmentIds = attachments
-    .filter((attachment) => attachment.status === "ready" && attachment.uploadId)
+    .filter((attachment) => attachment.kind === "sequence" && attachment.status === "ready" && attachment.uploadId)
     .map((attachment) => attachment.uploadId as string);
+  const readyMediaAttachments = attachments
+    .filter((attachment) => attachment.kind === "image" && attachment.status === "ready" && attachment.dataUrl && attachment.mimeType)
+    .map((attachment) => ({
+      filename: attachment.file.name.trim().slice(0, 255) || "image",
+      mime_type: attachment.mimeType as string,
+      data_url: attachment.dataUrl as string,
+    }));
 
-  async function uploadOne(file: File, key: string) {
+  async function uploadOne(file: File, key: string, kind: Attachment["kind"]) {
     try {
+      if (kind === "image") {
+        const mimeType = await detectImageMime(file);
+        if (!IMAGE_TYPES.has(mimeType)) throw new Error("Unsupported image format.");
+        const dataUrl = await readAsDataUrl(file);
+        setAttachments((current) => current.map((item) => item.key === key
+          ? { ...item, mimeType, dataUrl, status: "ready", error: undefined }
+          : item));
+        return;
+      }
+
       await validateSequenceFile(file);
       setAttachments((current) => current.map((item) => item.key === key ? { ...item, status: "uploading", error: undefined } : item));
 
@@ -148,19 +198,37 @@ export function AiChatComposer({
   }
 
   async function addFiles(files: FileList | File[]) {
-    const nextFiles = Array.from(files).slice(0, Math.max(0, 10 - attachments.length));
+    const available = Math.max(0, MAX_ATTACHMENTS - attachments.length);
+    const nextFiles = Array.from(files).slice(0, available);
     if (!nextFiles.length) return;
 
     setError(null);
-    const next = nextFiles.map((file) => ({
-      key: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
-      file,
-      status: "checking" as const,
-    }));
+    const existingImages = attachments.filter((attachment) => attachment.kind === "image").length;
+    let imageSlots = Math.max(0, MAX_IMAGES - existingImages);
+    const next: Attachment[] = [];
+
+    for (const file of nextFiles) {
+      const looksLikeImage = file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp)$/i.test(file.name);
+      if (looksLikeImage) {
+        if (imageSlots <= 0) {
+          setError(`You can attach up to ${MAX_IMAGES} images per message.`);
+          continue;
+        }
+        imageSlots -= 1;
+      }
+      next.push({
+        key: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        file,
+        kind: looksLikeImage ? "image" : "sequence",
+        status: "checking",
+      });
+    }
+
+    if (!next.length) return;
     setAttachments((current) => [...current, ...next]);
 
     for (const attachment of next) {
-      void uploadOne(attachment.file, attachment.key);
+      void uploadOne(attachment.file, attachment.key, attachment.kind);
     }
   }
 
@@ -183,15 +251,15 @@ export function AiChatComposer({
       setError("Remove failed attachments before sending.");
       return;
     }
-    if (!trimmed && readyAttachmentIds.length === 0) {
-      setError("Type a message or attach a sequence file.");
+    if (!trimmed && readyAttachmentIds.length === 0 && readyMediaAttachments.length === 0) {
+      setError("Type a message or attach a sequence file or image.");
       return;
     }
 
     setSending(true);
     setError(null);
     setLiveAssistantMessage("");
-    setLiveUserMessage(trimmed || "Attached biological data for analysis.");
+    setLiveUserMessage(trimmed || "Attached files for analysis.");
 
     try {
       const response = await fetch("/api/ai/chat", {
@@ -202,6 +270,7 @@ export function AiChatComposer({
           conversation_id: conversationId,
           user_message: trimmed,
           attachment_upload_ids: readyAttachmentIds,
+          media_attachments: readyMediaAttachments,
         }),
       });
 
@@ -290,21 +359,40 @@ export function AiChatComposer({
             <span>You</span>
             <p>{liveUserMessage}</p>
           </div>
-          {sending ? (
-            <div className={styles.liveAssistant}>
-              <span>Genithm</span>
-              <p className={styles.thinking}>Thinking…</p>
-            </div>
-          ) : liveAssistantMessage ? (
+          {liveAssistantMessage ? (
             <div className={styles.liveAssistant}>
               <span>Genithm</span>
               <p>{liveAssistantMessage}</p>
+            </div>
+          ) : sending ? (
+            <div className={styles.liveAssistant}>
+              <span>Genithm</span>
+              <p className={styles.thinking}>Thinking…</p>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className={styles.composer}>
+      <div
+        className={`${styles.composer} ${dragActive ? styles.dragActive : ""}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setDragActive(false);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+          if (event.dataTransfer.files?.length) void addFiles(event.dataTransfer.files);
+        }}
+      >
         {projects.length > 1 ? (
           <div className={styles.projectRow}>
             <span>Project</span>
@@ -322,6 +410,9 @@ export function AiChatComposer({
           <div className={styles.attachments}>
             {attachments.map((attachment) => (
               <div className={styles.attachment} key={attachment.key}>
+                {attachment.kind === "image" && attachment.dataUrl ? (
+                  <img className={styles.attachmentPreview} src={attachment.dataUrl} alt="" />
+                ) : null}
                 <div>
                   <strong>{attachment.file.name}</strong>
                   <span>
@@ -361,7 +452,7 @@ export function AiChatComposer({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".fa,.fasta,.fna,.faa,.fas,.txt,text/plain"
+              accept=".fa,.fasta,.fna,.faa,.fas,.txt,text/plain,image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
               className={styles.fileInput}
               onChange={(event) => {
                 if (event.target.files) void addFiles(event.target.files);
@@ -372,14 +463,14 @@ export function AiChatComposer({
               className={styles.attachButton}
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={sending || attachments.length >= 10}
-              aria-label="Attach biological sequence files"
-              title="Attach FASTA files"
+              disabled={sending || attachments.length >= MAX_ATTACHMENTS}
+              aria-label="Attach sequence files or images"
+              title="Attach FASTA files or images"
             >
               <span aria-hidden="true">＋</span>
               Attach
             </button>
-            <span className={styles.hint}>FASTA/text · up to 10 files · 50 MiB each</span>
+            <span className={styles.hint}>FASTA/text or images · drag & drop supported</span>
           </div>
           <button className="button primary" type="button" onClick={() => void send()} disabled={sending || busyUploading}>
             {sending ? "Thinking…" : "Send"}
