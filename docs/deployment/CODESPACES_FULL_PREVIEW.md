@@ -40,11 +40,12 @@ Create a Codespace from `main`, then run from the repository root:
 bash scripts/codespaces_preview.sh
 ```
 
-The launcher prints the Genithm web preview URL only after Supabase Auth confirms email login/signup are enabled, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
+The launcher resolves the latest coordinated V1 candidate revision from `release/v1/candidate.json`, requires the API and all six worker images for that same revision to exist in GHCR, and only then starts the preview. It prints the Genithm web preview URL only after Supabase Auth confirms email login/signup are enabled, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
 
 ## Notes
 
 - The preview object-storage credentials and audit-signing key are generated automatically for the Codespace session.
+- The local Next.js web source may be newer than the coordinated backend candidate, but API and all six workers are always pinned to one same release revision. The launcher prints both revisions when they differ.
 - The preview object storage is temporary and is not production R2.
 - The web app proxies API requests through its own origin so the browser only needs the port-3000 preview URL.\n- Signup confirmation redirects use the server-side `GENITHM_APP_URL`; the browser cannot override the confirmation origin.\n- If any worker fails to heartbeat or a required queue is missing, the launcher exits non-zero and prints the readiness result instead of reporting a healthy preview.
 - Stopping/deleting the Codespace stops the API and workers. This is not a 24/7 production deployment.
