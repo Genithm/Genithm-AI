@@ -1,3 +1,10 @@
+insert into app_private.scientific_rate_limit_policies(action,window_seconds,user_limit,organization_limit)
+values ('ai_chat',60,60,600)
+on conflict (action) do update
+set window_seconds=excluded.window_seconds,
+    user_limit=excluded.user_limit,
+    organization_limit=excluded.organization_limit;
+
 alter table public.ai_plan_requests
   add column if not exists attachment_upload_ids uuid[] not null default '{}'::uuid[];
 
@@ -78,7 +85,7 @@ begin
     raise exception 'project write access denied' using errcode='42501';
   end if;
 
-  perform app_private.consume_scientific_rate_limit('ai_planning',caller_id,org_id);
+  perform app_private.consume_scientific_rate_limit('ai_chat',caller_id,org_id);
 
   if cardinality(attachment_ids) > 0 then
     select count(*) into attachment_count
