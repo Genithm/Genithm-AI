@@ -8,6 +8,9 @@ def main() -> int:
     primary_nav = (ROOT / "apps/web/components/dashboard-primary-nav.tsx").read_text(encoding="utf-8")
     section_nav = (ROOT / "apps/web/components/dashboard-section-navigator.tsx").read_text(encoding="utf-8")
     section_css = (ROOT / "apps/web/app/dashboard/dashboard-section-nav.css").read_text(encoding="utf-8")
+    dashboard_home = (ROOT / "apps/web/app/dashboard/page.tsx").read_text(encoding="utf-8")
+    chat_home = (ROOT / "apps/web/app/dashboard/ai/page.tsx").read_text(encoding="utf-8")
+    chat_conversation = (ROOT / "apps/web/app/dashboard/ai/[id]/page.tsx").read_text(encoding="utf-8")
 
     assert "DashboardPrimaryNav" in layout
     assert 'aria-label="Workspace navigation"' in primary_nav
@@ -19,6 +22,16 @@ def main() -> int:
     assert ".dashboard-nav-link.is-active" in section_css
     assert ".dashboard-section-link.is-active" in section_css
     assert "prefers-reduced-motion" in section_css
+
+    assert 'redirect("/dashboard/ai")' in dashboard_home
+    assert 'label: "Chat"' in primary_nav
+    assert 'label: "Advanced tools"' in primary_nav
+    assert 'aria-label="Message Genithm"' in chat_home
+    assert '/dashboard/tools' in chat_home
+    assert 'aria-label="Reply to Genithm"' in chat_conversation
+    assert 'action={requestAiPlan}' in chat_conversation
+    assert 'action={approveAiPlan}' in chat_conversation
+    assert 'Research activity' in chat_conversation
 
     print("PASS: V1 dashboard UI shell contract")
     return 0
