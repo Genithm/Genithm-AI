@@ -1,100 +1,36 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { aiEvidenceExplorerHref, aiEvidenceFactHref } from "@/lib/ai-evidence-links";
 import { createClient } from "@/lib/supabase/server";
-import { approveAiPlan, requestAiEvidenceFollowup, requestAiInterpretation, requestAiPlan } from "../actions";
+import { approveAiPlan, requestAiInterpretation, requestAiPlan } from "../actions";
+import styles from "./conversation.module.css";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function planParts(value: unknown) {
-  if (!isRecord(value)) return { summary: null as string | null, limitations: [] as string[], action: null as Record<string, unknown> | null };
-  return {
-    summary: typeof value.summary === "string" ? value.summary : null,
-    limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
-    action: isRecord(value.action) ? value.action : null,
-  };
+function readable(value: string | null | undefined) {
+  return (value ?? "unknown").replaceAll("_", " ");
 }
 
-function interpretationParts(value: unknown) {
-  if (!isRecord(value)) return { summary: null as string | null, findings: [] as Array<{ statement: string; evidenceIds: string[] }>, limitations: [] as string[] };
-  const findings = Array.isArray(value.findings)
-    ? value.findings.flatMap((item) => {
-        if (!isRecord(item) || typeof item.statement !== "string" || !Array.isArray(item.evidence_ids)) return [];
-        const evidenceIds = item.evidence_ids.filter((evidenceId): evidenceId is string => typeof evidenceId === "string");
-        return [{ statement: item.statement, evidenceIds }];
-      })
-    : [];
-  return {
-    summary: typeof value.summary === "string" ? value.summary : null,
-    findings,
-    limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
-  };
+function planSummary(value: unknown) {
+  if (!isRecord(value)) return null;
+  return typeof value.summary === "string" ? value.summary : null;
 }
 
-function followupParts(value: unknown) {
-  const empty = {
-    status: null as string | null,
-    directAnswer: null as { statement: string; evidenceIds: string[] } | null,
-    supportingPoints: [] as Array<{ statement: string; evidenceIds: string[] }>,
-    limitations: [] as string[],
-  };
-  if (!isRecord(value)) return empty;
-  const grounded = (item: unknown) => {
-    if (!isRecord(item) || typeof item.statement !== "string" || !Array.isArray(item.evidence_ids)) return null;
-    return {
-      statement: item.statement,
-      evidenceIds: item.evidence_ids.filter((evidenceId): evidenceId is string => typeof evidenceId === "string"),
-    };
-  };
-  const directAnswer = grounded(value.direct_answer);
-  const supportingPoints = Array.isArray(value.supporting_points)
-    ? value.supporting_points.flatMap((item) => {
-        const point = grounded(item);
-        return point ? [point] : [];
-      })
-    : [];
-  return {
-    status: typeof value.status === "string" ? value.status : null,
-    directAnswer,
-    supportingPoints,
-    limitations: Array.isArray(value.limitations) ? value.limitations.filter((item): item is string => typeof item === "string") : [],
-  };
+function interpretationSummary(value: unknown) {
+  if (!isRecord(value)) return null;
+  return typeof value.summary === "string" ? value.summary : null;
 }
 
-function dispatchedHref(resourceType: string | null, resourceId: string | null) {
+function resultHref(resourceType: string | null, resourceId: string | null) {
   if (!resourceId) return null;
   if (resourceType === "scientific_job") return `/dashboard/scientific-jobs/${resourceId}`;
   if (resourceType === "protein_annotation_job") return `/dashboard/protein-annotations/${resourceId}`;
   return null;
 }
 
-function EvidenceLinks({ interpretationId, evidenceIds }: { interpretationId: string; evidenceIds: string[] }) {
-  if (!evidenceIds.length) return null;
-  return (
-    <div className="small">
-      Evidence:{" "}
-      {evidenceIds.map((evidenceId, index) => (
-        <span key={`${interpretationId}-${evidenceId}`}>
-          {index ? ", " : ""}
-          <Link href={aiEvidenceFactHref(interpretationId, evidenceId)}><code>{evidenceId}</code></Link>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function resourceKey(resourceType: string, resourceId: string) {
-  return `${resourceType}:${resourceId}`;
-}
-
-function readable(value: string) {
-  return value.replaceAll("_", " ");
-}
-
-function canInterpret(resourceType: string | null, status: string | null) {
+function isInterpretationEligible(resourceType: string | null, status: string | null) {
   if (!resourceType || !status) return false;
   if (resourceType === "scientific_job" || resourceType === "blast_job") return status === "completed";
   if (resourceType === "protein_annotation_job") return status === "completed" || status === "no_mapping";
@@ -102,373 +38,208 @@ function canInterpret(resourceType: string | null, status: string | null) {
   return false;
 }
 
-type ExecutionState = {
-  status: string;
-  updatedAt: string;
-  label: string;
-  error: string | null;
-  summary: unknown | null;
-  provenance: string[];
-};
-
-export default async function AiConversationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function AiConversationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
   const query = await searchParams;
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
 
-  const { data: conversation, error } = await supabase.from("ai_conversations")
+  const { data: conversation } = await supabase
+    .from("ai_conversations")
     .select("id,project_id,title,status,created_at,updated_at")
     .eq("id", id)
     .maybeSingle();
-  if (error || !conversation) notFound();
 
-  const [{ data: messages }, { data: plans }, { data: interpretations }, { data: followups }, { data: project }] = await Promise.all([
-    supabase.from("ai_messages")
+  if (!conversation) notFound();
+
+  const [{ data: project }, { data: messages }, { data: plans }, { data: interpretations }] = await Promise.all([
+    supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
+    supabase
+      .from("ai_messages")
       .select("id,role,content,message_kind,plan_request_id,created_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
-      .limit(200),
-    supabase.from("ai_plan_requests")
-      .select("id,status,provider,model,prompt_version,policy_version,plan_schema_version,plan,plan_sha256,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_attempts,processing_started_at,processing_finished_at,processing_error,created_at")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase.from("ai_interpretation_requests")
-      .select("id,plan_request_id,status,evidence_schema_version,evidence_sha256,provider,model,prompt_version,policy_version,interpretation_schema_version,interpretation,interpretation_sha256,processing_attempts,processing_error,created_at,updated_at")
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase.from("ai_evidence_followup_requests")
-      .select("id,interpretation_request_id,question,question_sha256,evidence_sha256,status,provider,model,prompt_version,policy_version,answer_schema_version,answer,answer_sha256,processing_attempts,processing_error,created_at,updated_at")
+      .limit(250),
+    supabase
+      .from("ai_plan_requests")
+      .select("id,status,plan,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_error,created_at,updated_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .limit(100),
-    supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
+    supabase
+      .from("ai_interpretation_requests")
+      .select("id,plan_request_id,status,interpretation,processing_error,created_at")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
-  const interpretationByPlan = new Map((interpretations ?? []).map((item) => [item.plan_request_id, item]));
-  const followupsByInterpretation = new Map<string, NonNullable<typeof followups>>();
-  for (const item of followups ?? []) {
-    const existing = followupsByInterpretation.get(item.interpretation_request_id) ?? [];
-    existing.push(item);
-    followupsByInterpretation.set(item.interpretation_request_id, existing);
-  }
+  const dispatched = (plans ?? []).filter(
+    (plan) => plan.dispatched_resource_type && plan.dispatched_resource_id,
+  );
+  const scientificIds = dispatched
+    .filter((plan) => plan.dispatched_resource_type === "scientific_job")
+    .map((plan) => plan.dispatched_resource_id as string);
+  const annotationIds = dispatched
+    .filter((plan) => plan.dispatched_resource_type === "protein_annotation_job")
+    .map((plan) => plan.dispatched_resource_id as string);
+  const retrievalIds = dispatched
+    .filter((plan) => plan.dispatched_resource_type === "sequence_retrieval")
+    .map((plan) => plan.dispatched_resource_id as string);
+  const blastIds = dispatched
+    .filter((plan) => plan.dispatched_resource_type === "blast_job")
+    .map((plan) => plan.dispatched_resource_id as string);
 
-  const dispatched = (plans ?? []).filter((plan) => plan.status === "dispatched" && plan.dispatched_resource_type && plan.dispatched_resource_id);
-  const scientificIds = dispatched.filter((plan) => plan.dispatched_resource_type === "scientific_job").map((plan) => plan.dispatched_resource_id as string);
-  const annotationIds = dispatched.filter((plan) => plan.dispatched_resource_type === "protein_annotation_job").map((plan) => plan.dispatched_resource_id as string);
-  const retrievalIds = dispatched.filter((plan) => plan.dispatched_resource_type === "sequence_retrieval").map((plan) => plan.dispatched_resource_id as string);
-  const blastIds = dispatched.filter((plan) => plan.dispatched_resource_type === "blast_job").map((plan) => plan.dispatched_resource_id as string);
-
-  const loadScientificStates = async () => {
-    if (!scientificIds.length) return [];
-    const { data } = await supabase.from("scientific_jobs")
-      .select("id,status,job_type,tool_id,tool_version,executor_version,result_sha256,result_summary,provenance,failure_class,processing_error,updated_at")
-      .in("id", scientificIds);
-    return data ?? [];
-  };
-  const loadAnnotationStates = async () => {
-    if (!annotationIds.length) return [];
-    const { data } = await supabase.from("protein_annotation_jobs")
-      .select("id,status,refseq_accession,uniprot_accession,uniprot_reviewed,protein_name,organism_name,connector_version,source_checked_at,annotation_summary,processing_error,updated_at")
-      .in("id", annotationIds);
-    return data ?? [];
-  };
-  const loadRetrievalStates = async () => {
-    if (!retrievalIds.length) return [];
-    const { data } = await supabase.from("sequence_retrievals")
-      .select("id,status,source_provider,source_database,requested_accession,resolved_accession,record_title,organism,connector_version,source_checked_at,source_retrieved_at,source_response_sha256,result_message,processing_error,updated_at")
-      .in("id", retrievalIds);
-    return data ?? [];
-  };
-  const loadBlastStates = async () => {
-    if (!blastIds.length) return [];
-    const { data } = await supabase.from("blast_jobs")
-      .select("id,status,program,database_name,service_provider,service_mode,service_version,blast_version,database_release,result_summary,raw_result_sha256,processing_error,updated_at")
-      .in("id", blastIds);
-    return data ?? [];
-  };
-
-  const [scientificStates, annotationStates, retrievalStates, blastStates] = await Promise.all([
-    loadScientificStates(), loadAnnotationStates(), loadRetrievalStates(), loadBlastStates(),
+  const [scientific, annotations, retrievals, blasts] = await Promise.all([
+    scientificIds.length
+      ? supabase.from("scientific_jobs").select("id,status,job_type,processing_error,updated_at").in("id", scientificIds)
+      : Promise.resolve({ data: [] }),
+    annotationIds.length
+      ? supabase.from("protein_annotation_jobs").select("id,status,processing_error,updated_at").in("id", annotationIds)
+      : Promise.resolve({ data: [] }),
+    retrievalIds.length
+      ? supabase.from("sequence_retrievals").select("id,status,processing_error,updated_at").in("id", retrievalIds)
+      : Promise.resolve({ data: [] }),
+    blastIds.length
+      ? supabase.from("blast_jobs").select("id,status,processing_error,updated_at").in("id", blastIds)
+      : Promise.resolve({ data: [] }),
   ]);
 
-  const executionByResource = new Map<string, ExecutionState>();
-  for (const state of scientificStates) {
-    executionByResource.set(resourceKey("scientific_job", state.id), {
-      status: state.status,
-      updatedAt: state.updated_at,
-      label: `${readable(state.job_type)} · ${state.tool_id}/${state.tool_version}`,
-      error: state.processing_error,
-      summary: state.result_summary,
-      provenance: [
-        state.executor_version ? `Executor ${state.executor_version}` : null,
-        state.result_sha256 ? `Result SHA-256 ${state.result_sha256}` : null,
-        state.failure_class ? `Failure class ${readable(state.failure_class)}` : null,
-        state.provenance ? "Structured execution provenance recorded" : null,
-      ].filter((item): item is string => Boolean(item)),
-    });
-  }
-  for (const state of annotationStates) {
-    executionByResource.set(resourceKey("protein_annotation_job", state.id), {
-      status: state.status,
-      updatedAt: state.updated_at,
-      label: `protein annotation evidence · RefSeq ${state.refseq_accession}`,
-      error: state.processing_error,
-      summary: state.annotation_summary,
-      provenance: [
-        state.protein_name ? `Protein ${state.protein_name}` : null,
-        state.organism_name ? `Organism ${state.organism_name}` : null,
-        state.uniprot_accession ? `UniProt ${state.uniprot_accession}${state.uniprot_reviewed === null ? "" : state.uniprot_reviewed ? " · reviewed" : " · unreviewed"}` : null,
-        state.connector_version ? `Connector ${state.connector_version}` : null,
-        state.source_checked_at ? `Sources checked ${new Date(state.source_checked_at).toLocaleString()}` : null,
-      ].filter((item): item is string => Boolean(item)),
-    });
-  }
-  for (const state of retrievalStates) {
-    executionByResource.set(resourceKey("sequence_retrieval", state.id), {
-      status: state.status,
-      updatedAt: state.updated_at,
-      label: `${state.source_provider}/${state.source_database} sequence retrieval`,
-      error: state.processing_error,
-      summary: {
-        requested_accession: state.requested_accession,
-        resolved_accession: state.resolved_accession,
-        record_title: state.record_title,
-        organism: state.organism,
-        result_message: state.result_message,
-      },
-      provenance: [
-        state.connector_version ? `Connector ${state.connector_version}` : null,
-        state.source_checked_at ? `Source checked ${new Date(state.source_checked_at).toLocaleString()}` : null,
-        state.source_retrieved_at ? `Source retrieved ${new Date(state.source_retrieved_at).toLocaleString()}` : null,
-        state.source_response_sha256 ? `Source response SHA-256 ${state.source_response_sha256}` : null,
-      ].filter((item): item is string => Boolean(item)),
-    });
-  }
-  for (const state of blastStates) {
-    executionByResource.set(resourceKey("blast_job", state.id), {
-      status: state.status,
-      updatedAt: state.updated_at,
-      label: `${state.program} · ${state.database_name} · ${state.service_provider}/${state.service_mode}`,
-      error: state.processing_error,
-      summary: state.result_summary,
-      provenance: [
-        state.service_version ? `Service ${state.service_version}` : null,
-        state.blast_version ? `BLAST ${state.blast_version}` : null,
-        state.database_release ? `Database release ${state.database_release}` : null,
-        state.raw_result_sha256 ? `Raw result SHA-256 ${state.raw_result_sha256}` : null,
-      ].filter((item): item is string => Boolean(item)),
-    });
+  const execution = new Map<string, { status: string; error: string | null; updated_at: string }>();
+  for (const row of scientific.data ?? []) execution.set(`scientific_job:${row.id}`, row);
+  for (const row of annotations.data ?? []) execution.set(`protein_annotation_job:${row.id}`, row);
+  for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, row);
+  for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, row);
+
+  const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
+  for (const item of interpretations ?? []) {
+    if (!interpretationByPlan.has(item.plan_request_id)) interpretationByPlan.set(item.plan_request_id, item);
   }
 
   return (
-    <main className="container dashboard">
-      <header className="dashboard-header">
-        <div>
-          <div className="eyebrow">Genithm AI conversation</div>
-          <h2>{conversation.title}</h2>
-          <p className="small">{project?.name ?? "Project"} · conversation {conversation.id}</p>
+    <main className={styles.shell}>
+      <aside className={styles.sidebar}>
+        <Link className={styles.back} href="/dashboard/ai">← Chats</Link>
+        <div className={styles.projectBlock}>
+          <div className="eyebrow">Project</div>
+          <strong>{project?.name ?? "Research project"}</strong>
         </div>
-        <div className="actions" style={{ marginTop: 0 }}>
-          <Link className="button" href={`/dashboard/ai/${conversation.id}`}>Refresh execution state</Link>
-          <Link className="button" href="/dashboard/ai">AI workspace</Link>
-          <Link className="button" href="/dashboard">Dashboard</Link>
+        <Link href="/dashboard/tools">Advanced tools</Link>
+        <Link href="/dashboard/reports">Reports</Link>
+      </aside>
+
+      <section className={styles.main}>
+        <header className={styles.header}>
+          <div>
+            <div className="eyebrow">Genithm chat</div>
+            <h1>{conversation.title}</h1>
+          </div>
+          <Link className="button" href={`/dashboard/ai/${conversation.id}`}>Refresh</Link>
+        </header>
+
+        {query.error ? <div className="error">{query.error}</div> : null}
+
+        <div className={styles.thread} aria-live="polite">
+          {(messages ?? []).map((message) => (
+            <article
+              className={message.role === "user" ? styles.userMessage : styles.assistantMessage}
+              key={message.id}
+            >
+              <div className={styles.messageMeta}>
+                {message.role === "user" ? "You" : "Genithm"}
+              </div>
+              <div className={styles.messageBody}>{message.content}</div>
+            </article>
+          ))}
+          {!messages?.length ? (
+            <div className={styles.empty}>Ask Genithm what you want to do with your biological data.</div>
+          ) : null}
         </div>
-      </header>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-
-      <section className="card">
-        <div className="eyebrow">Continue</div>
-        <h3>Ask for another single scientific action</h3>
-        <form action={requestAiPlan} className="stack">
+        <form action={requestAiPlan} className={styles.composer}>
           <input type="hidden" name="project_id" value={conversation.project_id} />
           <input type="hidden" name="conversation_id" value={conversation.id} />
-          <label>
-            Request
-            <textarea name="user_message" minLength={1} maxLength={8000} required placeholder="Describe the next scientific action. The planner will not execute it automatically." />
-          </label>
-          <button className="button primary">Create plan</button>
+          <textarea
+            name="user_message"
+            minLength={1}
+            maxLength={8000}
+            required
+            aria-label="Reply to Genithm"
+            placeholder="Reply to Genithm… provide the sequence, accession, dataset name, or scientific goal it asked for."
+          />
+          <div className={styles.composerFooter}>
+            <span>Genithm checks project context before asking for missing prerequisites.</span>
+            <button className="button primary" type="submit">Send</button>
+          </div>
         </form>
-        <div className="notice" style={{ marginTop: 14 }}>Conversation history is supplied to the planner only as bounded untrusted data. Previous assistant text cannot grant permissions or bypass the execution policy.</div>
-      </section>
 
-      <section className="card" style={{ marginTop: 18 }}>
-        <div className="eyebrow">Planning lifecycle</div>
-        <h3>Plans</h3>
-        <div className="list">
-          {(plans ?? []).map((plan) => {
-            const parsed = planParts(plan.plan);
-            const action = parsed.action;
-            const parameters = action && isRecord(action.parameters) ? action.parameters : null;
-            const href = dispatchedHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
-            const execution = plan.dispatched_resource_type && plan.dispatched_resource_id
-              ? executionByResource.get(resourceKey(plan.dispatched_resource_type, plan.dispatched_resource_id))
-              : null;
-            const interpretation = interpretationByPlan.get(plan.id);
-            const interpreted = interpretationParts(interpretation?.interpretation);
-            const interpretationEligible = canInterpret(plan.dispatched_resource_type, execution?.status ?? null);
-            const interpretationFollowups = interpretation ? followupsByInterpretation.get(interpretation.id) ?? [] : [];
-            return (
-              <div className="item" key={plan.id}>
-                <div className="dashboard-header">
-                  <div>
-                    <strong>{plan.action_type ? readable(plan.action_type) : readable(plan.status)}</strong>
-                    <div className="small">Plan status: {readable(plan.status)} · attempts {plan.processing_attempts} · created {new Date(plan.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    {plan.status === "ready" && plan.requires_confirmation ? (
-                      <form action={approveAiPlan}>
-                        <input type="hidden" name="plan_request_id" value={plan.id} />
-                        <input type="hidden" name="conversation_id" value={conversation.id} />
-                        <button className="button primary">Approve &amp; run</button>
-                      </form>
-                    ) : null}
-                    {plan.status === "dispatched" && href ? <Link className="button" href={href}>Open dispatched work</Link> : null}
-                    {plan.status === "dispatched" && execution && interpretationEligible && !interpretation ? (
-                      <form action={requestAiInterpretation}>
-                        <input type="hidden" name="plan_request_id" value={plan.id} />
-                        <input type="hidden" name="conversation_id" value={conversation.id} />
-                        <button className="button primary">Interpret recorded result</button>
-                      </form>
-                    ) : null}
-                  </div>
-                </div>
+        <details className={styles.activity} open>
+          <summary>Research activity</summary>
+          <div className={styles.activityList}>
+            {(plans ?? []).map((plan) => {
+              const resourceKey =
+                plan.dispatched_resource_type && plan.dispatched_resource_id
+                  ? `${plan.dispatched_resource_type}:${plan.dispatched_resource_id}`
+                  : null;
+              const state = resourceKey ? execution.get(resourceKey) : null;
+              const href = resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
+              const interpretation = interpretationByPlan.get(plan.id);
 
-                {parsed.summary ? <p>{parsed.summary}</p> : null}
-                {parsed.limitations.length ? <div className="notice"><strong>Limitations</strong><div className="small">{parsed.limitations.join(" · ")}</div></div> : null}
-                {parameters ? <details style={{ marginTop: 12 }}><summary>Planned parameters</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(parameters, null, 2)}</pre></details> : null}
-                {plan.plan_sha256 ? <div className="small">Plan SHA-256: <code>{plan.plan_sha256}</code></div> : null}
-                {plan.provider || plan.model ? <div className="small">Planner: {plan.provider ?? "unknown"}/{plan.model ?? "unknown"}{plan.prompt_version ? ` · prompt ${plan.prompt_version}` : ""} · policy {plan.policy_version}</div> : <div className="small">Policy: {plan.policy_version}</div>}
-                {plan.processing_error ? <div className="error">Planning error: {plan.processing_error}</div> : null}
-                {plan.status === "ready" ? <div className="notice" style={{ marginTop: 12 }}>Approval does not trust the model output directly. Genithm revalidates the action, current project authorization, referenced resource IDs, and tool-specific constraints before dispatch.</div> : null}
-
-                {plan.status === "dispatched" ? (
-                  <div className="notice" style={{ marginTop: 12 }}>
-                    <strong>Authoritative execution state</strong>
-                    {execution ? (
-                      <>
-                        <div className="small">Status: {readable(execution.status)} · updated {new Date(execution.updatedAt).toLocaleString()}</div>
-                        <div className="small">{execution.label}</div>
-                        {execution.error ? <div className="error">Execution error: {execution.error}</div> : null}
-                        {execution.provenance.length ? <div className="small" style={{ marginTop: 8 }}>{execution.provenance.join(" · ")}</div> : null}
-                        {execution.summary !== null ? (
-                          <details style={{ marginTop: 10 }}>
-                            <summary>Authoritative result summary</summary>
-                            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(execution.summary, null, 2)}</pre>
-                          </details>
-                        ) : null}
-                        {interpretationEligible && !interpretation ? <div className="small" style={{ marginTop: 8 }}>This terminal result is eligible for a separate evidence-grounded AI explanation. The evidence snapshot is frozen before it is sent to the interpreter.</div> : null}
-                      </>
-                    ) : (
-                      <div className="small">The dispatched resource is not currently visible in your authorized project scope. Genithm does not infer a result or completion state when the authoritative record cannot be read.</div>
-                    )}
-                  </div>
-                ) : null}
-
-                {interpretation ? (
-                  <div className="notice" style={{ marginTop: 12 }}>
-                    <div className="dashboard-header">
-                      <strong>Evidence-grounded AI interpretation</strong>
-                      <Link className="button" href={aiEvidenceExplorerHref(interpretation.id)}>Inspect frozen evidence</Link>
+              return (
+                <div className={styles.activityCard} key={plan.id}>
+                  <div className={styles.activityHeader}>
+                    <div>
+                      <strong>{plan.action_type ? readable(plan.action_type) : readable(plan.status)}</strong>
+                      <div className={styles.muted}>
+                        Plan {readable(plan.status)}
+                        {state ? ` · execution ${readable(state.status)}` : ""}
+                      </div>
                     </div>
-                    <div className="small">Status: {readable(interpretation.status)} · attempts {interpretation.processing_attempts} · evidence SHA-256 <code>{interpretation.evidence_sha256}</code></div>
-                    {interpretation.provider || interpretation.model ? <div className="small">Interpreter: {interpretation.provider ?? "unknown"}/{interpretation.model ?? "unknown"}{interpretation.prompt_version ? ` · prompt ${interpretation.prompt_version}` : ""} · policy {interpretation.policy_version}</div> : <div className="small">Policy: {interpretation.policy_version}</div>}
-                    {interpretation.processing_error ? <div className="error">Interpretation error: {interpretation.processing_error}</div> : null}
-                    {interpretation.status === "completed" && interpreted.summary ? (
-                      <>
-                        <p>{interpreted.summary}</p>
-                        {interpreted.findings.length ? (
-                          <div className="list">
-                            {interpreted.findings.map((finding, index) => (
-                              <div className="item" key={`${interpretation.id}-finding-${index}`}>
-                                <div>{finding.statement}</div>
-                                <EvidenceLinks interpretationId={interpretation.id} evidenceIds={finding.evidenceIds} />
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                        {interpreted.limitations.length ? <div className="small" style={{ marginTop: 8 }}><strong>Interpretation limits:</strong> {interpreted.limitations.join(" · ")}</div> : null}
-                        {interpretation.interpretation_sha256 ? <div className="small" style={{ marginTop: 8 }}>Interpretation SHA-256: <code>{interpretation.interpretation_sha256}</code></div> : null}
-
-                        <div className="item" style={{ marginTop: 12 }}>
-                          <strong>Ask about this recorded evidence</strong>
-                          <form action={requestAiEvidenceFollowup} className="stack" style={{ marginTop: 8 }}>
-                            <input type="hidden" name="interpretation_request_id" value={interpretation.id} />
-                            <input type="hidden" name="conversation_id" value={conversation.id} />
-                            <label>
-                              Evidence-only question
-                              <textarea name="question" minLength={1} maxLength={4000} required placeholder="Ask what the frozen recorded evidence shows or does not establish." />
-                            </label>
-                            <button className="button primary">Ask from frozen evidence</button>
-                          </form>
-                          <div className="small" style={{ marginTop: 8 }}>The responder receives this question plus the same frozen evidence snapshot only. It cannot search the web, rerun tools, or use missing facts as negative evidence.</div>
-                        </div>
-
-                        {interpretationFollowups.length ? (
-                          <div className="list" style={{ marginTop: 12 }}>
-                            {interpretationFollowups.map((followup) => {
-                              const parsedFollowup = followupParts(followup.answer);
-                              return (
-                                <div className="item" key={followup.id}>
-                                  <strong>You asked</strong>
-                                  <p style={{ whiteSpace: "pre-wrap" }}>{followup.question}</p>
-                                  <div className="small">Status: {readable(followup.status)} · attempts {followup.processing_attempts} · created {new Date(followup.created_at).toLocaleString()}</div>
-                                  <div className="small">Question SHA-256: <code>{followup.question_sha256}</code> · evidence SHA-256: <code>{followup.evidence_sha256}</code></div>
-                                  {followup.provider || followup.model ? <div className="small">Responder: {followup.provider ?? "unknown"}/{followup.model ?? "unknown"}{followup.prompt_version ? ` · prompt ${followup.prompt_version}` : ""} · policy {followup.policy_version}</div> : <div className="small">Policy: {followup.policy_version}</div>}
-                                  {followup.processing_error ? <div className="error">Follow-up error: {followup.processing_error}</div> : null}
-                                  {followup.status === "completed" && parsedFollowup.directAnswer ? (
-                                    <div className="notice" style={{ marginTop: 8 }}>
-                                      <strong>{parsedFollowup.status === "insufficient_evidence" ? "Recorded evidence is insufficient" : "Evidence-grounded answer"}</strong>
-                                      <p>{parsedFollowup.directAnswer.statement}</p>
-                                      <EvidenceLinks interpretationId={interpretation.id} evidenceIds={parsedFollowup.directAnswer.evidenceIds} />
-                                      {parsedFollowup.supportingPoints.length ? (
-                                        <div className="list" style={{ marginTop: 8 }}>
-                                          {parsedFollowup.supportingPoints.map((point, index) => (
-                                            <div className="item" key={`${followup.id}-point-${index}`}>
-                                              <div>{point.statement}</div>
-                                              <EvidenceLinks interpretationId={interpretation.id} evidenceIds={point.evidenceIds} />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : null}
-                                      {parsedFollowup.limitations.length ? <div className="small" style={{ marginTop: 8 }}><strong>Limits:</strong> {parsedFollowup.limitations.join(" · ")}</div> : null}
-                                      {followup.answer_sha256 ? <div className="small" style={{ marginTop: 8 }}>Answer SHA-256: <code>{followup.answer_sha256}</code></div> : null}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                    <div className="small" style={{ marginTop: 8 }}>This is model reasoning over frozen recorded evidence, not a new experiment, source lookup, tool run, or independent scientific verification.</div>
+                    <div className={styles.actions}>
+                      {plan.status === "ready" && plan.requires_confirmation ? (
+                        <form action={approveAiPlan}>
+                          <input type="hidden" name="plan_request_id" value={plan.id} />
+                          <input type="hidden" name="conversation_id" value={conversation.id} />
+                          <button className="button primary" type="submit">Approve & run</button>
+                        </form>
+                      ) : null}
+                      {href ? <Link className="button" href={href}>Open result</Link> : null}
+                      {plan.status === "dispatched" &&
+                      state &&
+                      isInterpretationEligible(plan.dispatched_resource_type, state.status) &&
+                      !interpretation ? (
+                        <form action={requestAiInterpretation}>
+                          <input type="hidden" name="plan_request_id" value={plan.id} />
+                          <input type="hidden" name="conversation_id" value={conversation.id} />
+                          <button className="button" type="submit">Explain result</button>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
-          {!plans?.length ? <div className="notice">No plans have been created in this conversation yet.</div> : null}
-        </div>
-      </section>
 
-      <section className="card" style={{ marginTop: 18 }}>
-        <div className="eyebrow">Conversation record</div>
-        <h3>Messages</h3>
-        <div className="list">
-          {(messages ?? []).map((message) => (
-            <div className="item" key={message.id}>
-              <strong>{message.role === "user" ? "You" : "Genithm AI"}</strong>
-              <div className="small">{readable(message.message_kind)} · {new Date(message.created_at).toLocaleString()}</div>
-              <p style={{ whiteSpace: "pre-wrap" }}>{message.content}</p>
-            </div>
-          ))}
-          {!messages?.length ? <div className="notice">No messages yet.</div> : null}
-        </div>
+                  {planSummary(plan.plan) ? <p>{planSummary(plan.plan)}</p> : null}
+                  {state?.error ? <div className="error">{state.error}</div> : null}
+                  {plan.processing_error ? <div className="error">{plan.processing_error}</div> : null}
+                  {interpretation?.processing_error ? <div className="error">{interpretation.processing_error}</div> : null}
+                  {interpretation?.status === "completed" && interpretationSummary(interpretation.interpretation) ? (
+                    <div className={styles.interpretation}>
+                      <strong>Genithm interpretation</strong>
+                      <p>{interpretationSummary(interpretation.interpretation)}</p>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            {!plans?.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
+          </div>
+        </details>
       </section>
     </main>
   );
