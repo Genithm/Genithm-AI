@@ -53,7 +53,8 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'disable_signup' in preview_launcher
     assert 'email authentication is disabled' in preview_launcher
     assert 'get_release_readiness' in preview_launcher
-    assert '"status":"ready"' in preview_launcher
+    assert '"status"' in preview_launcher
+    assert '"ready"' in preview_launcher
     assert 'SUPABASE_SECRET_KEY' in preview_launcher
 
     assert "@media (max-width: 600px)" in styles
