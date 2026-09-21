@@ -80,6 +80,7 @@ type AiPlanRequest = {
     processing_started_at: string | null;
     processing_finished_at: string | null;
     processing_error: string | null;
+    attachment_upload_ids: string[];
     created_at: string;
     updated_at: string;
   };
@@ -106,6 +107,7 @@ type AiPlanRequest = {
     processing_started_at?: string | null;
     processing_finished_at?: string | null;
     processing_error?: string | null;
+    attachment_upload_ids?: string[];
     created_at?: string;
     updated_at?: string;
   };
@@ -243,6 +245,14 @@ type AiFunctions = LivePublic["Functions"] & {
   request_ai_plan: {
     Args: { project_id: string; conversation_id: string | null; user_message: string };
     Returns: { conversation_id: string; plan_request_id: string }[];
+  };
+  request_ai_plan_inline: {
+    Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[] };
+    Returns: { conversation_id: string; plan_request_id: string; user_message: string; authorized_context: Json }[];
+  };
+  finish_ai_plan_inline: {
+    Args: { plan_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
+    Returns: string;
   };
   approve_ai_plan: {
     Args: { plan_request_id: string };
