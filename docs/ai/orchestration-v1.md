@@ -48,7 +48,7 @@ The V1 policy allowlist contains:
 - `protein_properties`
 - `protein_annotation`
 
-A plan may contain only one action. Unsupported, ambiguous, or multi-step requests must return `intent=unsupported` and `action=null` rather than guessing.
+A plan may contain only one executable action. When the requested capability is supported but required material is missing or ambiguous, the planner returns `intent=clarification_required` with `action=null` and asks a precise follow-up in the conversation. `intent=unsupported` is reserved for capabilities the current planner cannot perform.
 
 ## Provider context minimization
 
@@ -134,3 +134,18 @@ Provider/network failures do not execute scientific work. Planning requests use 
 - no direct raw artifact access by the planner;
 - no automatic approval;
 - no claim of production provider execution until worker deployment is connected.
+
+
+## Intelligent prerequisite clarification
+
+The planner must inspect authorized project context before asking the user for information it already has.
+
+Examples:
+
+- If a tree is requested and exactly one completed MSA is eligible, Genithm may propose that MSA.
+- If several completed MSAs are eligible, Genithm asks which one to use and names safe human-readable choices where available.
+- If no completed MSA exists, Genithm explains that phylogeny needs an MSA and asks the user to provide/select compatible sequences so the prerequisite can be created.
+- BLAST requires one ready single-record sequence; pairwise alignment requires two; MSA requires 3-50 compatible sequences; protein workflows require eligible protein inputs.
+- Genithm never invents a sequence ID, accession, prior job, or scientific result to avoid asking a clarification.
+
+A clarification response is stored as a normal assistant message in the same AI conversation. It is never approvable or dispatchable. The user's next message is planned with bounded recent conversation history plus refreshed authorized project context, allowing the workflow to continue naturally after the missing information is supplied.
