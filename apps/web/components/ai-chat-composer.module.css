@@ -138,8 +138,10 @@
 
 .composer textarea {
   width: 100%;
-  min-height: 118px;
-  resize: vertical;
+  min-height: 58px;
+  max-height: 220px;
+  resize: none;
+  overflow-y: auto;
   border: 0;
   outline: 0;
   background: transparent;

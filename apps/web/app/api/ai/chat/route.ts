@@ -124,7 +124,7 @@ export async function POST(request: Request) {
             plan_request_id: row.plan_request_id,
           }));
 
-          const providerBody = await startStreamingChat(row.user_message, row.authorized_context, mediaAttachments);
+          const providerBody = await startStreamingChat(row.user_message, row.authorized_context, mediaAttachments, request.signal);
           const reader = providerBody.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
@@ -213,18 +213,25 @@ export async function POST(request: Request) {
             requires_confirmation: plan.intent === "scientific_action",
           }));
         } catch (caught) {
-          const message = caught instanceof Error ? caught.message : "AI response failed.";
+          const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
+          const message = stopped
+            ? "Generation stopped by user."
+            : caught instanceof Error
+              ? caught.message
+              : "AI response failed.";
           await service.rpc("finish_ai_plan_inline_error", {
             plan_request_id: row.plan_request_id,
             expected_user_id: userId,
             processing_error: message,
           });
-          controller.enqueue(sse("error", {
-            conversation_id: row.conversation_id,
-            error: message,
-          }));
+          if (!request.signal.aborted) {
+            controller.enqueue(sse("error", {
+              conversation_id: row.conversation_id,
+              error: message,
+            }));
+          }
         } finally {
-          controller.close();
+          if (!request.signal.aborted) controller.close();
         }
       })();
     },

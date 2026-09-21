@@ -60,6 +60,13 @@ def main() -> int:
     assert 'media_attachments: readyMediaAttachments' in chat_composer
     assert 'liveAssistantMessage ? (' in chat_composer
     assert 'image_url' in chat_provider
+    assert 'AbortController' in chat_composer
+    assert 'stopGeneration' in chat_composer
+    assert 'onPaste={(event)' in chat_composer
+    assert 'resizeTextarea' in chat_composer
+    assert 'signal: abortController.signal' in chat_composer
+    assert 'request.signal' in chat_api
+    assert 'signal?: AbortSignal' in chat_provider
 
     print("PASS: V1 dashboard UI shell contract")
     return 0
