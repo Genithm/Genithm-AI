@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
-import { requestAiPlan } from "./actions";
 import styles from "./chat.module.css";
 
 const starterPrompts = [
@@ -69,27 +69,11 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
         {query.error ? <div className={"error " + styles.feedback}>{query.error}</div> : null}
 
         {activeProjects.length ? (
-          <form action={requestAiPlan} className={styles.composer}>
-            <div className={styles.projectRow}>
-              <span>Project</span>
-              <select name="project_id" required defaultValue={activeProjects[0]?.id}>
-                {activeProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-              </select>
-            </div>
-            <textarea
-              name="user_message"
-              minLength={1}
-              maxLength={8000}
-              required
-              autoFocus
-              aria-label="Message Genithm"
-              placeholder="Message Genithm… e.g. fetch NM_000546.6 from NCBI, run the appropriate analysis, and explain what the result means."
-            />
-            <div className={styles.composerFooter}>
-              <span>Genithm uses your project context and validated scientific tools.</span>
-              <button className="button primary" type="submit">Send</button>
-            </div>
-          </form>
+          <AiChatComposer
+            projects={activeProjects.map((project) => ({ id: project.id, name: project.name }))}
+            defaultProjectId={activeProjects[0]?.id}
+            placeholder="Message Genithm… ask a bioinformatics question, request an analysis, or attach FASTA files."
+          />
         ) : (
           <div className={styles.noProject}>
             <h2>Create a project once, then work by chatting.</h2>
@@ -103,10 +87,9 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
         </div>
 
         <div className={styles.capabilityNote}>
-          <strong>Current execution boundary</strong>
+          <strong>Fast chat, controlled scientific execution</strong>
           <span>
-            Chat is now the primary workspace. The current planner can execute supported scientific actions through Genithm&apos;s controlled workers.
-            Multi-step autonomous workflows are being expanded so a single request can chain several analyses without returning to manual forms.
+            Normal conversation and planning respond directly. Only real scientific computations such as BLAST, alignments, and tree building use background workers.
           </span>
         </div>
       </section>

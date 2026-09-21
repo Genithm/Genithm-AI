@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
-import { approveAiPlan, requestAiInterpretation, requestAiPlan } from "../actions";
+import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -69,7 +70,7 @@ export default async function AiConversationPage({
       .limit(250),
     supabase
       .from("ai_plan_requests")
-      .select("id,status,plan,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_error,created_at,updated_at")
+      .select("id,status,plan,action_type,requires_confirmation,dispatched_resource_type,dispatched_resource_id,processing_error,attachment_upload_ids,created_at,updated_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .limit(100),
@@ -80,6 +81,20 @@ export default async function AiConversationPage({
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
+
+  const attachmentIds = [...new Set((plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []))];
+  const { data: attachmentRows } = attachmentIds.length
+    ? await supabase.from("sequence_uploads").select("id,original_filename,status").in("id", attachmentIds)
+    : { data: [] as Array<{ id: string; original_filename: string; status: string }> };
+
+  const attachmentById = new Map((attachmentRows ?? []).map((row) => [row.id, row]));
+  const attachmentsByPlan = new Map<string, Array<{ id: string; original_filename: string; status: string }>>();
+  for (const plan of plans ?? []) {
+    const rows = (plan.attachment_upload_ids ?? [])
+      .map((attachmentId) => attachmentById.get(attachmentId))
+      .filter((row): row is { id: string; original_filename: string; status: string } => Boolean(row));
+    if (rows.length) attachmentsByPlan.set(plan.id, rows);
+  }
 
   const dispatched = (plans ?? []).filter(
     (plan) => plan.dispatched_resource_type && plan.dispatched_resource_id,
@@ -117,6 +132,8 @@ export default async function AiConversationPage({
   for (const row of annotations.data ?? []) execution.set(`protein_annotation_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+
+  const activityPlans = (plans ?? []).filter((plan) => ["ready", "dispatched", "error"].includes(plan.status));
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
@@ -156,6 +173,16 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
+              {message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length ? (
+                <div className={styles.messageAttachments}>
+                  {attachmentsByPlan.get(message.plan_request_id)?.map((attachment) => (
+                    <span key={attachment.id}>
+                      <strong>{attachment.original_filename}</strong>
+                      <small>{readable(attachment.status)}</small>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
           {!messages?.length ? (
@@ -163,27 +190,17 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <form action={requestAiPlan} className={styles.composer}>
-          <input type="hidden" name="project_id" value={conversation.project_id} />
-          <input type="hidden" name="conversation_id" value={conversation.id} />
-          <textarea
-            name="user_message"
-            minLength={1}
-            maxLength={8000}
-            required
-            aria-label="Reply to Genithm"
-            placeholder="Reply to Genithm… provide the sequence, accession, dataset name, or scientific goal it asked for."
-          />
-          <div className={styles.composerFooter}>
-            <span>Genithm checks project context before asking for missing prerequisites.</span>
-            <button className="button primary" type="submit">Send</button>
-          </div>
-        </form>
+        <AiChatComposer
+          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
+          conversationId={conversation.id}
+          defaultProjectId={conversation.project_id}
+          placeholder="Reply to Genithm… or attach FASTA files directly here."
+        />
 
         <details className={styles.activity} open>
           <summary>Research activity</summary>
           <div className={styles.activityList}>
-            {(plans ?? []).map((plan) => {
+            {activityPlans.map((plan) => {
               const resourceKey =
                 plan.dispatched_resource_type && plan.dispatched_resource_id
                   ? `${plan.dispatched_resource_type}:${plan.dispatched_resource_id}`
@@ -237,7 +254,7 @@ export default async function AiConversationPage({
                 </div>
               );
             })}
-            {!plans?.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
+            {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </details>
       </section>

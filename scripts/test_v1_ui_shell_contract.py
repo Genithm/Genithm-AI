@@ -11,6 +11,8 @@ def main() -> int:
     dashboard_home = (ROOT / "apps/web/app/dashboard/page.tsx").read_text(encoding="utf-8")
     chat_home = (ROOT / "apps/web/app/dashboard/ai/page.tsx").read_text(encoding="utf-8")
     chat_conversation = (ROOT / "apps/web/app/dashboard/ai/[id]/page.tsx").read_text(encoding="utf-8")
+    chat_composer = (ROOT / "apps/web/components/ai-chat-composer.tsx").read_text(encoding="utf-8")
+    chat_api = (ROOT / "apps/web/app/api/ai/chat/route.ts").read_text(encoding="utf-8")
 
     assert "DashboardPrimaryNav" in layout
     assert 'aria-label="Workspace navigation"' in primary_nav
@@ -26,12 +28,18 @@ def main() -> int:
     assert 'redirect("/dashboard/ai")' in dashboard_home
     assert 'label: "Chat"' in primary_nav
     assert 'label: "Advanced tools"' in primary_nav
-    assert 'aria-label="Message Genithm"' in chat_home
+    assert 'AiChatComposer' in chat_home
     assert '/dashboard/tools' in chat_home
-    assert 'aria-label="Reply to Genithm"' in chat_conversation
-    assert 'action={requestAiPlan}' in chat_conversation
+    assert 'AiChatComposer' in chat_conversation
+    assert 'action={requestAiPlan}' not in chat_conversation
     assert 'action={approveAiPlan}' in chat_conversation
     assert 'Research activity' in chat_conversation
+    assert 'aria-label={conversationId ? "Reply to Genithm" : "Message Genithm"}' in chat_composer
+    assert 'Attach' in chat_composer
+    assert '/api/ai/chat' in chat_composer
+    assert '/api/v1/storage/sequence-uploads' in chat_composer
+    assert 'request_ai_plan_inline' in chat_api
+    assert 'finish_ai_plan_inline' in chat_api
 
     print("PASS: V1 dashboard UI shell contract")
     return 0
