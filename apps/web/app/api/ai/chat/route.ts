@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     ? [...new Set(body.attachment_upload_ids.map((value) => String(value).trim()).filter(Boolean))]
     : [];
   const mediaAttachments = Array.isArray(body.media_attachments)
-    ? body.media_attachments.slice(0, 4).map((attachment) => ({
+    ? body.media_attachments.map((attachment) => ({
         filename: String(attachment.filename ?? "").trim().slice(0, 255),
         mime_type: String(attachment.mime_type ?? "").trim().toLowerCase(),
         data_url: String(attachment.data_url ?? "").trim(),
@@ -93,10 +93,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const recordedUserMessage = userMessage || (
+    mediaAttachments.length
+      ? `Attached image${mediaAttachments.length === 1 ? "" : "s"}: ${mediaAttachments.map((attachment) => attachment.filename).join(", ")}`
+      : ""
+  );
+
   const { data: prepared, error: prepareError } = await supabase.rpc("request_ai_plan_inline", {
     project_id: projectId,
     conversation_id: conversationId,
-    user_message: userMessage,
+    user_message: recordedUserMessage,
     attachment_upload_ids: attachmentIds,
   });
   const row = prepared?.[0];
