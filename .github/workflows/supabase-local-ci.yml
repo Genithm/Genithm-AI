@@ -122,14 +122,26 @@ jobs:
               raise exception 'client role can forge instant AI completion';
             end if;
 
+            if (
+              select count(*)
+              from pg_constraint
+              where conrelid='public.ai_plan_requests'::regclass
+                and contype='c'
+                and conname in ('ai_plan_requests_status','ai_plan_requests_status_check')
+            ) <> 1 then
+              raise exception 'AI plan requests must have exactly one canonical status constraint';
+            end if;
+
             select pg_get_constraintdef(oid)
               into status_constraint
               from pg_constraint
              where conrelid='public.ai_plan_requests'::regclass
-               and conname='ai_plan_requests_status_check';
+               and conname='ai_plan_requests_status';
 
-            if status_constraint is null or position('conversation' in status_constraint)=0 then
-              raise exception 'AI plan status constraint does not include conversation';
+            if status_constraint is null
+              or position('conversation' in status_constraint)=0
+              or position('clarification_required' in status_constraint)=0 then
+              raise exception 'AI plan status constraint does not include current chat states';
             end if;
 
             if not exists (
