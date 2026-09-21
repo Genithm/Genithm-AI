@@ -26,7 +26,7 @@ if (( ${#missing[@]} > 0 )); then
   exit 2
 fi
 
-for tool in docker npm curl base64 od head tr grep; do
+for tool in docker npm curl base64 od head tr grep git; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required tool is missing: $tool"
     echo "Rebuild the Codespace container from main, then run this command again."
@@ -42,6 +42,8 @@ NCBI_EMAIL="${NCBI_EMAIL:-genithmai@gmail.com}"
 GENITHM_PREVIEW_STORAGE_ACCESS_KEY="genithmpreview"
 GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+HEAD_SHA="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+GENITHM_AI_WORKER_IMAGE="ghcr.io/genithm/genithm-ai-worker:sha-$HEAD_SHA"
 
 cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
@@ -57,7 +59,8 @@ GENITHM_PREVIEW_STORAGE_SECRET_KEY=$GENITHM_PREVIEW_STORAGE_SECRET_KEY
 GENITHM_R2_SEQUENCE_BUCKET=genithm-preview-sequences
 GENITHM_AUDIT_SIGNING_KEY_ID=codespaces-preview-ed25519
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64=$GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64
-GENITHM_AI_PRIMARY_ENDPOINT=${GENITHM_AI_PRIMARY_ENDPOINT:-https://api.deepseek.com/chat/completions}
+GENITHM_AI_WORKER_IMAGE=$GENITHM_AI_WORKER_IMAGE
+GENITHM_AI_PRIMARY_ENDPOINT=https://api.deepseek.com/chat/completions
 GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}
 EOF
 chmod 600 "$ENV_FILE"
@@ -74,6 +77,21 @@ if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"disable_signup"[[:space:]]*:[[:sp
 fi
 if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*true'; then
   echo "Supabase email authentication is disabled. Enable the email provider before using signup/login."
+  exit 4
+fi
+
+echo "Checking DeepSeek API key and model..."
+DEEPSEEK_MODELS="$(curl -fsS -H "Authorization: Bearer $DEEPSEEK_API_KEY" https://api.deepseek.com/models)"
+SELECTED_MODEL="${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}"
+if ! printf '%s' "$DEEPSEEK_MODELS" | grep -Fq "\"id\":\"$SELECTED_MODEL\""; then
+  echo "DeepSeek model $SELECTED_MODEL is not available to this API key."
+  exit 4
+fi
+
+echo "Checking commit-matched AI worker image..."
+if ! docker pull "$GENITHM_AI_WORKER_IMAGE" >/dev/null 2>&1; then
+  echo "The AI worker image for commit $HEAD_SHA is not published yet."
+  echo "Use the latest main commit only after its Worker release has completed successfully."
   exit 4
 fi
 
