@@ -131,6 +131,17 @@ jobs:
             if status_constraint is null or position('conversation' in status_constraint)=0 then
               raise exception 'AI plan status constraint does not include conversation';
             end if;
+
+            if not exists (
+              select 1
+              from app_private.scientific_rate_limit_policies
+              where action='ai_chat'
+                and window_seconds=60
+                and user_limit=60
+                and organization_limit=600
+            ) then
+              raise exception 'instant AI chat rate-limit policy is missing or incorrect';
+            end if;
           end
           $instant_chat$;
           SQL
