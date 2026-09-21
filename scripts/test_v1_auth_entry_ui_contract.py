@@ -34,6 +34,9 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'auth.signUp' in actions
     assert 'emailRedirectTo' in actions
     assert 'password_confirmation' in actions
+    assert 'GENITHM_APP_URL' in actions
+    assert 'formData.get("origin")' not in actions
+    assert 'name="origin"' not in signup_page
     assert "service_role" not in login_page.lower()
     assert "service_role" not in signup_page.lower()
     assert "service_role" not in actions.lower()
@@ -41,6 +44,8 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'serverActions' in next_config
     assert 'allowedOrigins' in next_config
     assert 'CODESPACE_NAME' in next_config
+    assert 'localhost:3000' in next_config
+    assert '127.0.0.1:3000' in next_config
 
     assert "@media (max-width: 600px)" in styles
     assert "prefers-reduced-motion" in styles
