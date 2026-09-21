@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const workspaceLinks = [
-  { href: "/dashboard", label: "Workspace", exact: true },
-  { href: "/dashboard/ai", label: "AI" },
+  { href: "/dashboard/ai", label: "Chat" },
+  { href: "/dashboard/tools", label: "Advanced tools" },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/billing", label: "Plan & usage" },
   { href: "/dashboard/billing/payments", label: "Payments" },
