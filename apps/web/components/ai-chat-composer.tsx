@@ -68,7 +68,7 @@ async function validateSequenceFile(file: File) {
   if (normalized.includes("\u0000")) throw new Error("Binary files are not accepted.");
 }
 
-async function detectImageMime(file: File): Promise<Attachment["mimeType"]> {
+async function detectImageMime(file: File): Promise<NonNullable<Attachment["mimeType"]>> {
   if (file.size < 1) throw new Error("Image is empty.");
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Images are limited to 8 MiB each.");
 
