@@ -94,6 +94,7 @@ declare
   ids uuid[];
   expected integer;
   actual integer;
+  limitation jsonb;
 begin
   action := p_plan->'action'->>'type';
 
@@ -106,12 +107,22 @@ begin
          array['schema_version','intent','summary','limitations','action']
        )
        or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
+       or char_length(coalesce(p_plan->>'summary',''))<1
+       or char_length(p_plan->>'summary')>2000
        or jsonb_typeof(p_plan->'limitations')<>'array'
        or jsonb_array_length(p_plan->'limitations')>10
        or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
        or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
       raise exception 'AI workflow plan schema is invalid';
     end if;
+
+    for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
+      if jsonb_typeof(limitation)<>'string'
+         or char_length(limitation#>>'{}')<1
+         or char_length(limitation#>>'{}')>500 then
+        raise exception 'AI workflow limitation is invalid';
+      end if;
+    end loop;
 
     params := p_plan->'action'->'parameters';
     if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_ids'])
