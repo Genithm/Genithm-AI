@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
-import { approveAiPlan, requestAiInterpretation, requestAiPlan } from "../actions";
+import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -118,6 +119,8 @@ export default async function AiConversationPage({
   for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
 
+  const activityPlans = (plans ?? []).filter((plan) => ["ready", "dispatched", "error"].includes(plan.status));
+
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
     if (!interpretationByPlan.has(item.plan_request_id)) interpretationByPlan.set(item.plan_request_id, item);
@@ -163,27 +166,17 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <form action={requestAiPlan} className={styles.composer}>
-          <input type="hidden" name="project_id" value={conversation.project_id} />
-          <input type="hidden" name="conversation_id" value={conversation.id} />
-          <textarea
-            name="user_message"
-            minLength={1}
-            maxLength={8000}
-            required
-            aria-label="Reply to Genithm"
-            placeholder="Reply to Genithm… provide the sequence, accession, dataset name, or scientific goal it asked for."
-          />
-          <div className={styles.composerFooter}>
-            <span>Genithm checks project context before asking for missing prerequisites.</span>
-            <button className="button primary" type="submit">Send</button>
-          </div>
-        </form>
+        <AiChatComposer
+          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
+          conversationId={conversation.id}
+          defaultProjectId={conversation.project_id}
+          placeholder="Reply to Genithm… or attach FASTA files directly here."
+        />
 
         <details className={styles.activity} open>
           <summary>Research activity</summary>
           <div className={styles.activityList}>
-            {(plans ?? []).map((plan) => {
+            {activityPlans.map((plan) => {
               const resourceKey =
                 plan.dispatched_resource_type && plan.dispatched_resource_id
                   ? `${plan.dispatched_resource_type}:${plan.dispatched_resource_id}`
@@ -237,7 +230,7 @@ export default async function AiConversationPage({
                 </div>
               );
             })}
-            {!plans?.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
+            {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </details>
       </section>
