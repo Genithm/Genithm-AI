@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { Json } from "@/lib/ai-database.types";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import {
   currentAiModel,
   generateInstantPlan,
@@ -19,7 +20,8 @@ type ChatRequest = {
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
-  if (!claimsData?.claims?.sub) {
+  const userId = claimsData?.claims?.sub;
+  if (!userId) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
@@ -61,8 +63,10 @@ export async function POST(request: Request) {
 
   try {
     const plan = await generateInstantPlan(row.user_message, row.authorized_context);
-    const { data: finalStatus, error: finishError } = await supabase.rpc("finish_ai_plan_inline", {
+    const service = createServiceClient();
+    const { data: finalStatus, error: finishError } = await service.rpc("finish_ai_plan_inline", {
       plan_request_id: row.plan_request_id,
+      expected_user_id: userId,
       provider: "deepseek",
       model: currentAiModel(),
       prompt_version: PROMPT_VERSION,
@@ -81,8 +85,10 @@ export async function POST(request: Request) {
     });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "AI response failed.";
-    await supabase.rpc("finish_ai_plan_inline_error", {
+    const service = createServiceClient();
+    await service.rpc("finish_ai_plan_inline_error", {
       plan_request_id: row.plan_request_id,
+      expected_user_id: userId,
       processing_error: message,
     });
     return NextResponse.json({ error: message, conversation_id: row.conversation_id }, { status: 502 });
