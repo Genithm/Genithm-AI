@@ -105,3 +105,30 @@ def test_extract_response_text_supports_responses_output_shape():
         ]
     }
     assert json.loads(extract_response_text(payload))["intent"] == "unsupported"
+
+
+def test_clarification_plan_must_not_have_action():
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "clarification_required",
+        "summary": "Which completed MSA should I use to build the phylogenetic tree?",
+        "limitations": ["More than one eligible MSA is available."],
+        "action": None,
+    }
+    assert validate_plan_shape(plan) == plan
+
+
+def test_clarification_plan_rejects_executable_action():
+    with pytest.raises(ValueError):
+        validate_plan_shape(
+            {
+                "schema_version": PLAN_SCHEMA_VERSION,
+                "intent": "clarification_required",
+                "summary": "Which sequence should I use?",
+                "limitations": [],
+                "action": {
+                    "type": "protein_properties",
+                    "parameters": {"sequence_upload_id": "00000000-0000-0000-0000-000000000001"},
+                },
+            }
+        )
