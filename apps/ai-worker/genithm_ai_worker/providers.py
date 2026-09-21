@@ -156,20 +156,26 @@ class OpenAICompatibleProvider:
         schema: dict[str, Any],
     ) -> dict[str, Any]:
         if self.config.protocol == "chat_completions":
-            payload = {
-                "model": self.config.model,
-                "messages": [
-                    {"role": "system", "content": instructions},
-                    {"role": "user", "content": input_text},
-                ],
-                "response_format": {
+            response_format: dict[str, Any]
+            if self.config.name == "deepseek":
+                response_format = {"type": "json_object"}
+            else:
+                response_format = {
                     "type": "json_schema",
                     "json_schema": {
                         "name": schema_name,
                         "strict": True,
                         "schema": schema,
                     },
-                },
+                }
+
+            payload = {
+                "model": self.config.model,
+                "messages": [
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": input_text},
+                ],
+                "response_format": response_format,
             }
             response = JsonHttpClient.request(
                 self.config.endpoint,
