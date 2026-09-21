@@ -113,10 +113,10 @@ export default async function AiConversationPage({
   ]);
 
   const execution = new Map<string, { status: string; error: string | null; updated_at: string }>();
-  for (const row of scientific.data ?? []) execution.set(`scientific_job:${row.id}`, row);
-  for (const row of annotations.data ?? []) execution.set(`protein_annotation_job:${row.id}`, row);
-  for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, row);
-  for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, row);
+  for (const row of scientific.data ?? []) execution.set(`scientific_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+  for (const row of annotations.data ?? []) execution.set(`protein_annotation_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+  for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+  for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
