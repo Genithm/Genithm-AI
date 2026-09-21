@@ -29,7 +29,7 @@ services:
         mc mb --ignore-existing "preview/$$BUCKET"
 
   api:
-    image: ghcr.io/genithm/genithm-api@sha256:75d0c43ab098baacaa59c200c29ecd69d5a5858356fd859a68520b9cb4b0ab6d
+    image: ${GENITHM_API_IMAGE:?GENITHM_API_IMAGE is required}
     restart: unless-stopped
     environment:
       GENITHM_ENV: development
@@ -49,7 +49,7 @@ services:
         condition: service_completed_successfully
 
   sequence-worker:
-    image: ghcr.io/genithm/genithm-sequence-worker@sha256:5946ae3ce8d9b515ec73cc329dcabf51e509c12a5e23857a25e439323d4210f1
+    image: ${GENITHM_SEQUENCE_WORKER_IMAGE:?GENITHM_SEQUENCE_WORKER_IMAGE is required}
     restart: unless-stopped
     environment: &common-worker-env
       SUPABASE_URL: ${SUPABASE_URL}
@@ -62,22 +62,22 @@ services:
       NCBI_API_KEY: ${NCBI_API_KEY:-}
 
   source-worker:
-    image: ghcr.io/genithm/genithm-source-worker@sha256:37da42867b235e813cc42ee737ef43dfb047a5bce164877d0b67fe69f9dbfae8
+    image: ${GENITHM_SOURCE_WORKER_IMAGE:?GENITHM_SOURCE_WORKER_IMAGE is required}
     restart: unless-stopped
     environment: *common-worker-env
 
   blast-worker:
-    image: ghcr.io/genithm/genithm-blast-worker@sha256:7ede6a462e74f763ce5001e07272ad680f0f27d6fcaa5778b30d46b653a9e0ca
+    image: ${GENITHM_BLAST_WORKER_IMAGE:?GENITHM_BLAST_WORKER_IMAGE is required}
     restart: unless-stopped
     environment: *common-worker-env
 
   scientific-worker:
-    image: ghcr.io/genithm/genithm-scientific-worker@sha256:5a98b270a71934aa8d70929053a66570cd0d1b77bf944b0be84e744b242efef6
+    image: ${GENITHM_SCIENTIFIC_WORKER_IMAGE:?GENITHM_SCIENTIFIC_WORKER_IMAGE is required}
     restart: unless-stopped
     environment: *common-worker-env
 
   audit-worker:
-    image: ghcr.io/genithm/genithm-audit-worker@sha256:a61c3cecd15e1305d20e8a52e19b90118e8727a5bc01987f140f8aaa3963df91
+    image: ${GENITHM_AUDIT_WORKER_IMAGE:?GENITHM_AUDIT_WORKER_IMAGE is required}
     restart: unless-stopped
     environment:
       <<: *common-worker-env
@@ -85,7 +85,7 @@ services:
       GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64: ${GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64}
 
   ai-worker:
-    image: ${GENITHM_AI_WORKER_IMAGE:-ghcr.io/genithm/genithm-ai-worker@sha256:38b796c08ffc858a9a9e1910df4bc4de5037d1c13e3baf34aa3620d6e9ab4c42}
+    image: ${GENITHM_AI_WORKER_IMAGE:?GENITHM_AI_WORKER_IMAGE is required}
     restart: unless-stopped
     environment:
       <<: *common-worker-env
