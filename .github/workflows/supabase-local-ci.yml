@@ -83,6 +83,57 @@ jobs:
           end
           $$;
           SQL
+      - name: Verify instant AI chat security contract
+        shell: bash
+        run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $instant_chat$
+          declare
+            status_constraint text;
+          begin
+            if not exists (
+              select 1
+              from information_schema.columns
+              where table_schema='public'
+                and table_name='ai_plan_requests'
+                and column_name='attachment_upload_ids'
+                and udt_name='_uuid'
+            ) then
+              raise exception 'instant AI attachment column is missing';
+            end if;
+
+            if not has_function_privilege('authenticated', 'public.request_ai_plan_inline(uuid,uuid,text,uuid[])', 'EXECUTE') then
+              raise exception 'authenticated users cannot start instant AI chat';
+            end if;
+
+            if has_function_privilege('anon', 'public.request_ai_plan_inline(uuid,uuid,text,uuid[])', 'EXECUTE') then
+              raise exception 'anon can start instant AI chat';
+            end if;
+
+            if not has_function_privilege('service_role', 'public.finish_ai_plan_inline(uuid,uuid,text,text,text,text,jsonb)', 'EXECUTE')
+              or not has_function_privilege('service_role', 'public.finish_ai_plan_inline_error(uuid,uuid,text)', 'EXECUTE') then
+              raise exception 'service role cannot finish instant AI chat';
+            end if;
+
+            if has_function_privilege('authenticated', 'public.finish_ai_plan_inline(uuid,uuid,text,text,text,text,jsonb)', 'EXECUTE')
+              or has_function_privilege('authenticated', 'public.finish_ai_plan_inline_error(uuid,uuid,text)', 'EXECUTE')
+              or has_function_privilege('anon', 'public.finish_ai_plan_inline(uuid,uuid,text,text,text,text,jsonb)', 'EXECUTE')
+              or has_function_privilege('anon', 'public.finish_ai_plan_inline_error(uuid,uuid,text)', 'EXECUTE') then
+              raise exception 'client role can forge instant AI completion';
+            end if;
+
+            select pg_get_constraintdef(oid)
+              into status_constraint
+              from pg_constraint
+             where conrelid='public.ai_plan_requests'::regclass
+               and conname='ai_plan_requests_status_check';
+
+            if status_constraint is null or position('conversation' in status_constraint)=0 then
+              raise exception 'AI plan status constraint does not include conversation';
+            end if;
+          end
+          $instant_chat$;
+          SQL
       - name: Verify worker heartbeat RPC
         shell: bash
         run: |
