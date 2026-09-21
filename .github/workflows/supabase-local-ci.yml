@@ -93,7 +93,7 @@ jobs:
           select public.record_worker_heartbeat('sequence_worker', 'ci-heartbeat/1.1');
           reset role;
 
-          do $
+          do $heartbeat$
           declare
             heartbeat_count_value bigint;
             readiness jsonb;
@@ -122,7 +122,7 @@ jobs:
               raise exception 'release readiness worker fields are missing';
             end if;
           end
-          $;
+          $heartbeat$;
           rollback;
           SQL
       - name: Stop local Supabase
