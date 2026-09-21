@@ -251,11 +251,11 @@ type AiFunctions = LivePublic["Functions"] & {
     Returns: { conversation_id: string; plan_request_id: string; user_message: string; authorized_context: Json }[];
   };
   finish_ai_plan_inline: {
-    Args: { plan_request_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
+    Args: { plan_request_id: string; expected_user_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
     Returns: string;
   };
   finish_ai_plan_inline_error: {
-    Args: { plan_request_id: string; processing_error: string };
+    Args: { plan_request_id: string; expected_user_id: string; processing_error: string };
     Returns: undefined;
   };
   approve_ai_plan: {
