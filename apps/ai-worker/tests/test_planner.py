@@ -132,3 +132,14 @@ def test_clarification_plan_rejects_executable_action():
                 },
             }
         )
+
+
+def test_conversation_plan_is_non_executable():
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "conversation",
+        "summary": "A phylogenetic tree represents inferred evolutionary relationships among the supplied sequences.",
+        "limitations": [],
+        "action": None,
+    }
+    assert validate_plan_shape(plan) == plan
