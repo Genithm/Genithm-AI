@@ -26,7 +26,7 @@ if (( ${#missing[@]} > 0 )); then
   exit 2
 fi
 
-for tool in docker npm curl base64 od head tr; do
+for tool in docker npm curl base64 od head tr grep; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required tool is missing: $tool"
     echo "Rebuild the Codespace container from main, then run this command again."
@@ -64,6 +64,17 @@ chmod 600 "$ENV_FILE"
 
 if command -v gh >/dev/null 2>&1; then
   gh codespace ports visibility 9000:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
+fi
+
+echo "Checking Supabase Auth settings..."
+AUTH_SETTINGS="$(curl -fsS -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/settings")"
+if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"disable_signup"[[:space:]]*:[[:space:]]*false'; then
+  echo "Supabase signup is disabled. Enable new-user signup before using this preview."
+  exit 4
+fi
+if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*true'; then
+  echo "Supabase email authentication is disabled. Enable the email provider before using signup/login."
+  exit 4
 fi
 
 echo "Preparing web dependencies..."
@@ -113,10 +124,28 @@ for _ in $(seq 1 60); do
 done
 curl -fsS http://127.0.0.1:3000/api/health >/dev/null
 
+echo "Checking six worker heartbeats and queue readiness..."
+READINESS_JSON=""
+for _ in $(seq 1 60); do
+  READINESS_JSON="$(curl -fsS -X POST     -H "apikey: $SUPABASE_SECRET_KEY"     -H "Content-Type: application/json"     "$SUPABASE_URL/rest/v1/rpc/get_release_readiness"     -d '{}' || true)"
+  if printf '%s' "$READINESS_JSON" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
+    break
+  fi
+  sleep 2
+done
+
+if ! printf '%s' "$READINESS_JSON" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
+  echo "Genithm runtime did not become fully ready."
+  echo "Supabase readiness: $READINESS_JSON"
+  echo
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
+  exit 4
+fi
+
 echo
-echo "Genithm preview is running."
+echo "Genithm preview is running and passed readiness checks."
 echo "Open: $WEB_ORIGIN"
-echo "API and all six workers are connected to the real Supabase project."
+echo "Supabase Auth is reachable, API/web health checks passed, and all six worker heartbeats are current."
 echo "DeepSeek is configured as the preview AI provider."
 echo "Preview object storage is temporary and isolated to this Codespace."
 echo
