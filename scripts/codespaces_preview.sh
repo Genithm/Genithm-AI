@@ -66,8 +66,16 @@ if command -v gh >/dev/null 2>&1; then
   gh codespace ports visibility 9000:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
 fi
 
-echo "Checking Supabase Auth endpoint..."
-curl -fsS -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/settings" >/dev/null
+echo "Checking Supabase Auth settings..."
+AUTH_SETTINGS="$(curl -fsS -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/settings")"
+if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"disable_signup"[[:space:]]*:[[:space:]]*false'; then
+  echo "Supabase signup is disabled. Enable new-user signup before using this preview."
+  exit 4
+fi
+if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*true'; then
+  echo "Supabase email authentication is disabled. Enable the email provider before using signup/login."
+  exit 4
+fi
 
 echo "Preparing web dependencies..."
 (
@@ -120,13 +128,13 @@ echo "Checking six worker heartbeats and queue readiness..."
 READINESS_JSON=""
 for _ in $(seq 1 60); do
   READINESS_JSON="$(curl -fsS -X POST     -H "apikey: $SUPABASE_SECRET_KEY"     -H "Content-Type: application/json"     "$SUPABASE_URL/rest/v1/rpc/get_release_readiness"     -d '{}' || true)"
-  if printf '%s' "$READINESS_JSON" | grep -q '"status":"ready"'; then
+  if printf '%s' "$READINESS_JSON" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
     break
   fi
   sleep 2
 done
 
-if ! printf '%s' "$READINESS_JSON" | grep -q '"status":"ready"'; then
+if ! printf '%s' "$READINESS_JSON" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'; then
   echo "Genithm runtime did not become fully ready."
   echo "Supabase readiness: $READINESS_JSON"
   echo
