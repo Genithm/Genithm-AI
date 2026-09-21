@@ -56,6 +56,13 @@
   padding: 12px;
   background: rgba(255,255,255,.04);
   box-shadow: 0 24px 60px rgba(0,0,0,.18);
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.dragActive {
+  border-color: currentColor;
+  background: rgba(255,255,255,.075);
+  transform: translateY(-1px);
 }
 
 .projectRow {
@@ -91,6 +98,15 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: rgba(255,255,255,.035);
+}
+
+.attachmentPreview {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
 .attachment div {
