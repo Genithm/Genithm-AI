@@ -83,7 +83,7 @@ fi
 echo "Checking DeepSeek API key and model..."
 DEEPSEEK_MODELS="$(curl -fsS -H "Authorization: Bearer $DEEPSEEK_API_KEY" https://api.deepseek.com/models)"
 SELECTED_MODEL="${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}"
-if ! printf '%s' "$DEEPSEEK_MODELS" | grep -Fq "\"id\":\"$SELECTED_MODEL\""; then
+if ! printf '%s' "$DEEPSEEK_MODELS" | grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\"$SELECTED_MODEL\""; then
   echo "DeepSeek model $SELECTED_MODEL is not available to this API key."
   exit 4
 fi
