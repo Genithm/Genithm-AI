@@ -233,10 +233,48 @@ type AiEvidenceFollowupRequest = {
   Relationships: [];
 };
 
+type AiWorkflowRun = {
+  Row: {
+    id: string;
+    plan_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    workflow_type: string;
+    status: string;
+    msa_job_id: string;
+    phylogeny_job_id: string | null;
+    processing_error: string | null;
+    created_at: string;
+    updated_at: string;
+    finished_at: string | null;
+  };
+  Insert: {
+    id?: string;
+    plan_request_id: string;
+    conversation_id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    workflow_type: string;
+    status?: string;
+    msa_job_id: string;
+    phylogeny_job_id?: string | null;
+    processing_error?: string | null;
+    created_at?: string;
+    updated_at?: string;
+    finished_at?: string | null;
+  };
+  Update: Partial<AiWorkflowRun["Insert"]>;
+  Relationships: [];
+};
+
 type AiTables = LivePublic["Tables"] & {
   ai_conversations: AiConversation;
   ai_messages: AiMessage;
   ai_plan_requests: AiPlanRequest;
+  ai_workflow_runs: AiWorkflowRun;
   ai_interpretation_requests: AiInterpretationRequest;
   ai_evidence_followup_requests: AiEvidenceFollowupRequest;
 };
