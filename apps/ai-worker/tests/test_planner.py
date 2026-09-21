@@ -143,3 +143,23 @@ def test_conversation_plan_is_non_executable():
         "action": None,
     }
     assert validate_plan_shape(plan) == plan
+
+
+def test_bounded_msa_phylogeny_workflow_plan():
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "scientific_action",
+        "summary": "Align the three authorized sequences and then build a phylogenetic tree.",
+        "limitations": ["The tree starts only after the MSA completes successfully."],
+        "action": {
+            "type": "msa_phylogeny_workflow",
+            "parameters": {
+                "sequence_upload_ids": [
+                    "00000000-0000-0000-0000-000000000001",
+                    "00000000-0000-0000-0000-000000000002",
+                    "00000000-0000-0000-0000-000000000003",
+                ]
+            },
+        },
+    }
+    assert validate_plan_shape(plan) == plan
