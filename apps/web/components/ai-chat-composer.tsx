@@ -190,7 +190,7 @@ export function AiChatComposer({
 
     setSending(true);
     setError(null);
-    setLiveAssistantMessage(null);
+    setLiveAssistantMessage("");
     setLiveUserMessage(trimmed || "Attached biological data for analysis.");
 
     try {
@@ -204,27 +204,79 @@ export function AiChatComposer({
           attachment_upload_ids: readyAttachmentIds,
         }),
       });
-      const payload = await response.json() as {
-        conversation_id?: string;
-        message?: string;
-        error?: string;
-      };
-      if (!response.ok || !payload.conversation_id) {
-        throw new Error(payload.error || "Genithm could not answer that message.");
+
+      if (!response.ok || !response.body) {
+        throw new Error(await responseError(response, "Genithm could not answer that message."));
       }
 
-      setLiveAssistantMessage(payload.message || null);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let resolvedConversationId: string | null = conversationId;
+      let finalMessage = "";
+      let terminalError: string | null = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary >= 0) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          boundary = buffer.indexOf("\n\n");
+
+          let eventName = "message";
+          let dataText = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) eventName = line.slice(6).trim();
+            if (line.startsWith("data:")) dataText += line.slice(5).trim();
+          }
+          if (!dataText) continue;
+
+          let payload: {
+            text?: string;
+            message?: string;
+            conversation_id?: string;
+            error?: string;
+          };
+          try {
+            payload = JSON.parse(dataText) as typeof payload;
+          } catch {
+            continue;
+          }
+
+          if (payload.conversation_id) resolvedConversationId = payload.conversation_id;
+
+          if (eventName === "delta" && payload.text) {
+            finalMessage += payload.text;
+            setLiveAssistantMessage(finalMessage);
+          } else if (eventName === "done") {
+            if (payload.message && !finalMessage) {
+              finalMessage = payload.message;
+              setLiveAssistantMessage(finalMessage);
+            }
+          } else if (eventName === "error") {
+            terminalError = payload.error || "Genithm could not answer that message.";
+          }
+        }
+      }
+
+      if (terminalError) throw new Error(terminalError);
+      if (!resolvedConversationId) throw new Error("Genithm did not return a conversation.");
+
       setMessage("");
       setAttachments([]);
 
       if (!conversationId) {
-        router.push(`/dashboard/ai/${payload.conversation_id}`);
+        router.push(`/dashboard/ai/${resolvedConversationId}`);
       } else {
         router.refresh();
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Genithm could not answer that message.");
-      setLiveAssistantMessage(null);
+      if (!liveAssistantMessage) setLiveAssistantMessage(null);
     } finally {
       setSending(false);
     }
