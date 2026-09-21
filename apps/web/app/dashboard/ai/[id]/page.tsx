@@ -111,8 +111,11 @@ export default async function AiConversationPage({
   const blastIds = dispatched
     .filter((plan) => plan.dispatched_resource_type === "blast_job")
     .map((plan) => plan.dispatched_resource_id as string);
+  const workflowIds = dispatched
+    .filter((plan) => plan.dispatched_resource_type === "ai_workflow")
+    .map((plan) => plan.dispatched_resource_id as string);
 
-  const [scientific, annotations, retrievals, blasts] = await Promise.all([
+  const [scientific, annotations, retrievals, blasts, workflows] = await Promise.all([
     scientificIds.length
       ? supabase.from("scientific_jobs").select("id,status,job_type,processing_error,updated_at").in("id", scientificIds)
       : Promise.resolve({ data: [] }),
@@ -125,6 +128,9 @@ export default async function AiConversationPage({
     blastIds.length
       ? supabase.from("blast_jobs").select("id,status,processing_error,updated_at").in("id", blastIds)
       : Promise.resolve({ data: [] }),
+    workflowIds.length
+      ? supabase.from("ai_workflow_runs").select("id,status,processing_error,msa_job_id,phylogeny_job_id,updated_at").in("id", workflowIds)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const execution = new Map<string, { status: string; error: string | null; updated_at: string }>();
@@ -132,6 +138,8 @@ export default async function AiConversationPage({
   for (const row of annotations.data ?? []) execution.set(`protein_annotation_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of retrievals.data ?? []) execution.set(`sequence_retrieval:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+  for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
+  const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
   const activityPlans = (plans ?? []).filter((plan) => ["ready", "dispatched", "error"].includes(plan.status));
 
@@ -206,7 +214,12 @@ export default async function AiConversationPage({
                   ? `${plan.dispatched_resource_type}:${plan.dispatched_resource_id}`
                   : null;
               const state = resourceKey ? execution.get(resourceKey) : null;
-              const href = resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
+              const workflow = plan.dispatched_resource_type === "ai_workflow" && plan.dispatched_resource_id
+                ? workflowById.get(plan.dispatched_resource_id)
+                : null;
+              const href = workflow?.phylogeny_job_id
+                ? `/dashboard/scientific-jobs/${workflow.phylogeny_job_id}`
+                : resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
               const interpretation = interpretationByPlan.get(plan.id);
 
               return (
@@ -217,6 +230,7 @@ export default async function AiConversationPage({
                       <div className={styles.muted}>
                         Plan {readable(plan.status)}
                         {state ? ` · execution ${readable(state.status)}` : ""}
+                        {workflow ? ` · MSA ${workflow.msa_job_id.slice(0, 8)}${workflow.phylogeny_job_id ? ` · tree ${workflow.phylogeny_job_id.slice(0, 8)}` : " · tree pending"}` : ""}
                       </div>
                     </div>
                     <div className={styles.actions}>
