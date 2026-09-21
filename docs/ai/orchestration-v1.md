@@ -4,7 +4,7 @@
 
 Genithm AI converts natural-language scientific requests into permission-controlled plans. The language model is a planner, not an authority and not an executor.
 
-V1 deliberately supports one scientific action per plan. Multi-step autonomous DAG execution is deferred until workflow-level validation, checkpointing, and recovery semantics are implemented.
+V1 normally supports one scientific action per plan. V1.1 additionally supports one bounded two-step workflow action, `msa_phylogeny_workflow`, for MSA followed by phylogeny. General multi-step autonomous DAG execution remains deferred until broader workflow-level validation, checkpointing, recovery, and policy semantics are implemented.
 
 ## Trust and authority model
 
@@ -47,8 +47,9 @@ The V1 policy allowlist contains:
 - `phylogenetic_tree`
 - `protein_properties`
 - `protein_annotation`
+- `msa_phylogeny_workflow` (bounded MSA → phylogeny chain)
 
-A plan may contain only one executable action. When the requested capability is supported but required material is missing or ambiguous, the planner returns `intent=clarification_required` with `action=null` and asks a precise follow-up in the conversation. `intent=unsupported` is reserved for capabilities the current planner cannot perform.
+A plan may contain only one executable action. `msa_phylogeny_workflow` counts as one allowlisted action whose internal shape is fixed to exactly two ordered steps: MSA, then phylogeny. When the requested capability is supported but required material is missing or ambiguous, the planner returns `intent=clarification_required` with `action=null` and asks a precise follow-up in the conversation. `intent=unsupported` is reserved for capabilities the current planner cannot perform.
 
 ## Provider context minimization
 
@@ -126,9 +127,26 @@ The repository contains the worker and its hardened container, but continuous wo
 
 Provider/network failures do not execute scientific work. Planning requests use bounded retries and become `error` when exhausted. Core scientific workflows remain independently available without the AI planner.
 
+## Bounded MSA → phylogeny workflow
+
+When a user explicitly requests alignment of 3-50 compatible ready sequences followed by a phylogenetic tree, Genithm may propose `msa_phylogeny_workflow`.
+
+The workflow keeps the existing authority boundaries:
+
+1. the planner proposes exact authorized sequence IDs;
+2. the database validates the complete plan and inputs;
+3. the user gives one explicit approval;
+4. the existing authoritative MSA RPC creates the first scientific job;
+5. a workflow checkpoint records the MSA job;
+6. only an authoritative successful MSA status transition can dispatch the FastTree job;
+7. the downstream phylogeny request re-validates user membership, source provenance, tool approval, rate limits, and concurrency;
+8. failure or cancellation of either step stops the workflow and records an auditable terminal state.
+
+The model cannot insert steps, branch dynamically, bypass a failed prerequisite, choose a shell command, or directly dispatch the second job.
+
 ## Current limitations
 
-- no autonomous multi-step DAG execution;
+- no general autonomous multi-step DAG execution beyond the fixed MSA → phylogeny workflow;
 - no general literature RAG in this milestone;
 - no model-generated scientific result accepted as tool evidence;
 - no direct raw artifact access by the planner;
