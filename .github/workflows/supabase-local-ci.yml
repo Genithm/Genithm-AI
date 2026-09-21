@@ -83,6 +83,48 @@ jobs:
           end
           $$;
           SQL
+      - name: Verify worker heartbeat RPC
+        shell: bash
+        run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+          set local role service_role;
+          select public.record_worker_heartbeat('sequence_worker', 'ci-heartbeat/1.0');
+          select public.record_worker_heartbeat('sequence_worker', 'ci-heartbeat/1.1');
+          reset role;
+
+          do $
+          declare
+            heartbeat_count_value bigint;
+            readiness jsonb;
+          begin
+            select heartbeat_count
+              into heartbeat_count_value
+              from app_private.worker_runtime_heartbeats
+             where worker_kind = 'sequence_worker';
+
+            if heartbeat_count_value <> 2 then
+              raise exception 'heartbeat RPC did not upsert correctly: count=%', heartbeat_count_value;
+            end if;
+
+            if not has_function_privilege('service_role', 'public.record_worker_heartbeat(text,text)', 'EXECUTE') then
+              raise exception 'service_role lacks heartbeat RPC execute';
+            end if;
+
+            if has_function_privilege('anon', 'public.record_worker_heartbeat(text,text)', 'EXECUTE')
+              or has_function_privilege('authenticated', 'public.record_worker_heartbeat(text,text)', 'EXECUTE')
+              or has_function_privilege('public', 'public.record_worker_heartbeat(text,text)', 'EXECUTE') then
+              raise exception 'client/public role can execute heartbeat RPC';
+            end if;
+
+            readiness := public.get_release_readiness();
+            if readiness->'missing_workers' is null then
+              raise exception 'release readiness worker fields are missing';
+            end if;
+          end
+          $;
+          rollback;
+          SQL
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup
