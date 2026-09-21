@@ -85,7 +85,7 @@ services:
       GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64: ${GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64}
 
   ai-worker:
-    image: ghcr.io/genithm/genithm-ai-worker@sha256:938f50e3b0c2a6079ad10ac0e9065fab654b67d2e23b86ffe97cd5955b0e17fc
+    image: ${GENITHM_AI_WORKER_IMAGE:-ghcr.io/genithm/genithm-ai-worker@sha256:38b796c08ffc858a9a9e1910df4bc4de5037d1c13e3baf34aa3620d6e9ab4c42}
     restart: unless-stopped
     environment:
       <<: *common-worker-env
