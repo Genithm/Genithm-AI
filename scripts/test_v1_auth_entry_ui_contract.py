@@ -50,6 +50,8 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert '127.0.0.1:3000' in next_config
 
     assert '/auth/v1/settings' in preview_launcher
+    assert 'disable_signup' in preview_launcher
+    assert 'email authentication is disabled' in preview_launcher
     assert 'get_release_readiness' in preview_launcher
     assert '"status":"ready"' in preview_launcher
     assert 'SUPABASE_SECRET_KEY' in preview_launcher
