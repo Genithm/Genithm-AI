@@ -784,3 +784,85 @@ revoke all on function app_private.finish_ai_plan_success(bigint,uuid,text,text,
 from public, anon, authenticated;
 grant execute on function app_private.finish_ai_plan_success(bigint,uuid,text,text,text,text,jsonb)
 to service_role;
+
+
+create or replace function app_private.finish_ai_plan_inline_error(
+  p_plan_request_id uuid,
+  p_processing_error text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller_id uuid := auth.uid();
+  target public.ai_plan_requests%rowtype;
+  safe_error text := left(coalesce(nullif(trim(p_processing_error),''),'AI response failed.'),2000);
+begin
+  if caller_id is null then
+    raise exception 'authentication required' using errcode='42501';
+  end if;
+
+  select * into target
+  from public.ai_plan_requests
+  where id=p_plan_request_id
+  for update;
+
+  if not found or target.requested_by<>caller_id then
+    raise exception 'AI planning request not found' using errcode='P0002';
+  end if;
+
+  if target.status='planning' then
+    update public.ai_plan_requests
+    set status='error',
+        processing_error=safe_error,
+        processing_finished_at=now(),
+        updated_at=now()
+    where id=target.id;
+
+    insert into public.ai_messages(
+      conversation_id,
+      organization_id,
+      project_id,
+      conversation_owner_id,
+      role,
+      content,
+      message_kind,
+      plan_request_id
+    )
+    values(
+      target.conversation_id,
+      target.organization_id,
+      target.project_id,
+      target.requested_by,
+      'assistant',
+      'I could not complete that response. Please try again.',
+      'text',
+      target.id
+    );
+  end if;
+end;
+$$;
+
+revoke all on function app_private.finish_ai_plan_inline_error(uuid,text)
+from public,anon,authenticated,service_role;
+grant execute on function app_private.finish_ai_plan_inline_error(uuid,text)
+to authenticated;
+
+create or replace function public.finish_ai_plan_inline_error(
+  plan_request_id uuid,
+  processing_error text
+)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$
+  select app_private.finish_ai_plan_inline_error(plan_request_id,processing_error);
+$$;
+
+revoke all on function public.finish_ai_plan_inline_error(uuid,text)
+from public,anon,service_role;
+grant execute on function public.finish_ai_plan_inline_error(uuid,text)
+to authenticated;
