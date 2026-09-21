@@ -40,12 +40,12 @@ Create a Codespace from `main`, then run from the repository root:
 bash scripts/codespaces_preview.sh
 ```
 
-The launcher prints the Genithm web preview URL when web and API health checks pass.
+The launcher prints the Genithm web preview URL only after Supabase Auth is reachable, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
 
 ## Notes
 
 - The preview object-storage credentials and audit-signing key are generated automatically for the Codespace session.
 - The preview object storage is temporary and is not production R2.
-- The web app proxies API requests through its own origin so the browser only needs the port-3000 preview URL.
+- The web app proxies API requests through its own origin so the browser only needs the port-3000 preview URL.\n- Signup confirmation redirects use the server-side `GENITHM_APP_URL`; the browser cannot override the confirmation origin.\n- If any worker fails to heartbeat or a required queue is missing, the launcher exits non-zero and prints the readiness result instead of reporting a healthy preview.
 - Stopping/deleting the Codespace stops the API and workers. This is not a 24/7 production deployment.
 - Payment-provider flows still require their own Stripe/PayPal/Wise sandbox credentials if those screens are being tested.
