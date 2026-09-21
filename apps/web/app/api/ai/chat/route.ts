@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-
 import type { Json } from "@/lib/ai-database.types";
-import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
 import {
+  conversationalPlan,
   currentAiModel,
-  generateInstantPlan,
   POLICY_VERSION,
   PROMPT_VERSION,
+  scientificPlanFromToolArguments,
+  startStreamingChat,
 } from "@/lib/genithm-ai-chat";
+import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 type ChatRequest = {
   project_id?: string;
@@ -17,19 +17,42 @@ type ChatRequest = {
   attachment_upload_ids?: string[];
 };
 
+type ProviderChunk = {
+  choices?: Array<{
+    delta?: {
+      content?: string | null;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }>;
+    };
+  }>;
+};
+
+const encoder = new TextEncoder();
+
+function sse(event: string, payload: unknown) {
+  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub;
   if (!userId) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return Response.json({ error: "Authentication required." }, { status: 401 });
   }
 
   let body: ChatRequest;
   try {
     body = (await request.json()) as ChatRequest;
   } catch {
-    return NextResponse.json({ error: "Invalid chat request." }, { status: 400 });
+    return Response.json({ error: "Invalid chat request." }, { status: 400 });
   }
 
   const projectId = String(body.project_id ?? "").trim();
@@ -40,7 +63,7 @@ export async function POST(request: Request) {
     : [];
 
   if (!projectId || userMessage.length > 8000 || attachmentIds.length > 10 || (!userMessage && attachmentIds.length === 0)) {
-    return NextResponse.json(
+    return Response.json(
       { error: "Choose a project and send a message or up to 10 attachments." },
       { status: 422 },
     );
@@ -55,42 +78,134 @@ export async function POST(request: Request) {
   const row = prepared?.[0];
 
   if (prepareError || !row?.conversation_id || !row?.plan_request_id) {
-    return NextResponse.json(
+    return Response.json(
       { error: prepareError?.message || "Could not start the AI response." },
       { status: 400 },
     );
   }
 
-  try {
-    const plan = await generateInstantPlan(row.user_message, row.authorized_context);
-    const service = createServiceClient();
-    const { data: finalStatus, error: finishError } = await service.rpc("finish_ai_plan_inline", {
-      plan_request_id: row.plan_request_id,
-      expected_user_id: userId,
-      provider: "deepseek",
-      model: currentAiModel(),
-      prompt_version: PROMPT_VERSION,
-      policy_version: POLICY_VERSION,
-      plan: plan as unknown as Json,
-    });
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      void (async () => {
+        const service = createServiceClient();
+        try {
+          controller.enqueue(sse("meta", {
+            conversation_id: row.conversation_id,
+            plan_request_id: row.plan_request_id,
+          }));
 
-    if (finishError) throw new Error(finishError.message);
+          const providerBody = await startStreamingChat(row.user_message, row.authorized_context);
+          const reader = providerBody.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let visible = "";
+          let toolArguments = "";
+          let toolName = "";
+          let toolSeen = false;
+          let providerDone = false;
 
-    return NextResponse.json({
-      conversation_id: row.conversation_id,
-      plan_request_id: row.plan_request_id,
-      status: finalStatus,
-      message: plan.summary,
-      requires_confirmation: plan.intent === "scientific_action",
-    });
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : "AI response failed.";
-    const service = createServiceClient();
-    await service.rpc("finish_ai_plan_inline_error", {
-      plan_request_id: row.plan_request_id,
-      expected_user_id: userId,
-      processing_error: message,
-    });
-    return NextResponse.json({ error: message, conversation_id: row.conversation_id }, { status: 502 });
-  }
+          while (!providerDone) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let separator = buffer.indexOf("\n");
+            while (separator >= 0) {
+              const rawLine = buffer.slice(0, separator).trimEnd();
+              buffer = buffer.slice(separator + 1);
+              separator = buffer.indexOf("\n");
+
+              if (!rawLine.startsWith("data:")) continue;
+              const data = rawLine.slice(5).trim();
+              if (!data) continue;
+              if (data === "[DONE]") {
+                providerDone = true;
+                break;
+              }
+
+              let parsed: ProviderChunk;
+              try {
+                parsed = JSON.parse(data) as ProviderChunk;
+              } catch {
+                continue;
+              }
+
+              const delta = parsed.choices?.[0]?.delta;
+              if (!delta) continue;
+
+              if (delta.tool_calls?.length) {
+                toolSeen = true;
+                for (const call of delta.tool_calls) {
+                  if (call.function?.name) toolName = call.function.name;
+                  if (call.function?.arguments) toolArguments += call.function.arguments;
+                }
+              }
+
+              if (!toolSeen && typeof delta.content === "string" && delta.content) {
+                const remaining = 2000 - visible.length;
+                if (remaining <= 0) {
+                  await reader.cancel();
+                  providerDone = true;
+                  break;
+                }
+                const piece = delta.content.slice(0, remaining);
+                visible += piece;
+                controller.enqueue(sse("delta", { text: piece }));
+              }
+            }
+          }
+
+          const plan = toolSeen
+            ? (() => {
+                if (toolName !== "propose_scientific_action") {
+                  throw new Error("AI provider returned an unsupported tool call.");
+                }
+                return scientificPlanFromToolArguments(toolArguments);
+              })()
+            : conversationalPlan(visible);
+
+          const { data: finalStatus, error: finishError } = await service.rpc("finish_ai_plan_inline", {
+            plan_request_id: row.plan_request_id,
+            expected_user_id: userId,
+            provider: "deepseek",
+            model: currentAiModel(),
+            prompt_version: PROMPT_VERSION,
+            policy_version: POLICY_VERSION,
+            plan: plan as unknown as Json,
+          });
+          if (finishError) throw new Error(finishError.message);
+
+          controller.enqueue(sse("done", {
+            conversation_id: row.conversation_id,
+            plan_request_id: row.plan_request_id,
+            status: finalStatus,
+            message: plan.summary,
+            requires_confirmation: plan.intent === "scientific_action",
+          }));
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : "AI response failed.";
+          await service.rpc("finish_ai_plan_inline_error", {
+            plan_request_id: row.plan_request_id,
+            expected_user_id: userId,
+            processing_error: message,
+          });
+          controller.enqueue(sse("error", {
+            conversation_id: row.conversation_id,
+            error: message,
+          }));
+        } finally {
+          controller.close();
+        }
+      })();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
