@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "apps/web/app/login/**"
+      - "apps/web/app/signup/**"
+      - "apps/web/next.config.ts"
+      - "scripts/codespaces_preview.sh"
       - "scripts/test_v1_auth_entry_ui_contract.py"
       - ".github/workflows/v1-auth-entry-ui-contract.yml"
   workflow_dispatch:
