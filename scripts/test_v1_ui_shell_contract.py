@@ -70,6 +70,9 @@ def main() -> int:
     assert 'signal: abortController.signal' in chat_composer
     assert 'request.signal' in chat_api
     assert 'signal?: AbortSignal' in chat_provider
+    assert 'partialVisible || "Generation stopped."' in chat_api
+    assert 'finish_ai_plan_inline_error' in chat_api
+    assert 'key={\`${conversation.id}:\${messages?.length ?? 0}\`}' in chat_conversation
 
     print("PASS: V1 dashboard UI shell contract")
     return 0
