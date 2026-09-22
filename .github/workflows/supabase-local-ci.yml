@@ -154,6 +154,35 @@ jobs:
             ) then
               raise exception 'instant AI chat rate-limit policy is missing or incorrect';
             end if;
+
+            if not exists (
+              select 1
+              from information_schema.columns
+              where table_schema='public'
+                and table_name='ai_messages'
+                and column_name='attachment_upload_ids'
+                and udt_name='_uuid'
+            ) then
+              raise exception 'direct AI chat message attachment column is missing';
+            end if;
+
+            if not has_function_privilege('authenticated', 'public.request_ai_chat_turn(uuid,uuid,text,uuid[])', 'EXECUTE') then
+              raise exception 'authenticated users cannot start direct AI chat';
+            end if;
+
+            if has_function_privilege('anon', 'public.request_ai_chat_turn(uuid,uuid,text,uuid[])', 'EXECUTE') then
+              raise exception 'anon can start direct AI chat';
+            end if;
+
+            if has_function_privilege('authenticated', 'public.finish_ai_chat_turn(uuid,uuid,text)', 'EXECUTE')
+              or has_function_privilege('authenticated', 'public.create_ai_plan_from_chat(uuid,uuid,text,text,text,text,jsonb)', 'EXECUTE') then
+              raise exception 'authenticated users can forge direct chat completion or scientific plans';
+            end if;
+
+            if not has_function_privilege('service_role', 'public.finish_ai_chat_turn(uuid,uuid,text)', 'EXECUTE')
+              or not has_function_privilege('service_role', 'public.create_ai_plan_from_chat(uuid,uuid,text,text,text,text,jsonb)', 'EXECUTE') then
+              raise exception 'service role cannot finish direct chat or create scientific plans';
+            end if;
           end
           $instant_chat$;
           SQL

@@ -39,8 +39,6 @@ def main() -> int:
     assert 'Attach' in chat_composer
     assert '/api/ai/chat' in chat_composer
     assert '/api/v1/storage/sequence-uploads' in chat_composer
-    assert 'request_ai_plan_inline' in chat_api
-    assert 'finish_ai_plan_inline' in chat_api
     assert 'text/event-stream' in chat_api
     assert 'event: ${event}' in chat_api
     assert 'response.body.getReader()' in chat_composer
@@ -71,7 +69,11 @@ def main() -> int:
     assert 'request.signal' in chat_api
     assert 'signal?: AbortSignal' in chat_provider
     assert 'partialVisible || "Generation stopped."' in chat_api
-    assert 'finish_ai_plan_inline_error' in chat_api
+    assert 'finish_ai_plan_inline_error' not in chat_api
+    assert 'request_ai_chat_turn' in chat_api
+    assert 'finish_ai_chat_turn' in chat_api
+    assert 'create_ai_plan_from_chat' in chat_api
+    assert 'request_ai_plan_inline' not in chat_api
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 
     print("PASS: V1 dashboard UI shell contract")

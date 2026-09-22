@@ -64,7 +64,7 @@ export default async function AiConversationPage({
     supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
     supabase
       .from("ai_messages")
-      .select("id,role,content,message_kind,plan_request_id,created_at")
+      .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,created_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .limit(250),
@@ -82,18 +82,25 @@ export default async function AiConversationPage({
       .limit(100),
   ]);
 
-  const attachmentIds = [...new Set((plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []))];
+  const attachmentIds = [...new Set([...(plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []), ...(messages ?? []).flatMap((message) => message.attachment_upload_ids ?? [])])];
   const { data: attachmentRows } = attachmentIds.length
     ? await supabase.from("sequence_uploads").select("id,original_filename,status").in("id", attachmentIds)
     : { data: [] as Array<{ id: string; original_filename: string; status: string }> };
 
   const attachmentById = new Map((attachmentRows ?? []).map((row) => [row.id, row]));
   const attachmentsByPlan = new Map<string, Array<{ id: string; original_filename: string; status: string }>>();
+  const attachmentsByMessage = new Map<string, Array<{ id: string; original_filename: string; status: string }>>();
   for (const plan of plans ?? []) {
     const rows = (plan.attachment_upload_ids ?? [])
       .map((attachmentId) => attachmentById.get(attachmentId))
       .filter((row): row is { id: string; original_filename: string; status: string } => Boolean(row));
     if (rows.length) attachmentsByPlan.set(plan.id, rows);
+  }
+  for (const message of messages ?? []) {
+    const rows = (message.attachment_upload_ids ?? [])
+      .map((attachmentId) => attachmentById.get(attachmentId))
+      .filter((row): row is { id: string; original_filename: string; status: string } => Boolean(row));
+    if (rows.length) attachmentsByMessage.set(message.id, rows);
   }
 
   const dispatched = (plans ?? []).filter(
@@ -141,7 +148,9 @@ export default async function AiConversationPage({
   for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
-  const activityPlans = (plans ?? []).filter((plan) => ["ready", "dispatched", "error"].includes(plan.status));
+  const activityPlans = (plans ?? []).filter((plan) =>
+    ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
+  );
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
@@ -181,9 +190,9 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
-              {message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length ? (
+              {(attachmentsByMessage.get(message.id)?.length || (message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length)) ? (
                 <div className={styles.messageAttachments}>
-                  {attachmentsByPlan.get(message.plan_request_id)?.map((attachment) => (
+                  {(attachmentsByMessage.get(message.id) ?? (message.plan_request_id ? attachmentsByPlan.get(message.plan_request_id) : undefined) ?? []).map((attachment) => (
                     <span key={attachment.id}>
                       <strong>{attachment.original_filename}</strong>
                       <small>{readable(attachment.status)}</small>
