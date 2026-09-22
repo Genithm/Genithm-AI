@@ -13,7 +13,7 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 1
 fi
 
-required=(SUPABASE_SECRET_KEY DEEPSEEK_API_KEY)
+required=(SUPABASE_SECRET_KEY OPENROUTER_API_KEY)
 missing=()
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -66,7 +66,8 @@ cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
-DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
+OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
 NCBI_EMAIL=$NCBI_EMAIL
 NCBI_API_KEY=${NCBI_API_KEY:-}
 GENITHM_PREVIEW_WEB_ORIGIN=$WEB_ORIGIN
@@ -83,8 +84,17 @@ GENITHM_BLAST_WORKER_IMAGE=$GENITHM_BLAST_WORKER_IMAGE
 GENITHM_SCIENTIFIC_WORKER_IMAGE=$GENITHM_SCIENTIFIC_WORKER_IMAGE
 GENITHM_AUDIT_WORKER_IMAGE=$GENITHM_AUDIT_WORKER_IMAGE
 GENITHM_AI_WORKER_IMAGE=$GENITHM_AI_WORKER_IMAGE
-GENITHM_AI_PRIMARY_ENDPOINT=https://api.deepseek.com/chat/completions
-GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}
+GENITHM_AI_PRIMARY_PROVIDER=openrouter
+GENITHM_AI_PRIMARY_API_KEY=$OPENROUTER_API_KEY
+GENITHM_AI_PRIMARY_ENDPOINT=https://openrouter.ai/api/v1/chat/completions
+GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-openrouter/free}
+GENITHM_AI_PRIMARY_PROTOCOL=chat_completions
+GENITHM_AI_BACKUP_ENABLED=${GENITHM_AI_BACKUP_ENABLED:-false}
+GENITHM_AI_BACKUP_PROVIDER=deepseek
+GENITHM_AI_BACKUP_API_KEY=${DEEPSEEK_API_KEY:-}
+GENITHM_AI_BACKUP_ENDPOINT=https://api.deepseek.com/chat/completions
+GENITHM_AI_BACKUP_MODEL=${GENITHM_AI_BACKUP_MODEL:-deepseek-flash}
+GENITHM_AI_BACKUP_PROTOCOL=chat_completions
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -103,11 +113,11 @@ if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*tr
   exit 4
 fi
 
-echo "Checking DeepSeek API key and model..."
-DEEPSEEK_MODELS="$(curl -fsS -H "Authorization: Bearer $DEEPSEEK_API_KEY" https://api.deepseek.com/models)"
-SELECTED_MODEL="${GENITHM_AI_PRIMARY_MODEL:-deepseek-flash}"
-if ! printf '%s' "$DEEPSEEK_MODELS" | grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\"$SELECTED_MODEL\""; then
-  echo "DeepSeek model $SELECTED_MODEL is not available to this API key."
+echo "Checking OpenRouter API key and free model..."
+OPENROUTER_MODELS="$(curl -fsS -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/models)"
+SELECTED_MODEL="${GENITHM_AI_PRIMARY_MODEL:-openrouter/free}"
+if ! printf '%s' "$OPENROUTER_MODELS" | grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\"$SELECTED_MODEL\""; then
+  echo "OpenRouter model $SELECTED_MODEL is not available to this API key."
   exit 4
 fi
 
@@ -202,7 +212,7 @@ echo
 echo "Genithm preview is running and passed readiness checks."
 echo "Open: $WEB_ORIGIN"
 echo "Supabase Auth is reachable, API/web health checks passed, and all six worker heartbeats are current."
-echo "DeepSeek is configured as the preview AI provider."
+echo "OpenRouter Free is configured as the preview AI provider."
 echo "Runtime images are coordinated from V1 candidate revision: $RUNTIME_SHA"
 echo "Preview object storage is temporary and isolated to this Codespace."
 echo

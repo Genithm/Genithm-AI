@@ -39,3 +39,16 @@ def test_settings_can_disable_backup_provider(monkeypatch):
     settings = Settings.from_env()
     assert settings.primary.name == "qwen"
     assert settings.backup is None
+
+
+def test_settings_accept_openrouter_primary(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.setenv("GENITHM_AI_PRIMARY_PROVIDER", "openrouter")
+    monkeypatch.setenv("GENITHM_AI_BACKUP_ENABLED", "false")
+    monkeypatch.delenv("GENITHM_AI_BACKUP_API_KEY", raising=False)
+    monkeypatch.delenv("GENITHM_AI_BACKUP_ENDPOINT", raising=False)
+    monkeypatch.delenv("GENITHM_AI_BACKUP_MODEL", raising=False)
+    settings = Settings.from_env()
+    assert settings.primary.name == "openrouter"
+    assert settings.primary.protocol == "chat_completions"
+    assert settings.backup is None

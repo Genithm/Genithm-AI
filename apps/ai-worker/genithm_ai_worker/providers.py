@@ -71,7 +71,7 @@ class ProviderConfig:
     protocol: str
 
     def __post_init__(self) -> None:
-        if self.name not in {"qwen", "deepseek", "openai"}:
+        if self.name not in {"qwen", "deepseek", "openai", "openrouter"}:
             raise ValueError(f"unsupported AI provider: {self.name}")
         if self.protocol not in {"chat_completions", "responses"}:
             raise ValueError(f"unsupported AI provider protocol: {self.protocol}")

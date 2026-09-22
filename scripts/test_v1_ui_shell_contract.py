@@ -44,6 +44,12 @@ def main() -> int:
     assert 'response.body.getReader()' in chat_composer
     assert 'eventName === "delta"' in chat_composer
     assert 'stream: true' in chat_provider
+    assert 'openrouter/free' in chat_provider
+    assert 'https://openrouter.ai/api/v1/chat/completions' in chat_provider
+    assert 'OPENROUTER_API_KEY' in chat_provider
+    assert 'provider: providerResult.provider' in chat_api
+    assert 'model: providerResult.model' in chat_api
+    assert 'balance or free quota' in chat_provider
     assert 'thinking: { type: "disabled" }' in chat_provider
     assert 'reasoning_effort: "none"' in chat_provider
     assert 'propose_scientific_action' in chat_provider
