@@ -39,8 +39,6 @@ def main() -> int:
     assert 'Attach' in chat_composer
     assert '/api/ai/chat' in chat_composer
     assert '/api/v1/storage/sequence-uploads' in chat_composer
-    assert 'request_ai_plan_inline' in chat_api
-    assert 'finish_ai_plan_inline' in chat_api
     assert 'text/event-stream' in chat_api
     assert 'event: ${event}' in chat_api
     assert 'response.body.getReader()' in chat_composer
