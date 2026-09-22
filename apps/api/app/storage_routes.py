@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .settings import get_settings
@@ -127,6 +127,40 @@ def reserve_sequence_upload(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     except (StorageError, KeyError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Could not prepare secure upload") from exc
+
+
+@router.put("/sequence-uploads/{upload_id}/content")
+async def upload_sequence_content(
+    upload_id: UUID,
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict[str, str]:
+    gateway, storage, _ = _clients()
+    user = _authenticate(gateway, authorization)
+    try:
+        row = gateway.user_upload(user, str(upload_id))
+        if row is None or row.get("created_by") != user.id:
+            raise HTTPException(status_code=404, detail="Upload not found")
+        if row.get("storage_provider") != "r2" or row.get("storage_bucket") != LOGICAL_SEQUENCE_BUCKET:
+            raise HTTPException(status_code=409, detail="Upload is not managed by the Storage Gateway")
+        if row.get("status") != "pending_upload":
+            raise HTTPException(status_code=409, detail=f"Upload is already {row.get('status')}")
+
+        expected_size = int(row["file_size_bytes"])
+        if expected_size < 1 or expected_size > MAX_SEQUENCE_FILE_BYTES:
+            raise HTTPException(status_code=409, detail="Upload reservation size is invalid")
+
+        body = await request.body()
+        if len(body) != expected_size:
+            raise HTTPException(status_code=409, detail="Uploaded object size does not match the reservation")
+
+        expected_content_type = _content_type(row.get("content_type"))
+        storage.put(str(row["object_path"]), body, content_type=expected_content_type)
+        return {"status": "uploaded"}
+    except SupabaseGatewayError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except (StorageError, KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Could not store uploaded object") from exc
 
 
 @router.post("/sequence-uploads/{upload_id}/complete")
