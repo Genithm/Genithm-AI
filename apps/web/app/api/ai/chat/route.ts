@@ -1,7 +1,6 @@
 import type { Json } from "@/lib/ai-database.types";
 import {
   conversationalPlan,
-  currentAiModel,
   POLICY_VERSION,
   PROMPT_VERSION,
   scientificPlanFromToolArguments,
@@ -125,8 +124,13 @@ export async function POST(request: Request) {
             user_message_id: row.user_message_id,
           }));
 
-          const providerBody = await startStreamingChat(row.user_message, row.authorized_context, mediaAttachments, request.signal);
-          const reader = providerBody.getReader();
+          const providerResult = await startStreamingChat(
+            row.user_message,
+            row.authorized_context,
+            mediaAttachments,
+            request.signal,
+          );
+          const reader = providerResult.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
           let toolArguments = "";
@@ -193,8 +197,8 @@ export async function POST(request: Request) {
             const { data: planRows, error: planError } = await service.rpc("create_ai_plan_from_chat", {
               user_message_id: row.user_message_id,
               expected_user_id: userId,
-              provider: "deepseek",
-              model: currentAiModel(),
+              provider: providerResult.provider,
+              model: providerResult.model,
               prompt_version: PROMPT_VERSION,
               policy_version: POLICY_VERSION,
               plan: plan as unknown as Json,
