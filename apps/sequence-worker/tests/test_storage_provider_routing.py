@@ -33,3 +33,26 @@ def test_download_routes_new_upload_to_r2(monkeypatch):
     monkeypatch.setattr(client, "_download_supabase", lambda _job: (_ for _ in ()).throw(AssertionError("Supabase should not run")))
     monkeypatch.setattr(client, "_download_r2", lambda _job: PAYLOAD)
     assert client.download(job("r2")) == PAYLOAD
+
+
+def test_preview_http_r2_requires_explicit_opt_in():
+    secure = RuntimeConfig(
+        "https://example.supabase.co",
+        "secret",
+        r2_endpoint="http://minio:9000",
+        r2_access_key_id="access",
+        r2_secret_access_key="secret",
+        r2_sequence_bucket="bucket",
+    )
+    assert secure.r2_configured is False
+
+    preview = RuntimeConfig(
+        "https://example.supabase.co",
+        "secret",
+        r2_endpoint="http://minio:9000",
+        r2_access_key_id="access",
+        r2_secret_access_key="secret",
+        r2_sequence_bucket="bucket",
+        allow_insecure_r2_endpoint=True,
+    )
+    assert preview.r2_configured is True
