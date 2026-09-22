@@ -4,6 +4,7 @@ import {
   POLICY_VERSION,
   PROMPT_VERSION,
   scientificPlanFromToolArguments,
+  normalizeScientificPlanForExecution,
   startStreamingChat,
 } from "@/lib/genithm-ai-chat";
 import { createClient } from "@/lib/supabase/server";
@@ -193,7 +194,23 @@ export async function POST(request: Request) {
             if (toolName !== "propose_scientific_action") {
               throw new Error("AI provider returned an unsupported tool call.");
             }
-            const plan = scientificPlanFromToolArguments(toolArguments);
+            const rawPlan = scientificPlanFromToolArguments(toolArguments);
+            const plan = await normalizeScientificPlanForExecution(rawPlan, row.user_message);
+            if (plan.intent !== "scientific_action" || !plan.action) {
+              const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+                user_message_id: row.user_message_id,
+                expected_user_id: userId,
+                assistant_message: plan.summary,
+              });
+              if (finishError) throw new Error(finishError.message);
+              controller.enqueue(sse("done", {
+                conversation_id: row.conversation_id,
+                status: "conversation",
+                message: plan.summary,
+                requires_confirmation: false,
+              }));
+              return;
+            }
             const { data: planRows, error: planError } = await service.rpc("create_ai_plan_from_chat", {
               user_message_id: row.user_message_id,
               expected_user_id: userId,
