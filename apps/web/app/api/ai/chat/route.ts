@@ -99,7 +99,7 @@ export async function POST(request: Request) {
       : ""
   );
 
-  const { data: prepared, error: prepareError } = await supabase.rpc("request_ai_plan_inline", {
+  const { data: prepared, error: prepareError } = await supabase.rpc("request_ai_chat_turn", {
     project_id: projectId,
     conversation_id: conversationId,
     user_message: recordedUserMessage,
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   });
   const row = prepared?.[0];
 
-  if (prepareError || !row?.conversation_id || !row?.plan_request_id) {
+  if (prepareError || !row?.conversation_id || !row?.user_message_id) {
     return Response.json(
       { error: prepareError?.message || "Could not start the AI response." },
       { status: 400 },
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         try {
           controller.enqueue(sse("meta", {
             conversation_id: row.conversation_id,
-            plan_request_id: row.plan_request_id,
+            user_message_id: row.user_message_id,
           }));
 
           const providerBody = await startStreamingChat(row.user_message, row.authorized_context, mediaAttachments, request.signal);
@@ -185,52 +185,61 @@ export async function POST(request: Request) {
             }
           }
 
-          const plan = toolSeen
-            ? (() => {
-                if (toolName !== "propose_scientific_action") {
-                  throw new Error("AI provider returned an unsupported tool call.");
-                }
-                return scientificPlanFromToolArguments(toolArguments);
-              })()
-            : conversationalPlan(partialVisible);
-
-          const { data: finalStatus, error: finishError } = await service.rpc("finish_ai_plan_inline", {
-            plan_request_id: row.plan_request_id,
-            expected_user_id: userId,
-            provider: "deepseek",
-            model: currentAiModel(),
-            prompt_version: PROMPT_VERSION,
-            policy_version: POLICY_VERSION,
-            plan: plan as unknown as Json,
-          });
-          if (finishError) throw new Error(finishError.message);
-
-          controller.enqueue(sse("done", {
-            conversation_id: row.conversation_id,
-            plan_request_id: row.plan_request_id,
-            status: finalStatus,
-            message: plan.summary,
-            requires_confirmation: plan.intent === "scientific_action",
-          }));
-        } catch (caught) {
-          const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
-          if (stopped) {
-            const stoppedPlan = conversationalPlan(partialVisible || "Generation stopped.");
-            await service.rpc("finish_ai_plan_inline", {
-              plan_request_id: row.plan_request_id,
+          if (toolSeen) {
+            if (toolName !== "propose_scientific_action") {
+              throw new Error("AI provider returned an unsupported tool call.");
+            }
+            const plan = scientificPlanFromToolArguments(toolArguments);
+            const { data: planRows, error: planError } = await service.rpc("create_ai_plan_from_chat", {
+              user_message_id: row.user_message_id,
               expected_user_id: userId,
               provider: "deepseek",
               model: currentAiModel(),
               prompt_version: PROMPT_VERSION,
               policy_version: POLICY_VERSION,
-              plan: stoppedPlan as unknown as Json,
+              plan: plan as unknown as Json,
+            });
+            const createdPlan = planRows?.[0];
+            if (planError || !createdPlan?.plan_request_id) {
+              throw new Error(planError?.message || "Could not create the scientific plan.");
+            }
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              plan_request_id: createdPlan.plan_request_id,
+              status: createdPlan.status,
+              message: plan.summary,
+              requires_confirmation: true,
+            }));
+          } else {
+            const plan = conversationalPlan(partialVisible);
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: plan.summary,
+            });
+            if (finishError) throw new Error(finishError.message);
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              status: "conversation",
+              message: plan.summary,
+              requires_confirmation: false,
+            }));
+          }
+        } catch (caught) {
+          const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
+          if (stopped) {
+            const stoppedPlan = conversationalPlan(partialVisible || "Generation stopped.");
+            await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: stoppedPlan.summary,
             });
           } else {
             const message = caught instanceof Error ? caught.message : "AI response failed.";
-            await service.rpc("finish_ai_plan_inline_error", {
-              plan_request_id: row.plan_request_id,
+            await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
               expected_user_id: userId,
-              processing_error: message,
+              assistant_message: "I could not complete that response. Please try again.",
             });
             controller.enqueue(sse("error", {
               conversation_id: row.conversation_id,
