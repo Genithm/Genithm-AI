@@ -65,7 +65,10 @@ class Settings(BaseSettings):
         ):
             return False
         parsed = urlparse(self.r2_endpoint or "")
-        return parsed.scheme == "https" and bool(parsed.netloc) and 60 <= self.storage_signed_url_seconds <= 900
+        endpoint_ok = parsed.scheme == "https" or (
+            self.environment != "production" and parsed.scheme == "http"
+        )
+        return endpoint_ok and bool(parsed.netloc) and 60 <= self.storage_signed_url_seconds <= 900
 
 
 @lru_cache
