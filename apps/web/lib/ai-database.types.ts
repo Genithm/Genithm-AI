@@ -302,6 +302,10 @@ type AiFunctions = LivePublic["Functions"] & {
     Args: { user_message_id: string; expected_user_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
     Returns: { plan_request_id: string; status: string }[];
   };
+  dispatch_ai_plan_service: {
+    Args: { plan_request_id: string; expected_user_id: string };
+    Returns: { resource_type: string; resource_id: string }[];
+  };
   finish_ai_plan_inline: {
     Args: { plan_request_id: string; expected_user_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
     Returns: string;
