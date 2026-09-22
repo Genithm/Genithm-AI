@@ -36,6 +36,7 @@ class RuntimeConfig:
     r2_access_key_id: str | None = None
     r2_secret_access_key: str | None = None
     r2_sequence_bucket: str | None = None
+    allow_insecure_r2_endpoint: bool = False
 
     @classmethod
     def from_env(cls) -> "RuntimeConfig":
@@ -62,6 +63,7 @@ class RuntimeConfig:
         r2_access_key_id = os.environ.get("GENITHM_R2_ACCESS_KEY_ID", "").strip() or None
         r2_secret_access_key = os.environ.get("GENITHM_R2_SECRET_ACCESS_KEY", "").strip() or None
         r2_sequence_bucket = os.environ.get("GENITHM_R2_SEQUENCE_BUCKET", "").strip() or None
+        allow_insecure_r2_endpoint = os.environ.get("GENITHM_ALLOW_INSECURE_R2_ENDPOINT", "").strip().lower() in {"1", "true", "yes"}
         return cls(
             url,
             key,
@@ -72,13 +74,17 @@ class RuntimeConfig:
             r2_access_key_id,
             r2_secret_access_key,
             r2_sequence_bucket,
+            allow_insecure_r2_endpoint,
         )
 
     @property
     def r2_configured(self) -> bool:
         return bool(
             self.r2_endpoint
-            and self.r2_endpoint.startswith("https://")
+            and (
+                self.r2_endpoint.startswith("https://")
+                or (self.allow_insecure_r2_endpoint and self.r2_endpoint.startswith("http://"))
+            )
             and self.r2_access_key_id
             and self.r2_secret_access_key
             and self.r2_sequence_bucket

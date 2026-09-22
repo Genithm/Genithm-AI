@@ -73,7 +73,14 @@ def main() -> int:
     assert 'request_ai_chat_turn' in chat_api
     assert 'finish_ai_chat_turn' in chat_api
     assert 'create_ai_plan_from_chat' in chat_api
+    assert 'dispatch_ai_plan_service' in chat_api
+    assert 'requires_confirmation: false' in chat_api
     assert 'request_ai_plan_inline' not in chat_api
+    assert '/content' in chat_composer
+    assert 'status: "validating"' in chat_composer
+    assert 'processing_error' in chat_composer
+    assert 'I can do [supported task] for you.' in chat_provider
+    assert 'Genithm will start the validated task automatically' in chat_provider
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 
     print("PASS: V1 dashboard UI shell contract")

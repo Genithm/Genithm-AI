@@ -203,12 +203,23 @@ export async function POST(request: Request) {
             if (planError || !createdPlan?.plan_request_id) {
               throw new Error(planError?.message || "Could not create the scientific plan.");
             }
+            const { data: dispatchedRows, error: dispatchError } = await service.rpc("dispatch_ai_plan_service", {
+              plan_request_id: createdPlan.plan_request_id,
+              expected_user_id: userId,
+            });
+            const dispatched = dispatchedRows?.[0];
+            if (dispatchError || !dispatched?.resource_id) {
+              throw new Error(dispatchError?.message || "Could not start the scientific task.");
+            }
+
             controller.enqueue(sse("done", {
               conversation_id: row.conversation_id,
               plan_request_id: createdPlan.plan_request_id,
-              status: createdPlan.status,
+              status: "dispatched",
+              resource_type: dispatched.resource_type,
+              resource_id: dispatched.resource_id,
               message: plan.summary,
-              requires_confirmation: true,
+              requires_confirmation: false,
             }));
           } else {
             const plan = conversationalPlan(partialVisible);

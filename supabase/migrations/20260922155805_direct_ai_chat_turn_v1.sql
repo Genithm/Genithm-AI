@@ -143,8 +143,7 @@ begin
     case when normalized_message='' then 'Attached biological data for analysis.' else normalized_message end,
     context;
 end;
-$function$
-
+$function$;
 
 revoke all on function app_private.request_ai_chat_turn(uuid,uuid,text,uuid[])
 from public,anon,authenticated,service_role;
@@ -196,8 +195,7 @@ begin
   returning id into assistant_id;
   return assistant_id;
 end;
-$function$
-
+$function$;
 
 revoke all on function app_private.finish_ai_chat_turn(uuid,uuid,text)
 from public,anon,authenticated,service_role;
@@ -289,8 +287,7 @@ begin
 
   return query select request_id,'ready'::text;
 end;
-$function$
-
+$function$;
 
 revoke all on function app_private.create_ai_plan_from_chat(uuid,uuid,text,text,text,text,jsonb)
 from public,anon,authenticated,service_role;
