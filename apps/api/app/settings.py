@@ -31,6 +31,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GENITHM_API_READINESS_TIMEOUT_SECONDS", "GENITHM_READINESS_TIMEOUT_SECONDS"),
     )
     r2_endpoint: str | None = Field(default=None, validation_alias="GENITHM_R2_ENDPOINT")
+    r2_public_endpoint: str | None = Field(default=None, validation_alias="GENITHM_R2_PUBLIC_ENDPOINT")
     r2_access_key_id: str | None = Field(default=None, validation_alias="GENITHM_R2_ACCESS_KEY_ID")
     r2_secret_access_key: str | None = Field(default=None, validation_alias="GENITHM_R2_SECRET_ACCESS_KEY")
     r2_sequence_bucket: str = Field(default="genithm-sequence-inputs", validation_alias="GENITHM_R2_SEQUENCE_BUCKET")
@@ -68,7 +69,10 @@ class Settings(BaseSettings):
         endpoint_ok = parsed.scheme == "https" or (
             self.environment != "production" and parsed.scheme == "http"
         )
-        return endpoint_ok and bool(parsed.netloc) and 60 <= self.storage_signed_url_seconds <= 900
+        public_endpoint = self.r2_public_endpoint or self.r2_endpoint or ""
+        public_parsed = urlparse(public_endpoint)
+        public_ok = public_parsed.scheme == "https" and bool(public_parsed.netloc)
+        return endpoint_ok and bool(parsed.netloc) and public_ok and 60 <= self.storage_signed_url_seconds <= 900
 
 
 @lru_cache
