@@ -78,8 +78,8 @@ begin
     'conversation_history',coalesce((
       select jsonb_agg(jsonb_build_object('role',h.role,'kind',h.message_kind,'content',left(h.content,4000)) order by h.created_at asc)
       from (
-        select role,message_kind,content,created_at from public.ai_messages
-        where conversation_id=convo.id and id<>message_id
+        select m.role,m.message_kind,m.content,m.created_at from public.ai_messages m
+        where m.conversation_id=convo.id and m.id<>message_id
         order by created_at desc limit 12
       ) h
     ),'[]'::jsonb),
