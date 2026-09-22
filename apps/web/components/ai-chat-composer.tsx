@@ -32,7 +32,7 @@ type Attachment = {
   uploadId?: string;
   dataUrl?: string;
   mimeType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-  status: "checking" | "uploading" | "ready" | "error";
+  status: "checking" | "uploading" | "validating" | "ready" | "error";
   error?: string;
 };
 
@@ -124,7 +124,7 @@ export function AiChatComposer({
   const [liveAssistantMessage, setLiveAssistantMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const busyUploading = attachments.some((attachment) => attachment.status === "checking" || attachment.status === "uploading");
+  const busyUploading = attachments.some((attachment) => ["checking", "uploading", "validating"].includes(attachment.status));
   const readyAttachmentIds = attachments
     .filter((attachment) => attachment.kind === "sequence" && attachment.status === "ready" && attachment.uploadId)
     .map((attachment) => attachment.uploadId as string);
@@ -173,12 +173,17 @@ export function AiChatComposer({
       }
       const reservation = (await reservationResponse.json()) as ReservationResponse;
 
-      const uploadResponse = await fetch(reservation.upload_url, {
-        method: reservation.method,
-        headers: reservation.required_headers,
+      const uploadResponse = await fetch(`${API_BASE}/api/v1/storage/sequence-uploads/${reservation.upload_id}/content`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...reservation.required_headers,
+        },
         body: file,
       });
-      if (!uploadResponse.ok) throw new Error("Secure upload failed.");
+      if (!uploadResponse.ok) {
+        throw new Error(await responseError(uploadResponse, "Secure upload failed."));
+      }
 
       const completionResponse = await fetch(`${API_BASE}/api/v1/storage/sequence-uploads/${reservation.upload_id}/complete`, {
         method: "POST",
@@ -189,8 +194,33 @@ export function AiChatComposer({
       }
 
       setAttachments((current) => current.map((item) => item.key === key
-        ? { ...item, uploadId: reservation.upload_id, status: "ready", error: undefined }
+        ? { ...item, uploadId: reservation.upload_id, status: "validating", error: undefined }
         : item));
+
+      let validationError = "";
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const { data: upload, error: uploadError } = await supabase
+          .from("sequence_uploads")
+          .select("status,processing_error")
+          .eq("id", reservation.upload_id)
+          .maybeSingle();
+
+        if (uploadError) throw new Error("Could not check sequence validation.");
+        if (upload?.status === "ready") {
+          setAttachments((current) => current.map((item) => item.key === key
+            ? { ...item, uploadId: reservation.upload_id, status: "ready", error: undefined }
+            : item));
+          return;
+        }
+        if (upload?.status === "rejected" || upload?.status === "error") {
+          validationError = upload.processing_error || "Sequence validation failed.";
+          break;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      throw new Error(validationError || "Sequence validation is still running. Please retry the upload.");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
       setAttachments((current) => current.map((item) => item.key === key
@@ -444,12 +474,14 @@ export function AiChatComposer({
                       ? "checking"
                       : attachment.status === "uploading"
                         ? "uploading"
-                        : attachment.status === "ready"
-                          ? "attached"
-                          : attachment.error || "failed"}
+                        : attachment.status === "validating"
+                          ? "validating"
+                          : attachment.status === "ready"
+                            ? "attached"
+                            : attachment.error || "failed"}
                   </span>
                 </div>
-                <button type="button" onClick={() => removeAttachment(attachment.key)} disabled={sending || attachment.status === "uploading"} aria-label={`Remove ${attachment.file.name}`}>×</button>
+                <button type="button" onClick={() => removeAttachment(attachment.key)} disabled={sending || attachment.status === "uploading" || attachment.status === "validating"} aria-label={`Remove ${attachment.file.name}`}>×</button>
               </div>
             ))}
           </div>
