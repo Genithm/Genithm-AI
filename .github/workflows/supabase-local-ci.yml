@@ -189,6 +189,38 @@ jobs:
               or has_function_privilege('anon', 'public.dispatch_ai_plan_service(uuid,uuid)', 'EXECUTE') then
               raise exception 'client role can auto-dispatch scientific tasks';
             end if;
+
+            if to_regprocedure('app_private.ai_capability_preflight(uuid,uuid)') is null
+              or to_regprocedure('app_private.validate_ai_plan_for_request_v3(public.ai_plan_requests,jsonb)') is null then
+              raise exception 'capability-aware AI preflight functions are missing';
+            end if;
+
+            if has_function_privilege('authenticated', 'app_private.ai_capability_preflight(uuid,uuid)', 'EXECUTE')
+              or has_function_privilege('anon', 'app_private.ai_capability_preflight(uuid,uuid)', 'EXECUTE')
+              or has_function_privilege('service_role', 'app_private.ai_capability_preflight(uuid,uuid)', 'EXECUTE')
+              or has_function_privilege('authenticated', 'app_private.validate_ai_plan_for_request_v3(public.ai_plan_requests,jsonb)', 'EXECUTE')
+              or has_function_privilege('anon', 'app_private.validate_ai_plan_for_request_v3(public.ai_plan_requests,jsonb)', 'EXECUTE')
+              or has_function_privilege('service_role', 'app_private.validate_ai_plan_for_request_v3(public.ai_plan_requests,jsonb)', 'EXECUTE') then
+              raise exception 'private capability preflight functions are directly executable by application roles';
+            end if;
+
+            if position(
+              'validate_ai_plan_for_request_v3'
+              in pg_get_functiondef('app_private.create_ai_plan_from_chat(uuid,uuid,text,text,text,text,jsonb)'::regprocedure)
+            )=0
+              or position(
+                'validate_ai_plan_for_request_v3'
+                in pg_get_functiondef('app_private.dispatch_ai_plan_service(uuid,uuid)'::regprocedure)
+              )=0 then
+              raise exception 'scientific plan creation/dispatch does not use the strict capability validator';
+            end if;
+
+            if position(
+              'capability_preflight'
+              in pg_get_functiondef('app_private.request_ai_chat_turn(uuid,uuid,text,uuid[])'::regprocedure)
+            )=0 then
+              raise exception 'AI chat context does not include capability preflight';
+            end if;
           end
           $instant_chat$;
           SQL
