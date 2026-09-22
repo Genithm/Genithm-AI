@@ -148,7 +148,9 @@ export default async function AiConversationPage({
   for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
-  const activityPlans = (plans ?? []).filter((plan) => ["ready", "dispatched", "error"].includes(plan.status));
+  const activityPlans = (plans ?? []).filter((plan) =>
+    ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
+  );
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
