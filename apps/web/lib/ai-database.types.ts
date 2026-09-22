@@ -38,6 +38,7 @@ type AiMessage = {
     content: string;
     message_kind: string;
     plan_request_id: string | null;
+    attachment_upload_ids: string[];
     created_at: string;
   };
   Insert: {
@@ -50,6 +51,7 @@ type AiMessage = {
     content: string;
     message_kind?: string;
     plan_request_id?: string | null;
+    attachment_upload_ids?: string[];
     created_at?: string;
   };
   Update: Partial<AiMessage["Insert"]>;
@@ -287,6 +289,18 @@ type AiFunctions = LivePublic["Functions"] & {
   request_ai_plan_inline: {
     Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[] };
     Returns: { conversation_id: string; plan_request_id: string; user_message: string; authorized_context: Json }[];
+  };
+  request_ai_chat_turn: {
+    Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[] };
+    Returns: { conversation_id: string; user_message_id: string; user_message: string; authorized_context: Json }[];
+  };
+  finish_ai_chat_turn: {
+    Args: { user_message_id: string; expected_user_id: string; assistant_message: string };
+    Returns: string;
+  };
+  create_ai_plan_from_chat: {
+    Args: { user_message_id: string; expected_user_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
+    Returns: { plan_request_id: string; status: string }[];
   };
   finish_ai_plan_inline: {
     Args: { plan_request_id: string; expected_user_id: string; provider: string; model: string; prompt_version: string; policy_version: string; plan: Json };
