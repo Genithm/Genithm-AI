@@ -113,8 +113,7 @@ begin
 
   return query select r_type,result_id;
 end;
-$function$
-
+$function$;
 
 revoke all on function app_private.dispatch_ai_plan_service(uuid,uuid)
 from public,anon,authenticated,service_role;
