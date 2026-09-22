@@ -166,13 +166,16 @@ export function SequenceUploadPanel({ projects }: Props) {
       const reservation = (await reservationResponse.json()) as ReservationResponse;
 
       setStage("uploading");
-      const uploadResponse = await fetch(reservation.upload_url, {
-        method: reservation.method,
-        headers: reservation.required_headers,
+      const uploadResponse = await fetch(`${API_BASE}/api/v1/storage/sequence-uploads/${reservation.upload_id}/content`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...reservation.required_headers,
+        },
         body: file,
       });
       if (!uploadResponse.ok) {
-        throw new Error("The secure R2 upload failed. The reservation remains pending and is not queued for validation.");
+        throw new Error(await responseError(uploadResponse, "The secure upload failed before validation."));
       }
 
       setStage("queueing");

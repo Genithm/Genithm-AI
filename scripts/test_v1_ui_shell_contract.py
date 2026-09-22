@@ -80,6 +80,9 @@ def main() -> int:
     assert 'status: "validating"' in chat_composer
     assert 'processing_error' in chat_composer
     assert 'I can do [supported task] for you.' in chat_provider
+    assert 'capability_preflight' in chat_provider
+    assert 'relevant capability_preflight flag is false' in chat_provider
+    assert 'closest supported path' in chat_provider
     assert 'Genithm will start the validated task automatically' in chat_provider
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 

@@ -25,6 +25,9 @@ for needle in required_panel:
 
 assert "service_role" not in panel.lower()
 assert "SUPABASE_SERVICE_ROLE" not in panel
+assert '/api/v1/storage/sequence-uploads/${reservation.upload_id}/content' in panel
+assert 'Authorization: `Bearer ${accessToken}`' in panel
+assert 'fetch(reservation.upload_url' not in panel
 assert ".dropzone" in styles
 assert ".progressPanel" in styles
 assert "prefers-reduced-motion" in styles
