@@ -1,6 +1,6 @@
 import "server-only";
 
-export const PROMPT_VERSION = "genithm-ai-chat/0.6.0";
+export const PROMPT_VERSION = "genithm-ai-chat/0.7.0";
 export const POLICY_VERSION = "ai-policy-v1";
 
 export type ScientificActionType =
@@ -32,7 +32,7 @@ export type StoredPlan = {
 const SYSTEM_INSTRUCTIONS = `You are Genithm AI, a chat-first bioinformatics assistant that can both explain bioinformatics and run Genithm's supported scientific capabilities.
 
 Supported execution capabilities and required material:
-- NCBI sequence retrieval: requires an explicit nucleotide or protein accession from the user.
+- NCBI sequence retrieval: accepts either an explicit nucleotide/protein accession OR a gene/protein name plus organism. Genithm resolves names to a canonical RefSeq accession server-side before retrieval.
 - BLAST: requires one ready, validated, single-record sequence. Use blastn for nucleotide and blastp for protein.
 - Pairwise alignment: requires two distinct ready, validated, single-record sequences.
 - Multiple sequence alignment (MSA): requires 3-50 ready, validated, compatible single-record sequences.
@@ -56,7 +56,7 @@ Behavior:
 13. Current attachments may be used only when status is ready and the relevant capability_preflight flag permits the requested task. If an attachment is still pending validation, tell the user validation must finish before execution.
 14. For ordinary conversation, explanations, greetings, educational questions, or prerequisite questions, answer directly in normal text. Do not create a scientific action.
 15. Phylogeny alone requires a completed multiple_sequence_alignment job listed in capability_preflight.completed_msa_jobs. For an explicit request to align 3-50 compatible ready sequences and then build a tree, use msa_phylogeny_workflow with those exact sequence IDs.
-16. NCBI retrieval requires an explicit accession. Never infer or hallucinate an accession from only a gene/protein name.
+16. For NCBI retrieval, do not force the user to know an accession. If the user supplies a gene/protein name or symbol plus an organism, call the NCBI retrieval action with database_name and the human-readable entity fields gene_symbol and organism; Genithm will resolve them server-side to a canonical RefSeq accession. Use an explicit accession only when the user provided one. If the organism or biological target is genuinely ambiguous, ask only for that missing detail. For ordinary information questions about a named gene/species, answer directly and do not ask for an accession.
 17. Images may be described or interpreted only from what is visibly present. Images are not substitutes for required executable sequence resources unless the user separately supplies the required biological data.
 18. Never claim an analysis has run unless the context contains an authoritative completed result.
 19. Keep normal chat responses concise and practical, under 1800 characters.
@@ -93,7 +93,7 @@ const SCIENTIFIC_TOOL = {
         parameters: {
           type: "object",
           description:
-            "Exact action parameters. Use only project IDs and values authorized in the supplied context.",
+            "Exact action parameters. For ncbi_sequence_retrieval use either {database_name, accession} when the user supplied an accession, or {database_name, gene_symbol, organism} when the user supplied a gene/protein name plus species. For other actions use only project IDs and values authorized in the supplied context.",
         },
       },
       required: ["summary", "action_type", "parameters"],
@@ -308,6 +308,190 @@ export function conversationalPlan(summary: string): StoredPlan {
     summary: safeSummary,
     limitations: [],
     action: null,
+  };
+}
+
+type NcbiSearchResponse = {
+  esearchresult?: { idlist?: string[] };
+};
+
+type NcbiSummaryRecord = {
+  accessionversion?: string;
+  caption?: string;
+  title?: string;
+};
+
+type NcbiSummaryResponse = {
+  result?: {
+    uids?: string[];
+    [key: string]: unknown;
+  };
+};
+
+function firstString(parameters: Record<string, unknown>, names: string[]) {
+  for (const name of names) {
+    const value = parameters[name];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function safeNcbiEntity(value: string, maxLength: number) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (
+    !normalized ||
+    normalized.length > maxLength ||
+    !/^[A-Za-z0-9 ._()'\-]+$/.test(normalized)
+  ) {
+    return "";
+  }
+  return normalized;
+}
+
+function looksLikeNcbiAccession(value: string) {
+  return /^(?=.*[A-Za-z])[A-Za-z0-9_]+(?:\.[0-9]+)?$/.test(value) && value.length <= 64;
+}
+
+function ncbiRequestUrl(path: string, params: URLSearchParams) {
+  params.set("retmode", "json");
+  params.set("tool", "genithm");
+  const apiKey = process.env.NCBI_API_KEY?.trim();
+  if (apiKey) params.set("api_key", apiKey);
+  return `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/${path}?${params.toString()}`;
+}
+
+async function ncbiJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+    headers: { "User-Agent": "Genithm/NCBI-entity-resolution" },
+  });
+  if (!response.ok) {
+    throw new Error("NCBI entity resolution is temporarily unavailable.");
+  }
+  return (await response.json()) as T;
+}
+
+async function resolveNcbiRefseqAccession(
+  databaseName: "nucleotide" | "protein",
+  geneSymbol: string,
+  organism: string,
+) {
+  const symbol = safeNcbiEntity(geneSymbol, 96);
+  const species = safeNcbiEntity(organism, 160);
+  if (!symbol || !species) return null;
+
+  const db = databaseName === "protein" ? "protein" : "nuccore";
+  const exactField = `"${symbol}"[Gene Name] AND "${species}"[Organism] AND refseq[filter]`;
+  const exactTerm = databaseName === "nucleotide"
+    ? `${exactField} AND biomol_mrna[PROP]`
+    : exactField;
+
+  async function search(term: string) {
+    const params = new URLSearchParams({
+      db,
+      term,
+      retmax: "10",
+      sort: "relevance",
+    });
+    const result = await ncbiJson<NcbiSearchResponse>(ncbiRequestUrl("esearch.fcgi", params));
+    return result.esearchresult?.idlist ?? [];
+  }
+
+  let ids = await search(exactTerm);
+  if (!ids.length) {
+    const fallbackBase = `"${symbol}" AND "${species}"[Organism] AND refseq[filter]`;
+    ids = await search(databaseName === "nucleotide" ? `${fallbackBase} AND biomol_mrna[PROP]` : fallbackBase);
+  }
+  if (!ids.length) return null;
+
+  const summaryParams = new URLSearchParams({
+    db,
+    id: ids.join(","),
+  });
+  const summary = await ncbiJson<NcbiSummaryResponse>(ncbiRequestUrl("esummary.fcgi", summaryParams));
+  const ordered = summary.result?.uids ?? ids;
+  const candidates = ordered
+    .map((id) => summary.result?.[id])
+    .filter((value): value is NcbiSummaryRecord => Boolean(value && typeof value === "object"))
+    .map((value) => ({
+      accession: String(value.accessionversion || value.caption || "").trim().toUpperCase(),
+      title: String(value.title || "").trim(),
+    }))
+    .filter((value) => looksLikeNcbiAccession(value.accession));
+
+  const preferredPrefixes = databaseName === "protein"
+    ? ["NP_", "XP_", "YP_", "WP_"]
+    : ["NM_", "NR_", "XM_", "XR_"];
+
+  candidates.sort((left, right) => {
+    const leftRank = preferredPrefixes.findIndex((prefix) => left.accession.startsWith(prefix));
+    const rightRank = preferredPrefixes.findIndex((prefix) => right.accession.startsWith(prefix));
+    const normalizedLeft = leftRank < 0 ? preferredPrefixes.length : leftRank;
+    const normalizedRight = rightRank < 0 ? preferredPrefixes.length : rightRank;
+    return normalizedLeft - normalizedRight;
+  });
+
+  return candidates[0] ?? null;
+}
+
+export async function normalizeScientificPlanForExecution(
+  plan: StoredPlan,
+  userMessage: string,
+): Promise<StoredPlan> {
+  if (plan.intent !== "scientific_action" || plan.action?.type !== "ncbi_sequence_retrieval") {
+    return plan;
+  }
+
+  const parameters = plan.action.parameters;
+  const rawDatabase = firstString(parameters, ["database_name", "database", "sequence_type"]).toLowerCase();
+  const databaseName: "nucleotide" | "protein" =
+    rawDatabase === "protein" || /\bprotein|amino acid|peptide\b/i.test(userMessage)
+      ? "protein"
+      : "nucleotide";
+
+  const rawAccession = firstString(parameters, ["accession", "refseq_accession", "sequence_accession"]);
+  if (rawAccession && looksLikeNcbiAccession(rawAccession)) {
+    return {
+      ...plan,
+      action: {
+        type: "ncbi_sequence_retrieval",
+        parameters: { database_name: databaseName, accession: rawAccession.toUpperCase() },
+      },
+    };
+  }
+
+  const geneSymbol = firstString(parameters, ["gene_symbol", "gene", "symbol", "entity", "query"]);
+  const organism = firstString(parameters, ["organism", "species", "taxon"]);
+
+  if (!geneSymbol) {
+    return conversationalPlan(
+      "I can retrieve the NCBI sequence for you. Tell me the gene or protein name/symbol you want; you do not need to know its accession.",
+    );
+  }
+  if (!organism) {
+    return conversationalPlan(
+      `I can retrieve ${geneSymbol} for you without an accession. Which organism/species should I use?`,
+    );
+  }
+
+  const resolved = await resolveNcbiRefseqAccession(databaseName, geneSymbol, organism);
+  if (!resolved) {
+    return conversationalPlan(
+      `I can retrieve this from NCBI, but I could not confidently resolve "${geneSymbol}" in "${organism}" to a RefSeq ${databaseName} record. Check the gene/protein name or species; an accession is optional if you already have one.`,
+    );
+  }
+
+  return {
+    ...plan,
+    summary: `Resolved ${geneSymbol} in ${organism} to NCBI RefSeq ${resolved.accession} and started the ${databaseName} sequence retrieval.`,
+    action: {
+      type: "ncbi_sequence_retrieval",
+      parameters: {
+        database_name: databaseName,
+        accession: resolved.accession,
+      },
+    },
   };
 }
 

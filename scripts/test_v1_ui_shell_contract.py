@@ -89,6 +89,13 @@ def main() -> int:
     assert 'capability_preflight' in chat_provider
     assert 'relevant capability_preflight flag is false' in chat_provider
     assert 'closest supported path' in chat_provider
+    assert 'you do not need to know its accession' in chat_provider
+    assert 'normalizeScientificPlanForExecution' in chat_provider
+    assert 'normalizeScientificPlanForExecution(rawPlan, row.user_message)' in chat_api
+    assert 'gene_symbol' in chat_provider
+    assert 'organism' in chat_provider
+    assert 'esearch.fcgi' in chat_provider
+    assert 'esummary.fcgi' in chat_provider
     assert 'Genithm will start the validated task automatically' in chat_provider
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 
