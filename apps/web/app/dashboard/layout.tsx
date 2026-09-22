@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AnalysisLaunchGuard } from "@/components/analysis-launch-guard";
 import { DashboardHomeOverview } from "@/components/dashboard-home-overview";
@@ -10,12 +11,17 @@ import "./dashboard-polish.css";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const supabase = await createClient();
-  const [{ data: claimsData }, { data: isPlatformAdmin }] = await Promise.all([
+  const [{ data: claimsData, error: claimsError }, { data: isPlatformAdmin }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase.rpc("is_platform_admin"),
   ]);
 
-  const email = String(claimsData?.claims?.email ?? "Researcher");
+  const claims = claimsData?.claims;
+  if (claimsError || !claims?.sub) {
+    redirect("/login?message=" + encodeURIComponent("Your session expired. Please sign in again."));
+  }
+
+  const email = String(claims.email ?? "Researcher");
 
   return (
     <>

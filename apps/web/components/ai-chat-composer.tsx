@@ -318,6 +318,10 @@ export function AiChatComposer({
         }),
       });
 
+      if (response.status === 401) {
+        router.push("/login?message=" + encodeURIComponent("Your session expired. Please sign in again."));
+        return;
+      }
       if (!response.ok || !response.body) {
         throw new Error(await responseError(response, "Genithm could not answer that message."));
       }

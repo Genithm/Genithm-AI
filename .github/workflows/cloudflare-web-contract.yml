@@ -46,8 +46,8 @@ jobs:
           set -euo pipefail
           test -f .open-next/worker.js
           test -d .open-next/assets
-          test -f middleware.ts
-          test ! -e proxy.ts
+          test -f proxy.ts
+          test ! -e middleware.ts
           grep -q '"main": ".open-next/worker.js"' wrangler.jsonc
           grep -q '"nodejs_compat"' wrangler.jsonc
       - name: Verify Wrangler can bundle the Worker
