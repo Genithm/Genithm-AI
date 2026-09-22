@@ -221,6 +221,13 @@ jobs:
             )=0 then
               raise exception 'AI chat context does not include capability preflight';
             end if;
+
+            if position(
+              'set_config(''request.jwt.claim.sub'',p_expected_user_id::text,true)'
+              in pg_get_functiondef('app_private.dispatch_ai_plan_service(uuid,uuid)'::regprocedure)
+            )=0 then
+              raise exception 'service-side AI dispatch does not restore the verified requester identity';
+            end if;
           end
           $instant_chat$;
           SQL
