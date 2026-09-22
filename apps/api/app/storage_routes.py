@@ -51,7 +51,7 @@ def _content_type(value: str | None) -> str:
     return candidate
 
 
-def _clients() -> tuple[SupabaseGateway, R2StorageProvider, int]:
+def _clients() -> tuple[SupabaseGateway, R2StorageProvider, R2StorageProvider, int]:
     settings = get_settings()
     if not settings.storage_gateway_configured:
         raise HTTPException(status_code=503, detail="Storage Gateway is not configured")
@@ -72,7 +72,13 @@ def _clients() -> tuple[SupabaseGateway, R2StorageProvider, int]:
         secret_access_key=settings.r2_secret_access_key,
         bucket=settings.r2_sequence_bucket,
     )
-    return gateway, storage, settings.storage_signed_url_seconds
+    signer = R2StorageProvider(
+        endpoint_url=settings.r2_public_endpoint or settings.r2_endpoint,
+        access_key_id=settings.r2_access_key_id,
+        secret_access_key=settings.r2_secret_access_key,
+        bucket=settings.r2_sequence_bucket,
+    )
+    return gateway, storage, signer, settings.storage_signed_url_seconds
 
 
 def _authenticate(gateway: SupabaseGateway, authorization: str | None) -> AuthenticatedUser:
@@ -95,7 +101,7 @@ def reserve_sequence_upload(
     payload: SequenceUploadReservation,
     authorization: str | None = Header(default=None),
 ) -> UploadReservationResponse:
-    gateway, storage, expires_seconds = _clients()
+    gateway, storage, signer, expires_seconds = _clients()
     user = _authenticate(gateway, authorization)
     filename = _safe_filename(payload.original_filename)
     content_type = _content_type(payload.content_type)
@@ -115,7 +121,7 @@ def reserve_sequence_upload(
         if reserved.get("storage_provider") != "r2" or reserved.get("storage_bucket") != LOGICAL_SEQUENCE_BUCKET:
             raise HTTPException(status_code=502, detail="Storage reservation provider contract failed")
         object_path = str(reserved["object_path"])
-        upload_url = storage.signed_upload(object_path, content_type=content_type, expires_seconds=expires_seconds)
+        upload_url = signer.signed_upload(object_path, content_type=content_type, expires_seconds=expires_seconds)
         return UploadReservationResponse(
             upload_id=UUID(str(reserved["upload_id"])),
             object_path=object_path,
@@ -135,7 +141,7 @@ async def upload_sequence_content(
     request: Request,
     authorization: str | None = Header(default=None),
 ) -> dict[str, str]:
-    gateway, storage, _ = _clients()
+    gateway, storage, _, _ = _clients()
     user = _authenticate(gateway, authorization)
     try:
         row = gateway.user_upload(user, str(upload_id))
@@ -168,7 +174,7 @@ def complete_sequence_upload(
     upload_id: UUID,
     authorization: str | None = Header(default=None),
 ) -> dict[str, str]:
-    gateway, storage, _ = _clients()
+    gateway, storage, _, _ = _clients()
     user = _authenticate(gateway, authorization)
     try:
         row = gateway.user_upload(user, str(upload_id))
@@ -203,7 +209,7 @@ def sequence_download_url(
     upload_id: UUID,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    gateway, storage, expires_seconds = _clients()
+    gateway, storage, signer, expires_seconds = _clients()
     user = _authenticate(gateway, authorization)
     try:
         row = gateway.user_upload(user, str(upload_id))
@@ -213,7 +219,7 @@ def sequence_download_url(
             raise HTTPException(status_code=409, detail="Legacy upload is not managed by the R2 Storage Gateway")
         if row.get("status") not in {"ready", "rejected", "error"}:
             raise HTTPException(status_code=409, detail="Upload is not available for download yet")
-        url = storage.signed_download(str(row["object_path"]), expires_seconds=expires_seconds)
+        url = signer.signed_download(str(row["object_path"]), expires_seconds=expires_seconds)
         return {"download_url": url, "expires_seconds": expires_seconds}
     except SupabaseGatewayError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
