@@ -7,7 +7,7 @@ name = "genithm-audit-worker"
 version = "0.1.0"
 description = "Isolated Ed25519 signer for Genithm audit checkpoints"
 requires-python = ">=3.13,<3.14"
-dependencies = ["cryptography==50.0.1"]
+dependencies = ["cryptography==50.0.2"]
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
