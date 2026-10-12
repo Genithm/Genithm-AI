@@ -96,6 +96,10 @@ type PlatformSupportCaseRow = {
 };
 
 type ReportFunctions = AiPublic["Functions"] & {
+  request_sequence_insights: {
+    Args: { project_id: string; sequence_upload_id: string; operation: string; motif?: string | null; min_aa?: number };
+    Returns: string;
+  };
   request_scientific_report: {
     Args: { source_job_id: string };
     Returns: string;

@@ -25,10 +25,12 @@ from .runtime import (
     process_msa,
     process_pairwise,
     process_phylogeny,
+    process_sequence_insights,
 )
+from .sequence_insights import SequenceInsightsError
 
 LOGGER = logging.getLogger("genithm.scientific-worker")
-WORKER_VERSION = "genithm-scientific-worker/0.4.0"
+WORKER_VERSION = "genithm-scientific-worker/0.5.0"
 
 
 class Client(BaseClient):
@@ -124,6 +126,9 @@ def process_one(client: Client) -> bool:
         elif job["job_type"] == "phylogenetic_tree":
             data, summary, provenance, path, content_type, executor_version = process_phylogeny(client, job)
             success_rpc = "finish_phylogenetic_job_success"
+        elif job["job_type"] == "sequence_insights":
+            data, summary, provenance, path, content_type, executor_version = process_sequence_insights(client, job)
+            success_rpc = "finish_sequence_insights_job_success"
         elif job["job_type"] == "protein_properties":
             data, summary, provenance, path, content_type, executor_version = process_protein(client, job)
             success_rpc = "finish_protein_properties_success"
@@ -142,7 +147,7 @@ def process_one(client: Client) -> bool:
             "provenance": provenance,
         })
         LOGGER.info("scientific job completed job_id=%s type=%s", job_id, job["job_type"])
-    except (PairwiseAlignmentError, MsaError, PhylogenyError, ProteinPropertiesError, ValueError) as exc:
+    except (PairwiseAlignmentError, MsaError, PhylogenyError, ProteinPropertiesError, SequenceInsightsError, ValueError) as exc:
         client.rpc("finish_scientific_job_error", {
             "message_id": message_id,
             "job_id": job_id,

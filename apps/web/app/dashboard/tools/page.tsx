@@ -11,6 +11,7 @@ import {
   requestPairwiseAlignment,
   requestPhylogeneticTree,
   requestProteinProperties,
+  requestSequenceInsights,
 } from "../actions";
 import { ProteinAnnotationPanel } from "../protein-annotation-panel";
 import { SequenceUploadPanel } from "../sequence-upload-panel";
@@ -79,6 +80,7 @@ function scientificLabel(jobType: string) {
   if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
   if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
   if (jobType === "protein_properties") return "Protein Properties";
+  if (jobType === "sequence_insights") return "Sequence Intelligence";
   return "Pairwise Alignment";
 }
 
@@ -108,6 +110,11 @@ export default async function AdvancedToolsPage({ searchParams }: { searchParams
   const jobs = scientificJobs ?? [];
   const readySingleInputs = uploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
   const readyProteinInputs = readySingleInputs.filter((upload) => upload.sequence_type === "protein");
+  const readyNucleotideInputs = readySingleInputs.filter((upload) =>
+    (upload.sequence_type === "dna" || upload.sequence_type === "rna") &&
+    typeof upload.residue_count === "number" && upload.residue_count <= 50000 &&
+    !warningLabels(upload.validation_warnings).includes("gap characters present")
+  );
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, organization_id: project.organization_id, name: project.name }));
   const projectNameById = new Map(projectOptions.map((project) => [project.id, project.name]));
   const inputsByProject = new Map<string, typeof readySingleInputs>();
@@ -145,6 +152,57 @@ export default async function AdvancedToolsPage({ searchParams }: { searchParams
           <div className="list" style={{ marginTop: 18 }}>{(projects ?? []).map((project) => <div className="item" key={project.id}><strong>{project.name}</strong><div className="small">{project.status}</div>{project.description ? <p>{project.description}</p> : null}</div>)}{!projects?.length ? <p>No projects yet.</p> : null}</div>
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="eyebrow">New: sequence intelligence</div>
+        <h2>ORFs, translation, motifs &amp; reverse complement</h2>
+        <p>
+          Analyze validated DNA or RNA with four deterministic, provenance-backed scientific operations.
+          ORF discovery checks both strands for ATG start codons and in-frame stops under NCBI translation table 1;
+          motif search supports IUPAC symbols, and all reported locations use 1-based inclusive coordinates.
+        </p>
+        {readyNucleotideInputs.length ? (
+          <div className="section-grid">
+            {projectOptions.filter((project) => readyNucleotideInputs.some((input) => input.project_id === project.id)).map((project) => (
+              <div className="item" key={project.id}>
+                <h3>{project.name}</h3>
+                <form className="stack" action={requestSequenceInsights}>
+                  <input type="hidden" name="project_id" value={project.id} />
+                  <label>
+                    Nucleotide sequence
+                    <select className="select" name="sequence_upload_id" required>
+                      {readyNucleotideInputs.filter((input) => input.project_id === project.id).map((input) => (
+                        <option key={input.id} value={input.id}>
+                          {input.original_filename} · {input.sequence_type} · {input.residue_count} bases
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Analysis
+                    <select className="select" name="operation" defaultValue="orf_scan">
+                      <option value="orf_scan">Detect complete ORFs (both strands)</option>
+                      <option value="six_frame_translation">Translate all six frames</option>
+                      <option value="motif_scan">Find IUPAC nucleotide motifs</option>
+                      <option value="reverse_complement">Reverse complement DNA/RNA</option>
+                    </select>
+                  </label>
+                  <label>Motif (only for motif scanning)
+                    <input name="motif" minLength={2} maxLength={32} placeholder="e.g., TATAWA" />
+                  </label>
+                  <label>Minimum amino acids (only for ORF scan)
+                    <input type="number" name="min_aa" min="1" max="1000" defaultValue={30} />
+                  </label>
+                  <button className="button primary" type="submit">Run scientific analysis</button>
+                </form>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="notice">Upload and validate a single-record, ungapped DNA/RNA sequence (up to 50,000 bases) to use these operations.</div>
+        )}
+        <p className="small">Coordinates, sequences and peptides are recorded in immutable result artifacts. ORFs require an in-frame stop; no incomplete ORFs are inferred. All execution remains project-authorized and rate-limited.</p>
+      </section>
 
       <section className="card" style={{ marginTop: 18 }}>
         <div className="eyebrow">Scientific execution</div><h2>Alignment workflows</h2>
