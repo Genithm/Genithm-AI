@@ -14,6 +14,8 @@ on:
       - 'scripts/test_codespaces_live_lab.py'
       - 'scripts/test_codespaces_genomics_qc.py'
       - 'scripts/test_codespaces_comparative.py'
+      - 'scripts/test_codespaces_msa_v5.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/codespaces_msa.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_comparison.py'
       - 'apps/scientific-worker/genithm_scientific_worker/pairwise.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
@@ -34,6 +36,8 @@ on:
       - 'scripts/test_codespaces_live_lab.py'
       - 'scripts/test_codespaces_genomics_qc.py'
       - 'scripts/test_codespaces_comparative.py'
+      - 'scripts/test_codespaces_msa_v5.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/codespaces_msa.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_comparison.py'
       - 'apps/scientific-worker/genithm_scientific_worker/pairwise.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
@@ -62,6 +66,12 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
+      - name: Install MAFFT and FastTree for real integration tests
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends mafft fasttree
+      - name: Verify MSA conservation, tree integrity and input bounds
+        run: python scripts/test_codespaces_msa_v5.py
       - name: Run real scientific-worker methods offline
         run: python scripts/codespaces-science-smoke.py
       - name: Test live scientific workbench algorithms
@@ -106,6 +116,7 @@ jobs:
           fi
           grep -q "CODESPACES DEV PREVIEW" "$RUNNER_TEMP/preview.html"
           grep -q "FIXTURE: ATGAAATAA" "$RUNNER_TEMP/preview.html"
+          grep -q "Discover conservation and evolutionary patterns" "$RUNNER_TEMP/preview.html"
           grep -q "OFFLINE DEMO" "$RUNNER_TEMP/preview.html"
           curl -fsS --max-time 10 http://127.0.0.1:3000/ -o "$RUNNER_TEMP/home.html"
           grep -q "Open Development Preview" "$RUNNER_TEMP/home.html"
@@ -159,4 +170,19 @@ jobs:
             --data '{"sequence":">one\nATGC\n>one\nATGC","sequence_type":"dna","operation":"pairwise_global","motif":null,"min_aa":30}' \
             http://127.0.0.1:3000/api/dev-science)"
           test "$rejected" = "422"
-
+python - <<'PYTHON' > "$RUNNER_TEMP/msa.json"
+          import json
+          records=[("alpha","ACGT"*10),("beta","ACGT"*9+"TCGT"),
+                   ("gamma","ACGT"*8+"ACGAACGT"),("delta","ACGT"*9+"ACGA")]
+          print(json.dumps({"sequence":"\n".join(f">{name}\n{sequence}" for name,sequence in records),
+                "sequence_type":"dna","operation":"msa_phylogeny","motif":None,"min_aa":30}))
+          PYTHON
+          curl -fsS --max-time 50 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/msa.json" http://127.0.0.1:3000/api/dev-science \
+            -o "$RUNNER_TEMP/msa-result.json"
+          python -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['summary']['sequence_count']==4; assert x['summary']['alignment_columns']>=40; assert x['result']['tree'] is not None; assert x['result']['newick'].endswith(';'); assert x['tool']['aligner']=='MAFFT'" "$RUNNER_TEMP/msa-result.json"
+          status="$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data '{"sequence":">a\nAT-G\n>b\nATGC\n>c\nATGC","sequence_type":"dna","operation":"msa_conservation","motif":null,"min_aa":30}' \
+            http://127.0.0.1:3000/api/dev-science)"
+          test "$status" = "422"
