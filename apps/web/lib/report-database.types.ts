@@ -28,8 +28,33 @@ type ScientificReport = {
   Relationships: [];
 };
 
+type ResearchPipeline = {
+  Row: {
+    id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    template: string;
+    requested_accession: string;
+    retrieval_id: string;
+    sequence_upload_id: string | null;
+    sequence_sha256: string | null;
+    scientific_job_id: string | null;
+    status: string;
+    failure_stage: string | null;
+    failure_code: string | null;
+    created_at: string;
+    updated_at: string;
+    finished_at: string | null;
+  };
+  Insert: never;
+  Update: never;
+  Relationships: [];
+};
+
 type ReportTables = AiPublic["Tables"] & {
   scientific_reports: ScientificReport;
+  research_pipeline_runs: ResearchPipeline;
 };
 
 type ReportRow = {
@@ -96,6 +121,10 @@ type PlatformSupportCaseRow = {
 };
 
 type ReportFunctions = AiPublic["Functions"] & {
+  request_research_protein_pipeline: {
+    Args: { project_id: string; accession: string };
+    Returns: string;
+  };
   request_sequence_insights: {
     Args: { project_id: string; sequence_upload_id: string; operation: string; motif?: string | null; min_aa?: number };
     Returns: string;
