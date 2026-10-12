@@ -175,14 +175,14 @@ def audit_json_artifact(
         require(_sha(claimed_sha256) and digest==claimed_sha256,
                 "scientific evidence SHA-256 mismatch")
     try:
-        artifact=json.loads(data.decode("utf-8"))
+        artifact=json.loads(data.decode("utf-8"), parse_constant=lambda value: (_ for _ in ()).throw(ScientificArtifactAuditError("non-finite numeric values are not permitted")))
     except (UnicodeError,json.JSONDecodeError) as exc:
         raise ScientificArtifactAuditError("scientific evidence is not valid JSON") from exc
     require(isinstance(artifact,dict) and
             isinstance(artifact.get("summary"),dict) and
             isinstance(artifact.get("provenance"),dict),
             "scientific evidence does not include a summary and provenance")
-    require(json.dumps(artifact,sort_keys=True,separators=(",",":"),ensure_ascii=True).encode("utf-8")==data,
+    require(json.dumps(artifact,sort_keys=True,separators=(",",":"),ensure_ascii=True,allow_nan=False).encode("utf-8")==data,
             "scientific evidence is not canonical deterministic JSON")
     summary=artifact["summary"]
     provenance=artifact["provenance"]
