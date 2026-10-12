@@ -13,6 +13,9 @@ on:
       - 'scripts/codespaces-live-science-server.py'
       - 'scripts/test_codespaces_live_lab.py'
       - 'scripts/test_codespaces_genomics_qc.py'
+      - 'scripts/test_codespaces_comparative.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/sequence_comparison.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/pairwise.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
@@ -30,6 +33,9 @@ on:
       - 'scripts/codespaces-live-science-server.py'
       - 'scripts/test_codespaces_live_lab.py'
       - 'scripts/test_codespaces_genomics_qc.py'
+      - 'scripts/test_codespaces_comparative.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/sequence_comparison.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/pairwise.py'
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
@@ -62,6 +68,8 @@ jobs:
         run: python scripts/test_codespaces_live_lab.py
       - name: Test compositional genomics and edge cases
         run: python scripts/test_codespaces_genomics_qc.py
+      - name: Test comparative alignment and identity-matrix algorithms
+        run: python scripts/test_codespaces_comparative.py
       - name: Verify Codespaces security and auth boundaries
         run: python scripts/test_codespaces_preview.py
       - name: Install pinned frontend dependencies
@@ -130,4 +138,25 @@ jobs:
             --data-binary @"$RUNNER_TEMP/qc.json" http://127.0.0.1:3000/api/dev-science \
             -o "$RUNNER_TEMP/qc-result.json"
           python -c "import json,sys; o=json.load(open(sys.argv[1])); assert o['summary']['gc_percent']==57.14; assert o['summary']['cpg_count']==2; assert o['summary']['cpg_observed_expected']==3.5; assert o['tool']['id']=='genithm-local-composition'" "$RUNNER_TEMP/qc-result.json"
+
+          grep -q "Compare DNA and RNA sequences" "$RUNNER_TEMP/preview.html"
+          cat > "$RUNNER_TEMP/pairwise.json" <<'JSON'
+          {"sequence":">ref\nACGTTGCA\n>query\nACGTCGCA","sequence_type":"dna","operation":"pairwise_global","motif":null,"min_aa":30}
+          JSON
+          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/pairwise.json" http://127.0.0.1:3000/api/dev-science \
+            -o "$RUNNER_TEMP/pairwise-result.json"
+          python -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['summary']['identity_percent']==87.5; assert x['summary']['mismatches']==1; assert x['result']['comparison']=='||||.|||'" "$RUNNER_TEMP/pairwise-result.json"
+          cat > "$RUNNER_TEMP/matrix.json" <<'JSON'
+          {"sequence":">alpha\nAAAA\n>beta\nAAAT\n>gamma\nAATT","sequence_type":"dna","operation":"comparison_matrix","motif":null,"min_aa":30}
+          JSON
+          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/matrix.json" http://127.0.0.1:3000/api/dev-science \
+            -o "$RUNNER_TEMP/matrix-result.json"
+          python -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['summary']['comparisons']==3; assert x['result']['identity_matrix']==[[100,75,50],[75,100,75],[50,75,100]]" "$RUNNER_TEMP/matrix-result.json"
+          rejected="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data '{"sequence":">one\nATGC\n>one\nATGC","sequence_type":"dna","operation":"pairwise_global","motif":null,"min_aa":30}' \
+            http://127.0.0.1:3000/api/dev-science)"
+          test "$rejected" = "422"
 
