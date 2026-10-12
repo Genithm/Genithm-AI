@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { startAutonomousProteinPipeline } from "./actions";
+import { startAutonomousProteinPipeline, startAutonomousNucleotideOrfPipeline } from "./actions";
 import styles from "./pipeline.module.css";
 
 export const dynamic="force-dynamic";
@@ -27,10 +27,10 @@ export default async function ResearchPipelines({searchParams}:{
   return <main className={"container dashboard "+styles.screen}>
     <header className={styles.hero}>
       <div>
-        <div className={styles.eyebrow}>Science V14 · Approved autonomous execution</div>
+        <div className={styles.eyebrow}>Science V16 · Approved autonomous execution</div>
         <h1>Research pipeline engine.</h1>
         <p>One explicit approval for a narrowly defined, auditable chain:
-          NCBI protein accession → validated FASTA → protein-properties computation.</p>
+          NCBI protein → validated FASTA → protein properties, or NCBI nucleotide → validated FASTA → ORF scanning.</p>
       </div>
       <div className={styles.links}>
         <Link className="button" href="/dashboard/research-journey">Guided research</Link>
@@ -71,6 +71,33 @@ export default async function ResearchPipelines({searchParams}:{
         </form>
         <p className={styles.note}>The workflow is bounded to this template only. No arbitrary AI-generated commands,
           repeat-until-success retries, BLAST searches, mutations or unapproved external analysis are authorized.</p>
+      </section>
+      <section className={styles.panel}>
+        <div className={styles.eyebrow}>Launch approved nucleotide workflow</div>
+        <h2>NCBI nucleotide → ORF scan</h2>
+        <p>Fetch one current NCBI nucleotide accession, validate a single ungapped DNA/RNA FASTA (up to 50,000 bases),
+          then automatically perform exactly one ORF scan with a fixed minimum of 30 amino acids.</p>
+        <div className={styles.steps}>
+          <span>01 NCBI nucleotide</span><span>02 FASTA validation</span><span>03 ORF scan</span>
+        </div>
+        <form action={startAutonomousNucleotideOrfPipeline} className={styles.form}>
+          <label>Active project<select name="project_id" required defaultValue={projects[0]?.id??""} disabled={!enabled}>
+            <option value="" disabled>Choose project</option>
+            {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+          </select></label>
+          <label>NCBI nucleotide accession<input name="accession" required maxLength={64}
+            disabled={!enabled} placeholder="NM_000546.6" autoComplete="off"/></label>
+          <label className={styles.consent}>
+            <input type="checkbox" value="yes" name="confirm_automatic_orf" required disabled={!enabled}/>
+            <span>I authorize one NCBI nucleotide retrieval and one ORF scan (minimum 30 amino acids)
+              after validated DNA/RNA input is available. No additional analyses are approved.</span>
+          </label>
+          <button type="submit" className="button primary" disabled={!enabled||!projects.length}>
+            Approve nucleotide ORF workflow
+          </button>
+        </form>
+        <p className={styles.note}>Fixed tool: sequence_insights / orf_scan. This action does not run motif scans,
+          reverse complement, six-frame translation, protein properties or further AI-generated tasks.</p>
       </section>
       <section className={styles.panel}>
         <div className={styles.eyebrow}>Operational safeguards</div>
