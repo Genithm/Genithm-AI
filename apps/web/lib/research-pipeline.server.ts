@@ -41,7 +41,7 @@ export async function loadResearchPipeline(id:string):Promise<
       :Promise.resolve({data:null,error:null}),
     run.scientific_job_id
       ?supabase.from("scientific_jobs")
-        .select("id,organization_id,project_id,requested_by,status,job_type,result_sha256")
+        .select("id,organization_id,project_id,requested_by,status,job_type,result_sha256,parameters")
         .eq("id",run.scientific_job_id).eq("project_id",run.project_id)
         .eq("organization_id",run.organization_id).eq("requested_by",run.requested_by).maybeSingle()
       :Promise.resolve({data:null,error:null}),
