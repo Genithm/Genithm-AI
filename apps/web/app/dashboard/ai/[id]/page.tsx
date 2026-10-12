@@ -227,8 +227,8 @@ export default async function AiConversationPage({
               const workflow = plan.dispatched_resource_type === "ai_workflow" && plan.dispatched_resource_id
                 ? workflowById.get(plan.dispatched_resource_id)
                 : null;
-              const href = workflow?.phylogeny_job_id
-                ? `/dashboard/scientific-jobs/${workflow.phylogeny_job_id}`
+              const href = workflow
+                ? "/dashboard/workflows/" + workflow.id
                 : resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
               const interpretation = interpretationByPlan.get(plan.id);
 
