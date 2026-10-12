@@ -80,7 +80,7 @@ def test_orf_scan_requires_in_frame_stop_and_ignores_incomplete() -> None:
 
 
 def test_overlapping_motif_hits_are_reported() -> None:
-    hits, total = scan_motif("AAAA", sequence_type="dna", motif="AA")
+    hits, total = scan_motif("AAAA", sequence_type="dna", motif="WW")
     assert total == 6
     assert len(hits) == 6
     assert [(hit["start_1based"], hit["strand"]) for hit in hits] == [
