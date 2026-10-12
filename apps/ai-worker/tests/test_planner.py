@@ -163,3 +163,82 @@ def test_bounded_msa_phylogeny_workflow_plan():
         },
     }
     assert validate_plan_shape(plan) == plan
+
+
+@pytest.mark.parametrize("operation,motif,min_aa", [
+    ("orf_scan", None, 12),
+    ("orf_scan", None, 30),
+    ("six_frame_translation", None, 30),
+    ("motif_scan", "ATGNR", 30),
+    ("motif_scan", "ACGU", 30),
+    ("reverse_complement", None, 30),
+])
+def test_sequence_insights_valid_plan(operation, motif, min_aa):
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "scientific_action",
+        "summary": "Analyze this authorized nucleotide FASTA.",
+        "limitations": ["Results will be produced by the scientific worker."],
+        "action": {
+            "type": "sequence_insights",
+            "parameters": {
+                "sequence_upload_id": "00000000-0000-0000-0000-000000000001",
+                "operation": operation,
+                "motif": motif,
+                "min_aa": min_aa,
+            },
+        },
+    }
+    assert validate_plan_shape(plan) == plan
+
+
+@pytest.mark.parametrize("changes", [
+    {"operation": "arbitrary_command"},
+    {"motif": "ATG", "operation": "orf_scan"},
+    {"min_aa": 12, "operation": "reverse_complement"},
+    {"operation": "motif_scan", "motif": "AT*"},
+    {"operation": "motif_scan", "motif": "atg"},
+    {"operation": "motif_scan", "motif": None},
+    {"operation": "orf_scan", "min_aa": 0},
+    {"operation": "orf_scan", "min_aa": True},
+    {"operation": "orf_scan", "min_aa": 1001},
+    {"sequence_upload_id": "fake"},
+])
+def test_sequence_insights_rejects_unsafe_parameters(changes):
+    params = {
+        "sequence_upload_id": "00000000-0000-0000-0000-000000000001",
+        "operation": "orf_scan",
+        "motif": None,
+        "min_aa": 30,
+    }
+    params.update(changes)
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "scientific_action",
+        "summary": "Analyze this nucleotide FASTA.",
+        "limitations": [],
+        "action": {"type": "sequence_insights", "parameters": params},
+    }
+    with pytest.raises(ValueError):
+        validate_plan_shape(plan)
+
+
+def test_sequence_insights_rejects_extra_fields():
+    plan = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "intent": "scientific_action",
+        "summary": "Analyze this nucleotide FASTA.",
+        "limitations": [],
+        "action": {
+            "type": "sequence_insights",
+            "parameters": {
+                "sequence_upload_id": "00000000-0000-0000-0000-000000000001",
+                "operation": "orf_scan",
+                "motif": None,
+                "min_aa": 30,
+                "shell": "evil",
+            },
+        },
+    }
+    with pytest.raises(ValueError):
+        validate_plan_shape(plan)
