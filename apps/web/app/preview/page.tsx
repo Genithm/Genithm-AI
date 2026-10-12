@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SampleWorkbench } from "./sample-workbench";
+import { LiveSequenceLab } from "./live-sequence-lab";
 import styles from "./preview.module.css";
 
 export const metadata = {
@@ -37,7 +38,7 @@ export default async function PreviewPage({
           <h1>From biological sequence to explainable insight.</h1>
           <p>
             Preview the Genithm research experience with a small verified DNA fixture.
-            The sample results below are illustrative; no live customer job is submitted.
+            The sample examples are illustrative; the interactive lab computes actual local results. No live customer job is submitted.
           </p>
           <div className={styles.heroActions}>
             {configured ? (
@@ -93,6 +94,8 @@ export default async function PreviewPage({
         </div>
         <SampleWorkbench />
       </section>
+
+      <LiveSequenceLab />
 
       <section className={styles.bottomGrid}>
         <article className={styles.foundation}>
