@@ -244,6 +244,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e '.[dev]'
       - run: pytest
+      - name: Verify installed independent scientific evidence auditor
+        run: |
+          genithm-scientific-audit --help
+          python -m genithm_scientific_worker.artifact_audit --help
 
   ai-worker:
     needs: changes
