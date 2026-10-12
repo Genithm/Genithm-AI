@@ -37,6 +37,15 @@ from .phylogeny import (
     run_fasttree,
 )
 
+from .sequence_insights import (
+    EXECUTOR_VERSION as SEQUENCE_INSIGHTS_EXECUTOR_VERSION,
+    TOOL_ID as SEQUENCE_INSIGHTS_TOOL_ID,
+    TOOL_VERSION as SEQUENCE_INSIGHTS_TOOL_VERSION,
+    SequenceInsightsError,
+    canonical_sequence_insights_result,
+    parse_nucleotide_fasta,
+)
+
 LOGGER = logging.getLogger("genithm.scientific-worker")
 WORKER_VERSION = "genithm-scientific-worker/0.3.0"
 MAX_INPUT_BYTES = 2 * 1024 * 1024
@@ -307,6 +316,22 @@ def process_phylogeny(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[
     return data, summary, provenance, path, "text/plain; charset=utf-8", PHYLOGENY_EXECUTOR_VERSION
 
 
+def process_sequence_insights(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
+    if job["tool_id"] != SEQUENCE_INSIGHTS_TOOL_ID or job["tool_version"] != SEQUENCE_INSIGHTS_TOOL_VERSION:
+        raise SequenceInsightsError("claimed sequence insights job does not match approved executor")
+    inputs = job.get("inputs")
+    if not isinstance(inputs, list) or len(inputs) != 1:
+        raise SequenceInsightsError("sequence insights requires exactly one sequence")
+    item = inputs[0]
+    raw = client.download(str(item["object_path"]), int(item["file_size_bytes"]), str(item["sha256"]))
+    sequence_input = parse_nucleotide_fasta(raw, sequence_type=str(item["sequence_type"]))
+    if int(item["residue_count"]) != len(sequence_input.sequence):
+        raise SequenceInsightsError("claimed sequence length does not match verified FASTA")
+    data, summary, provenance = canonical_sequence_insights_result(job, sequence_input)
+    path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/sequence-insights-result.json"
+    return data, summary, provenance, path, "application/json", SEQUENCE_INSIGHTS_EXECUTOR_VERSION
+
+
 def process_one(client: Client) -> bool:
     rows = client.rpc("claim_scientific_job", {"visibility_seconds": client.config.visibility_seconds})
     if not rows:
@@ -324,6 +349,9 @@ def process_one(client: Client) -> bool:
         elif job["job_type"] == "phylogenetic_tree":
             data, summary, provenance, path, content_type, executor_version = process_phylogeny(client, job)
             success_rpc = "finish_phylogenetic_job_success"
+        elif job["job_type"] == "sequence_insights":
+            data, summary, provenance, path, content_type, executor_version = process_sequence_insights(client, job)
+            success_rpc = "finish_sequence_insights_job_success"
         else:
             raise ValueError("claimed scientific job type is not supported by this worker")
 
@@ -339,7 +367,7 @@ def process_one(client: Client) -> bool:
             "provenance": provenance,
         })
         LOGGER.info("scientific job completed job_id=%s type=%s", job_id, job["job_type"])
-    except (PairwiseAlignmentError, MsaError, PhylogenyError, ValueError) as exc:
+    except (PairwiseAlignmentError, MsaError, PhylogenyError, SequenceInsightsError, ValueError) as exc:
         client.rpc("finish_scientific_job_error", {
             "message_id": message_id,
             "job_id": job_id,
