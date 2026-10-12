@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const workspaceLinks = [
   { href: "/dashboard/ai", label: "Chat" },
   { href: "/dashboard/tools", label: "Advanced tools" },
+  { href: "/dashboard/operations", label: "Operations" },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/billing", label: "Plan & usage" },
   { href: "/dashboard/billing/payments", label: "Payments" },
