@@ -166,6 +166,8 @@ jobs:
         run: node --experimental-strip-types --test tests/research-operations.test.mjs
       - name: Verify workflow reconciliation, dependency lineage, and safe recovery diagnostics
         run: node --experimental-strip-types --test tests/workflow-reconciliation.test.mjs
+      - name: Verify multi-report dossier identity, report integrity and canonical export checksum
+        run: node --experimental-strip-types --test tests/research-dossier.test.mjs
       - run: npm run typecheck
       - run: npm run build
 
