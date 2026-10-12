@@ -8,7 +8,8 @@ import os
 import time
 from typing import Any
 
-from .artifact_audit import ScientificArtifactAuditError, audit_json_artifact
+from .artifact_audit import ScientificArtifactAuditError
+from .output_integrity import ScientificOutputIntegrityError, audit_scientific_output
 from .input_integrity import validate_input_manifest, validate_sequence_content
 from .msa import MsaError
 from .pairwise import PairwiseAlignmentError
@@ -137,11 +138,7 @@ def process_one(client: Client) -> bool:
         # Independent fail-closed evidence validation before any result is uploaded
         # or success is acknowledged. Existing MAFFT and FastTree handlers already
         # validate their non-JSON scientific artifacts against the source records.
-        if job["job_type"] in {"pairwise_alignment", "sequence_insights", "protein_properties"}:
-            audit_json_artifact(
-                data, expected_job_type=job["job_type"],
-                expected_summary=summary, expected_provenance=provenance,
-            )
+        audit_scientific_output(data, job, summary, provenance)
         client.upload_result(path, data, content_type)
         client.rpc(success_rpc, {
             "message_id": message_id,
@@ -158,7 +155,7 @@ def process_one(client: Client) -> bool:
         client.rpc("finish_scientific_job_error", {
             "message_id": message_id,
             "job_id": job_id,
-            "failure_class": "output_validation" if isinstance(exc, (MsaError, PhylogenyError, ScientificArtifactAuditError)) else "input_integrity",
+            "failure_class": "output_validation" if isinstance(exc, (MsaError, PhylogenyError, ScientificArtifactAuditError, ScientificOutputIntegrityError)) else "input_integrity",
             "processing_error": str(exc)[:2000],
             "retryable": False,
             "max_attempts": client.config.max_attempts,
