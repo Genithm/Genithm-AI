@@ -30,6 +30,7 @@ export default async function PipelineDetail({params}:{params:Promise<{id:string
       </div>
       <div className={styles.links}>
         <Link href="/dashboard/pipelines" className="button">All pipelines</Link>
+        <Link href="/dashboard/pipeline-studies" className="button">Pipeline studies</Link>
         <Link href="/dashboard/operations" className="button">Operations</Link>
         <a href={"/dashboard/pipelines/"+run.id+"/manifest"} className="button">Export evidence manifest</a>
       </div>
