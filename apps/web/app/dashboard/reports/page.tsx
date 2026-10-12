@@ -50,7 +50,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <h2>Scientific reports</h2>
           <p className="small">Immutable, hash-sealed snapshots generated from finalized authoritative scientific evidence.</p>
         </div>
-        <Link className="button" href="/dashboard">Back to dashboard</Link>
+        <div className="actions">
+          <Link className="button primary" href="/dashboard/dossiers">Build multi-report dossier</Link>
+          <Link className="button" href="/dashboard">Back to dashboard</Link>
+        </div>
       </header>
 
       {queryError ? <div className="error">{queryError}</div> : null}
