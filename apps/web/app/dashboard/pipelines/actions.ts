@@ -27,3 +27,26 @@ export async function startAutonomousProteinPipeline(form:FormData){
   revalidatePath("/dashboard/pipelines");
   redirect("/dashboard/pipelines/"+data);
 }
+
+
+/**
+ * User specifically authorizes a single nucleotide ORF scan.
+ * No arbitrary operation, motif, pipeline template or min-aa is accepted.
+ */
+export async function startAutonomousNucleotideOrfPipeline(form:FormData){
+  const projectId=String(form.get("project_id")??"");
+  const accession=String(form.get("accession")??"").trim().toUpperCase();
+  const consent=form.get("confirm_automatic_orf")==="yes";
+  if(!UUID.test(projectId)||!consent||accession.length>64||!ACC.test(accession))
+    redirect("/dashboard/pipelines?error="+encodeURIComponent("Choose an active project, nucleotide accession and explicitly approve one ORF scan."));
+  const supabase=await createClient();
+  const {data:claims,error:authError}=await supabase.auth.getClaims();
+  if(authError||!claims?.claims?.sub)redirect("/login");
+  const {data,error}=await supabase.rpc("request_research_nucleotide_pipeline",{
+    project_id:projectId,accession,
+  });
+  if(error||typeof data!=="string"||!UUID.test(data))
+    redirect("/dashboard/pipelines?error="+encodeURIComponent("Nucleotide pipeline could not start. Check rollout, ownership, quotas or NCBI availability."));
+  revalidatePath("/dashboard/pipelines");
+  redirect("/dashboard/pipelines/"+data);
+}
