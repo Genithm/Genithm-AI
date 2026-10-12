@@ -37,6 +37,48 @@ jobs:
         run: supabase db start
       - name: Replay all migrations from scratch
         run: supabase db reset --local
+      - name: Verify V2 sequence intelligence database boundaries
+        shell: bash
+        run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $sequence_insights$
+          declare
+            kinds text;
+          begin
+            if to_regprocedure('public.request_sequence_insights(uuid,uuid,text,text,integer)') is null
+               or to_regprocedure('public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb)') is null then
+              raise exception 'V2 sequence intelligence RPCs are missing';
+            end if;
+            if not has_function_privilege('authenticated',
+                 'public.request_sequence_insights(uuid,uuid,text,text,integer)','EXECUTE')
+               or has_function_privilege('anon',
+                 'public.request_sequence_insights(uuid,uuid,text,text,integer)','EXECUTE') then
+              raise exception 'V2 sequence request grants are incorrect';
+            end if;
+            if not has_function_privilege('service_role',
+                 'public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb)','EXECUTE')
+               or has_function_privilege('authenticated',
+                 'public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb)','EXECUTE')
+               or has_function_privilege('anon',
+                 'public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb)','EXECUTE') then
+              raise exception 'V2 result completion is not service-only';
+            end if;
+            select pg_get_constraintdef(oid) into kinds
+              from pg_constraint
+             where conrelid='public.scientific_jobs'::regclass and conname='scientific_jobs_type';
+            if kinds is null or position('sequence_insights' in kinds)=0 then
+              raise exception 'V2 scientific job type constraint is missing';
+            end if;
+            if not exists(
+              select 1 from app_private.scientific_tools
+              where tool_id='genithm-sequence-insights' and tool_version='0.1.0'
+                and status='approved' and network_required=false
+            ) then
+              raise exception 'V2 approved scientific tool was not registered';
+            end if;
+          end
+          $sequence_insights$;
+          SQL
       - name: Verify V1 scientific runtime security contract
         shell: bash
         run: |
