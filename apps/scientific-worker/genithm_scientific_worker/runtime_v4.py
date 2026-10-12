@@ -32,7 +32,7 @@ from .runtime import (
 from .sequence_insights import SequenceInsightsError
 
 LOGGER = logging.getLogger("genithm.scientific-worker")
-WORKER_VERSION = "genithm-scientific-worker/0.5.0"
+WORKER_VERSION = "genithm-scientific-worker/0.6.0"
 
 
 class Client(BaseClient):
