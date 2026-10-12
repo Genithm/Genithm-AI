@@ -111,7 +111,8 @@ export default async function AdvancedToolsPage({ searchParams }: { searchParams
   const readySingleInputs = uploads.filter((upload) => upload.status === "ready" && upload.sequence_count === 1 && !!upload.sha256);
   const readyProteinInputs = readySingleInputs.filter((upload) => upload.sequence_type === "protein");
   const readyNucleotideInputs = readySingleInputs.filter((upload) =>
-    ["dna", "rna"].includes(upload.sequence_type) && upload.residue_count <= 50000 &&
+    (upload.sequence_type === "dna" || upload.sequence_type === "rna") &&
+    typeof upload.residue_count === "number" && upload.residue_count <= 50000 &&
     !warningLabels(upload.validation_warnings).includes("gap characters present")
   );
   const projectOptions = (projects ?? []).map((project) => ({ id: project.id, organization_id: project.organization_id, name: project.name }));
