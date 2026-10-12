@@ -90,6 +90,47 @@ These metrics are **descriptive only**: CpG observed/expected does not
 automatically prove a CpG island, and the forward-frame codon table does
 not identify actual genes or protein products.
 
+## Comparative bioinformatics laboratory — Science V4
+
+The Codespaces preview now has **Compare DNA and RNA sequences** beneath
+the single-sequence laboratory. This executes Genithm's existing scientific
+pairwise-alignment algorithms locally; there is no Oracle deployment,
+Supabase login, background queue or external upload.
+
+Choose one of three operations:
+
+- **Global alignment** (Needleman–Wunsch) aligns exactly two named DNA/RNA
+  FASTA records end-to-end (up to 700 bases per record).
+- **Local alignment** (Smith–Waterman) finds a highest-scoring local region
+  between two sequences. A 100% local identity is **not** evidence that
+  the complete input sequences are identical; the panel also shows input
+  coverage.
+- **Identity matrix** accepts 3–6 unique named FASTA records, each at
+  most 150 bases, and calculates independent global pairwise alignment
+  identities. View the symmetric heatmap or export the matrix as TSV.
+
+Fixed, transparent scoring: **match +2, mismatch −1, linear gap −2**.
+Pairwise identity is the number of identical aligned letters divided by
+**all alignment columns including gaps**. Unknown N only matches another N
+literally. Sequences must be ungapped, have unique simple FASTA identifiers
+(up to 40 characters), and all be the same selected DNA/RNA type.
+
+**Exports:** pairwise results to aligned FASTA; matrices to TSV; all
+results to JSON with the canonical multi-FASTA SHA-256 and tool version.
+No local export is digitally signed or stored as a Genithm research job.
+
+The matrix is **not** an MSA, phylogenetic distance matrix, evolutionary
+tree, mutation call, or homology assertion. For robust comparative
+inference, later production milestones will provide approved MSA and
+phylogenetics processing with additional quality checks.
+
+Run the scientific and security test contract:
+
+```bash
+python3 scripts/test_codespaces_comparative.py
+python3 scripts/test_codespaces_live_lab.py
+```
+
 ## Preview versus an authenticated scientific workspace
 
 **Offline development lab (no keys):** The `/preview` page contains both clearly labeled reference examples and a live local scientific input form. The local lab computes results from a sequence you paste; no customer job is submitted, no user is impersonated, and no data is sent to Supabase.

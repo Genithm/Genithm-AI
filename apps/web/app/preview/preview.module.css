@@ -326,3 +326,42 @@
   .compositionStatGrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .codonGrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+
+/* Codespaces comparative sequence visualization (development only). */
+.comparisonStatStrip {
+  display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px;
+}
+.comparisonStatStrip div { padding: 14px; display: grid; gap: 7px; border: 1px solid rgba(151,207,202,.18);
+  background: rgba(8,22,31,.8); border-radius: 10px; min-width: 0; }
+.comparisonStatStrip span { font-size: 10px; color: #90b4bb; }
+.comparisonStatStrip strong { font-size: 20px; color: #b0f5dc; overflow-wrap: anywhere; }
+.alignmentBlocks { display: grid; gap: 14px; min-width: 0; }
+.alignmentChunk { padding: 15px; border-radius: 11px; background: #07171d;
+  border: 1px solid rgba(129,212,195,.15); max-width: 100%; overflow-x: auto; }
+.alignmentTrack { display: flex; gap: 12px; align-items: center; min-width: max-content; }
+.alignmentTrack code { white-space: pre; letter-spacing: .06em;
+  font: 13px/1.85 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.alignmentTrack code span { display: inline-block; min-width: .85em; }
+.alignmentTag { font: 800 11px/1 ui-monospace,monospace; color: #93c6c2; width: 12px; }
+.compareMatch { color: #a2f2d8; background: rgba(73,171,130,.13); }
+.compareMismatch { color: #ffd38b; background: rgba(240,172,72,.14); }
+.compareGap { color: #ffaabb; background: rgba(231,121,146,.12); }
+.compareLegendMatch { color: #a2f2d8; }
+.compareLegendMismatch { color: #ffd38b; }
+.compareLegendGap { color: #ffaabb; }
+.matrixScroll { min-width: 0; overflow-x: auto; }
+.comparisonMatrix { border-collapse: separate; border-spacing: 3px;
+  width: 100%; min-width: 410px; }
+.comparisonMatrix caption { font-size: 11px; color: #a2b6c1; text-align: left;
+  caption-side: bottom; padding-top: 12px; }
+.comparisonMatrix th, .comparisonMatrix td { font-size: 12px; padding: 11px 6px; text-align: center;
+  border-radius: 7px; color: #e8f2f2; white-space: nowrap; }
+.comparisonMatrix th { background: #152a35; font-size: 11px; }
+.comparisonMatrix th:first-child { text-align: left; padding-left: 10px; }
+.comparisonMatrix th small { font-size: 10px; color: #89aab2; display: block; margin-top: 3px; }
+.comparisonMatrix td { font-variant-numeric: tabular-nums; font-weight: 700; }
+@media(max-width: 620px) {
+ .comparisonStatStrip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .alignmentTrack code { font-size: 12px; }
+}
