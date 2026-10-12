@@ -6,7 +6,7 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/;
 export type Retrieval = { id: string; project_id: string; status: string; source_database: string; requested_accession: string; resolved_accession: string|null; sequence_upload_id: string|null; created_at: string; source_retrieved_at: string|null };
-export type Upload = { id: string; project_id: string; status: string; sequence_type: string|null; sequence_count: number|null; sha256: string|null; original_filename: string|null };
+export type Upload = { id: string; project_id: string; status: string; sequence_type: string|null; sequence_count: number|null; sha256: string|null; original_filename?: string|null };
 export type Science = { id: string; project_id: string; job_type: string; status: string; result_sha256: string|null; created_at: string };
 export type JobInput = { job_id: string; project_id: string; sequence_upload_id: string; input_position: number };
 export type Report = { id: string; project_id: string; source_resource_type: string; source_resource_id: string; report_sha256: string; generated_at: string };
@@ -59,7 +59,7 @@ export function reconcileResearchJourney(
       state="error";guidance="Review the retrieval and its provider status. No downstream analysis was started by this view.";
     } else if (retrieval.status!=="retrieved") {
       state="retrieving";guidance="The authoritative source retrieval is still in progress.";
-    } else if (!upload || upload.project_id!==projectId || (upload.sha256 && !SHA.test(upload.sha256))) {
+    } else if (!upload || upload.project_id!==projectId || (upload.sha256 && !SHA.test(upload.sha256 ?? ""))) {
       state="integrity_review";guidance="The retrieved sequence record is unavailable or its recorded integrity metadata is invalid.";
     } else if (upload.status!=="ready" || upload.sequence_count!==1 || !SHA.test(upload.sha256)) {
       state="needs_validation";guidance="Sequence data must be validated as one supported FASTA record before analysis.";
