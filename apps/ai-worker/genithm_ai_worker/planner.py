@@ -5,7 +5,7 @@ from typing import Any
 
 from .capability_registry import executable_action_types
 
-PROMPT_VERSION = "genithm-ai-planner/0.2.0"
+PROMPT_VERSION = "genithm-ai-planner/0.3.0"
 POLICY_VERSION = "ai-policy-v1"
 PLAN_SCHEMA_VERSION = "ai-plan-v1"
 ALLOWED_ACTIONS = set(executable_action_types())
@@ -18,6 +18,7 @@ ACTION_PARAMETER_KEYS = {
     "protein_properties": {"sequence_upload_id"},
     "protein_annotation": {"sequence_upload_id"},
     "msa_phylogeny_workflow": {"sequence_upload_ids"},
+    "sequence_insights": {"sequence_upload_id", "operation", "motif", "min_aa"},
 }
 
 
@@ -97,6 +98,17 @@ PLAN_JSON_SCHEMA: dict[str, Any] = {
                 _action_schema("protein_properties", {"sequence_upload_id": {"type": "string", "minLength": 36, "maxLength": 36}}),
                 _action_schema("protein_annotation", {"sequence_upload_id": {"type": "string", "minLength": 36, "maxLength": 36}}),
                 _action_schema(
+                    "sequence_insights",
+                    {
+                        "sequence_upload_id": {"type": "string", "minLength": 36, "maxLength": 36},
+                        "operation": {"type": "string", "enum": [
+                            "orf_scan", "six_frame_translation", "motif_scan", "reverse_complement"
+                        ]},
+                        "motif": {"type": ["string", "null"], "minLength": 2, "maxLength": 32, "pattern": "^[ACGTRYSWKMBDHVNU]{2,32}$"},
+                        "min_aa": {"type": "integer", "minimum": 1, "maximum": 1000},
+                    },
+                ),
+                _action_schema(
                     "msa_phylogeny_workflow",
                     {
                         "sequence_upload_ids": {
@@ -129,18 +141,19 @@ Security and scientific integrity rules:
 10. Pairwise alignment requires two distinct ready single-record sequences. Use global unless the user explicitly asks for local alignment. Always provide the bounded scoring parameters required by the schema.
 11. MSA requires 3-50 ready single-record sequences of compatible type. Do not invent missing IDs.
 12. Phylogeny alone requires a completed multiple_sequence_alignment job from context. If the user explicitly asks to align 3-50 compatible ready sequences and then build a phylogenetic tree, use msa_phylogeny_workflow with those exact sequence IDs. It runs MSA first and dispatches phylogeny only after authoritative MSA completion.
-13. Protein properties requires a ready protein sequence. Protein annotation additionally requires an eligible NCBI-origin protein represented in context.
-14. NCBI retrieval accepts only an explicit accession supplied by the user. Do not infer or hallucinate an accession from a gene/protein name.
-15. Resolve missing prerequisites intelligently before planning:
+13. Sequence Intelligence can execute one operation on one ready, single-record ungapped DNA or RNA sequence up to 50,000 bases: orf_scan, six_frame_translation, motif_scan, or reverse_complement. Use action type sequence_insights with exactly sequence_upload_id, operation, motif, min_aa. For orf_scan set motif=null and min_aa to 30 unless the user specifies another integer from 1 to 1000. For motif_scan provide a 2-32 character uppercase IUPAC nucleotide motif (RNA U is allowed) and min_aa=30. For six_frame_translation and reverse_complement set motif=null and min_aa=30. Never hallucinate a motif, and never treat a protein sequence as nucleotide input.
+14. Protein properties requires a ready protein sequence. Protein annotation additionally requires an eligible NCBI-origin protein represented in context.
+15. NCBI retrieval accepts only an explicit accession supplied by the user. Do not infer or hallucinate an accession from a gene/protein name.
+16. Resolve missing prerequisites intelligently before planning:
    - Inspect the authorized project context first.
    - If exactly one eligible prerequisite exists and the user's intent clearly refers to it, you may use it.
    - If multiple eligible resources could satisfy the request, return clarification_required and ask which one to use. Mention human-readable filenames, accessions, workflow types, or other safe labels from context when available; never expose hidden data or invent labels.
    - If no eligible prerequisite exists, return clarification_required and tell the user exactly what material is needed (for example, sequences, a completed MSA, an accession, or an uploaded protein).
    - If the user names a resource that is not present or not eligible, ask them to provide or choose a valid one rather than substituting another resource.
-16. Examples: a phylogenetic tree needs a completed MSA; if none exists, ask the user to provide/select sequences so an MSA can be created first. If multiple completed MSAs exist, ask which MSA to use. BLAST needs one ready single-record sequence; pairwise alignment needs two; MSA needs 3-50 compatible sequences.
-17. Conversational and educational bioinformatics questions should be answered directly with intent=conversation. Keep the answer useful and concise, and never pretend a computation ran when it did not.
-18. When current_attachments are present, acknowledge them by filename. If an attachment is still pending_validation, explain that scientific execution must wait until validation is complete. If it is ready, use its exact authorized sequence ID when appropriate.
-19. Never invent extra workflow steps, arbitrary branching, loops, or shell execution. msa_phylogeny_workflow is exactly MSA followed by phylogeny.
+17. Examples: a phylogenetic tree needs a completed MSA; if none exists, ask the user to provide/select sequences so an MSA can be created first. If multiple completed MSAs exist, ask which MSA to use. BLAST needs one ready single-record sequence; pairwise alignment needs two; MSA needs 3-50 compatible sequences.
+18. Conversational and educational bioinformatics questions should be answered directly with intent=conversation. Keep the answer useful and concise, and never pretend a computation ran when it did not.
+19. When current_attachments are present, acknowledge them by filename. If an attachment is still pending_validation, explain that scientific execution must wait until validation is complete. If it is ready, use its exact authorized sequence ID when appropriate.
+20. Never invent extra workflow steps, arbitrary branching, loops, or shell execution. msa_phylogeny_workflow is exactly MSA followed by phylogeny.
 
 Return only a JSON object matching the supplied schema."""
 
@@ -184,6 +197,26 @@ def validate_plan_shape(plan: object) -> dict[str, Any]:
         raise ValueError("scientific plan action is not allowlisted")
     if set(parameters) != ACTION_PARAMETER_KEYS[action_type]:
         raise ValueError("scientific plan parameters do not match the action contract")
+    if action_type == "sequence_insights":
+        operation = parameters["operation"]
+        sequence_id = parameters["sequence_upload_id"]
+        motif = parameters["motif"]
+        min_aa = parameters["min_aa"]
+        if not isinstance(sequence_id, str) or len(sequence_id) != 36:
+            raise ValueError("sequence insights requires an authorized sequence ID")
+        if operation not in {"orf_scan", "six_frame_translation", "motif_scan", "reverse_complement"}:
+            raise ValueError("sequence insights operation is unsupported")
+        if type(min_aa) is not int or not 1 <= min_aa <= 1000:
+            raise ValueError("sequence insights ORF minimum is invalid")
+        if operation == "motif_scan":
+            if not isinstance(motif, str) or not 2 <= len(motif) <= 32 or any(
+                base not in "ACGTRYSWKMBDHVNU" for base in motif
+            ):
+                raise ValueError("sequence insights motif must use uppercase IUPAC nucleotides")
+        elif motif is not None:
+            raise ValueError("motif parameter is only allowed for motif scans")
+        if operation != "orf_scan" and min_aa != 30:
+            raise ValueError("minimum ORF length is only allowed for ORF scans")
     return plan
 
 

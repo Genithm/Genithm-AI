@@ -79,6 +79,59 @@ jobs:
           end
           $sequence_insights$;
           SQL
+      - name: Verify AI sequence dispatch and invalid-plan boundaries
+        shell: bash
+        run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $ai_seq$
+          declare
+            req public.ai_plan_requests%rowtype;
+            plan jsonb;
+            result text;
+            dispatcher text;
+          begin
+            if to_regprocedure('app_private.validate_ai_plan_for_request_v2(public.ai_plan_requests,jsonb)') is null then
+              raise exception 'AI sequence validation RPC missing';
+            end if;
+            dispatcher := pg_get_functiondef('app_private.dispatch_ai_plan_service(uuid,uuid)'::regprocedure);
+            if position('request_sequence_insights' in dispatcher)=0
+               or position('request.jwt.claim.sub' in dispatcher)=0 then
+              raise exception 'AI sequence dispatch lost tool routing or actor binding';
+            end if;
+            if has_function_privilege('authenticated','app_private.dispatch_ai_plan_service(uuid,uuid)','EXECUTE')
+               or has_function_privilege('anon','app_private.dispatch_ai_plan_service(uuid,uuid)','EXECUTE')
+               or not has_function_privilege('service_role','app_private.dispatch_ai_plan_service(uuid,uuid)','EXECUTE') then
+              raise exception 'AI sequence service dispatch permissions are unsafe';
+            end if;
+            plan := jsonb_build_object(
+              'schema_version','ai-plan-v1',
+              'intent','scientific_action',
+              'summary','Scan approved sequence.',
+              'limitations',jsonb_build_array(),
+              'action',jsonb_build_object(
+                'type','sequence_insights',
+                'parameters',jsonb_build_object(
+                  'sequence_upload_id','00000000-0000-0000-0000-000000000001',
+                  'operation','motif_scan','motif','AT*','min_aa',30
+                )
+              )
+            );
+            begin
+              perform app_private.validate_ai_plan_for_request_v2(req,plan);
+              raise exception 'invalid motif unexpectedly accepted';
+            exception when others then
+              if sqlerrm not like 'AI motif scan parameters are invalid' then raise; end if;
+            end;
+            plan := jsonb_set(plan,'{action,parameters,motif}','"ATG"'::jsonb);
+            begin
+              perform app_private.validate_ai_plan_for_request_v2(req,plan);
+              raise exception 'nonexistent input unexpectedly accepted';
+            exception when others then
+              if sqlerrm not like 'AI sequence intelligence input is not authorized or executable' then raise; end if;
+            end;
+          end
+          $ai_seq$;
+          SQL
       - name: Verify V1 scientific runtime security contract
         shell: bash
         run: |
