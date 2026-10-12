@@ -135,6 +135,7 @@ function resourceLink(pipeline: Pipeline, row: OperationsSourceRow): string | nu
   const id = row.id;
   if (pipeline === "scientific" && UUID.test(id)) return "/dashboard/scientific-jobs/" + id;
   if (pipeline === "protein_annotation" && UUID.test(id)) return "/dashboard/protein-annotations/" + id;
+  if (pipeline === "ai_workflow" && UUID.test(id)) return "/dashboard/workflows/" + id;
   if (pipeline === "ai_plan" || pipeline === "ai_interpretation" ||
       pipeline === "ai_followup" || pipeline === "ai_workflow") {
     if (row.conversation_id && UUID.test(row.conversation_id)) {
