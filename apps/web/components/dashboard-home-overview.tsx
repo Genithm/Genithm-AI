@@ -14,7 +14,7 @@ type DashboardSnapshot = {
   completedJobs: number;
 };
 
-const terminalStatuses = new Set(["completed", "failed", "cancelled", "canceled"]);
+const terminalStatuses = new Set(["completed", "failed", "error", "cancelled", "canceled"]);
 
 function scrollToHeading(heading: string) {
   const headings = Array.from(document.querySelectorAll<HTMLElement>("main.dashboard h2"));
