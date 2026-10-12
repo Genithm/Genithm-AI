@@ -3,8 +3,9 @@
 import { useState, type FormEvent } from "react";
 
 import styles from "./preview.module.css";
+import { CompositionReport, type CompositionResult } from "./composition-report";
 
-type Operation = "orf_scan" | "six_frame_translation" | "motif_scan" | "reverse_complement";
+type Operation = "orf_scan" | "six_frame_translation" | "motif_scan" | "reverse_complement" | "composition_profile";
 type LabResult = {
   mode: string;
   persistence: string;
@@ -17,6 +18,9 @@ type LabResult = {
     hits?: { strand: string; start_1based: number; end_1based: number }[];
     reverse_complement?: string;
     truncated?: boolean;
+    gc_profile?: CompositionResult["gc_profile"];
+    nucleotide_counts?: CompositionResult["nucleotide_counts"];
+    codon_usage?: CompositionResult["codon_usage"];
   };
 };
 
@@ -25,6 +29,7 @@ const methods: { value: Operation; label: string }[] = [
   { value: "six_frame_translation", label: "Six-frame translation" },
   { value: "motif_scan", label: "IUPAC motif scanning" },
   { value: "reverse_complement", label: "Reverse complement" },
+  { value: "composition_profile", label: "GC content & sequence quality" },
 ];
 
 export function LiveSequenceLab() {
@@ -177,6 +182,13 @@ export function LiveSequenceLab() {
                 <div><span>Sequence type</span><strong>{String(result.summary.sequence_type).toUpperCase()}</strong></div>
                 <div><span>Analysis</span><strong>{operation.replaceAll("_", " ")}</strong></div>
               </div>
+              {result.summary.operation === "composition_profile" &&
+                Array.isArray(result.result.gc_profile) &&
+                result.result.nucleotide_counts &&
+                Array.isArray(result.result.codon_usage) ? (
+                  <CompositionReport summary={result.summary}
+                    result={result.result as CompositionResult} />
+                ) : null}
               {result.result.orfs ? (
                 <div className={styles.labDataSection}>
                   <h4>Complete ORFs: {result.summary.orf_count}</h4>
