@@ -170,7 +170,7 @@ jobs:
             --data '{"sequence":">one\nATGC\n>one\nATGC","sequence_type":"dna","operation":"pairwise_global","motif":null,"min_aa":30}' \
             http://127.0.0.1:3000/api/dev-science)"
           test "$rejected" = "422"
-python - <<'PYTHON' > "$RUNNER_TEMP/msa.json"
+          python - <<'PYTHON' > "$RUNNER_TEMP/msa.json"
           import json
           records=[("alpha","ACGT"*10),("beta","ACGT"*9+"TCGT"),
                    ("gamma","ACGT"*8+"ACGAACGT"),("delta","ACGT"*9+"ACGA")]
