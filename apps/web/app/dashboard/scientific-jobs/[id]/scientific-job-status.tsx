@@ -7,8 +7,8 @@ import styles from "./scientific-job.module.css";
 
 function statusClass(status: string) {
   if (status === "completed") return `${styles.statusBadge} ${styles.statusCompleted}`;
-  if (status === "failed") return `${styles.statusBadge} ${styles.statusFailed}`;
-  if (status === "processing" || status === "running") return `${styles.statusBadge} ${styles.statusActive}`;
+  if (status === "error" || status === "failed" || status === "cancelled") return `${styles.statusBadge} ${styles.statusFailed}`;
+  if (status === "processing" || status === "running" || status === "validating_result") return `${styles.statusBadge} ${styles.statusActive}`;
   return `${styles.statusBadge} ${styles.statusQueued}`;
 }
 
@@ -34,7 +34,7 @@ export function ScientificJobStatus({
   attempts: number;
 }) {
   const router = useRouter();
-  const terminal = status === "completed" || status === "failed";
+  const terminal = ["completed", "error", "failed", "cancelled"].includes(status);
 
   useEffect(() => {
     if (terminal) return;
@@ -70,7 +70,7 @@ export function ScientificJobStatus({
           <span>{startedAt ? timeLabel(startedAt) : terminal ? "No start timestamp recorded" : "Waiting for an isolated scientific worker"}</span>
         </div>
         <div className={`${styles.timelineStep} ${finishedDone ? styles.timelineDone : startedDone && !terminal ? styles.timelineCurrent : ""}`}>
-          <strong>03 · Result finalized</strong>
+          <strong>03 · {status === "completed" ? "Result finalized" : terminal ? "Execution ended" : "Result validation"}</strong>
           <span>{finishedAt ? timeLabel(finishedAt) : terminal ? "Finished without a completion timestamp" : "Pending validated result and provenance"}</span>
         </div>
       </div>
