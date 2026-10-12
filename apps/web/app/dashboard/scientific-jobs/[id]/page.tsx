@@ -18,6 +18,7 @@ function jobTitle(jobType: string) {
   if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
   if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
   if (jobType === "protein_properties") return "Protein Properties";
+  if (jobType === "sequence_insights") return "Sequence Intelligence";
   return "Pairwise Alignment";
 }
 
@@ -149,6 +150,28 @@ export default async function ScientificJobPage({
               {metric("Leaves", String(summary.leaf_count ?? "n/a"))}
               {metric("Supported internal nodes", String(summary.internal_support_count ?? "n/a"))}
               {metric("Source MSA hash", String(summary.source_msa_sha256 ?? "n/a"))}
+            </div>
+          ) : null}
+
+          {job.job_type === "sequence_insights" && completed ? (
+            <div>
+              <div className={styles.metricGrid}>
+                {metric("Operation", String(summary.operation ?? "n/a").replaceAll("_", " "))}
+                {metric("Sequence type", String(summary.sequence_type ?? "n/a"))}
+                {metric("Bases", String(summary.sequence_length ?? "n/a"))}
+                {summary.orf_count !== undefined ? metric("Complete ORFs", String(summary.orf_count)) : null}
+                {summary.reported_orfs !== undefined ? metric("Reported ORFs", String(summary.reported_orfs)) : null}
+                {summary.frame_count !== undefined ? metric("Translated frames", String(summary.frame_count)) : null}
+                {summary.motif !== undefined ? metric("IUPAC motif", String(summary.motif)) : null}
+                {summary.motif_hits !== undefined ? metric("Motif matches (both strands)", String(summary.motif_hits)) : null}
+                {summary.reported_hits !== undefined ? metric("Reported matches", String(summary.reported_hits)) : null}
+                {summary.output_length !== undefined ? metric("Output bases", String(summary.output_length)) : null}
+              </div>
+              <div className="notice" style={{ marginTop: 16 }}>
+                ORF peptides, translated frames, reverse-complement sequences, and motif coordinates are contained in the
+                downloadable JSON artifact. All coordinates use 1-based inclusive numbering and sequence transformations
+                are computational results, not experimentally validated biological annotations.
+              </div>
             </div>
           ) : null}
 
