@@ -19,6 +19,10 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    # Keep fail-closed severity gates while using the authoritative Trivy DB
+    # instead of the flaky mirror.gcr.io cache that returned HTTP 404.
+    env:
+      TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
