@@ -22,6 +22,7 @@ export type SequenceRow = {
 export type ScienceRow = {
   id: string; organization_id: string; project_id: string; requested_by: string;
   status: string; job_type: string; result_sha256: string | null;
+  parameters?: { operation?: string; min_aa?: number; motif?: string | null } | null;
 };
 export type PipelineProjection = {
   id: string; status: string; displayStatus: "waiting" | "active" | "complete" | "failed" | "review";
@@ -33,9 +34,12 @@ export function reconcilePipeline(
   run: PipelineRow, source: SourceRow | null,
   sequence: SequenceRow | null, science: ScienceRow | null,
 ): PipelineProjection {
+  const supported = run.template === "ncbi_protein_profile_v1" ||
+    run.template === "ncbi_nucleotide_orf_v1";
+  const nucleotide = run.template === "ncbi_nucleotide_orf_v1";
   if (!UUID.test(run.id) || !UUID.test(run.project_id) ||
     !UUID.test(run.requested_by) || !UUID.test(run.organization_id) ||
-    !UUID.test(run.retrieval_id) || run.template !== "ncbi_protein_profile_v1") {
+    !UUID.test(run.retrieval_id) || !supported) {
     throw new Error("Unsupported pipeline identity or template.");
   }
   const findings: string[] = [];
@@ -43,7 +47,7 @@ export function reconcilePipeline(
     source.id === run.retrieval_id && source.project_id === run.project_id &&
     source.organization_id === run.organization_id &&
     source.requested_by === run.requested_by &&
-    source.source_database === "protein" &&
+    source.source_database === (nucleotide ? "nucleotide" : "protein") &&
     source.requested_accession === run.requested_accession;
   if (!sourceOkay) findings.push("Source retrieval identity unavailable or inconsistent");
   const seqOkay = !!sequence && !!source && !!run.sequence_upload_id &&
@@ -58,19 +62,30 @@ export function reconcilePipeline(
     science.organization_id === run.organization_id &&
     science.project_id === run.project_id &&
     science.requested_by === run.requested_by &&
-    science.job_type === "protein_properties";
+    (nucleotide
+      ? science.job_type === "sequence_insights" &&
+        science.parameters?.operation === "orf_scan" &&
+        science.parameters?.min_aa === 30 &&
+        (science.parameters?.motif === null || science.parameters?.motif === undefined)
+      : science.job_type === "protein_properties");
   if (run.scientific_job_id && !jobOkay) findings.push("Scientific job identity unavailable or inconsistent");
+  const sequenceTypeOkay = !!sequence && sequence.sequence_count === 1 &&
+    sequence.sequence_type !== null &&
+    (nucleotide ? ["dna","rna"].includes(sequence.sequence_type)
+      : sequence.sequence_type === "protein");
+  if (run.sequence_upload_id && seqOkay && !sequenceTypeOkay)
+    findings.push("Validated sequence alphabet or record count mismatches the template");
   const hashOkay = !!sequence && !!run.sequence_sha256 &&
     SHA.test(run.sequence_sha256) && sequence.sha256 === run.sequence_sha256;
   if (run.sequence_sha256 && !hashOkay) findings.push("Recorded sequence SHA-256 mismatch");
   if (run.status === "completed" && (!sourceOkay || source?.status !== "retrieved" ||
-    !seqOkay || sequence?.status !== "ready" || !hashOkay ||
+    !seqOkay || !sequenceTypeOkay || sequence?.status !== "ready" || !hashOkay ||
     !jobOkay || science?.status !== "completed" ||
     typeof science.result_sha256 !== "string" || !SHA.test(science.result_sha256) ||
     !run.finished_at)) {
     findings.push("Pipeline completion is not supported by its recorded inputs and result");
   }
-  if (run.status === "running" && (!jobOkay || !hashOkay || !seqOkay)) {
+  if (run.status === "running" && (!jobOkay || !hashOkay || !seqOkay || !sequenceTypeOkay)) {
     findings.push("Running pipeline is missing a matching scientific job or input hash");
   }
   if (run.status === "awaiting_validation" &&
@@ -93,11 +108,11 @@ export function reconcilePipeline(
       ["awaiting_source","awaiting_validation","running"].includes(run.status),
     integrity, findings,
     stages: [
-      {name:"NCBI protein retrieval",status:sourceOkay ? source!.status : "unavailable",
+      {name: nucleotide ? "NCBI nucleotide retrieval" : "NCBI protein retrieval",status:sourceOkay ? source!.status : "unavailable",
         id:run.retrieval_id,href:null},
       {name:"FASTA validation",status:seqOkay ? sequence!.status : run.sequence_upload_id ? "unavailable" : "pending",
         id:run.sequence_upload_id,href:null},
-      {name:"Protein properties",status:jobOkay ? science!.status : run.scientific_job_id ? "unavailable" : "pending",
+      {name: nucleotide ? "ORF scan (min 30 aa)" : "Protein properties",status:jobOkay ? science!.status : run.scientific_job_id ? "unavailable" : "pending",
         id:run.scientific_job_id,href:safeLink(run.scientific_job_id,"/dashboard/scientific-jobs/")},
     ],
   };
