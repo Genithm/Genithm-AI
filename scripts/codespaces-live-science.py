@@ -32,7 +32,9 @@ from genithm_scientific_worker.sequence_composition import (
 from genithm_scientific_worker.sequence_comparison import compare
 
 COMPARISON_OPERATIONS = frozenset({"pairwise_global", "pairwise_local", "comparison_matrix"})
-ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"}) | COMPARISON_OPERATIONS
+ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"}) | COMPARISON_OPERATIONS | MSA_OPERATIONS
+from genithm_scientific_worker.codespaces_msa import OPERATIONS as MSA_OPERATIONS, run_local_msa
+
 MAX_LAB_BASES = 5000
 MAX_INPUT_CHARS = 5500
 EXPECTED_FIELDS = frozenset({"sequence", "sequence_type", "operation", "motif", "min_aa"})
@@ -66,6 +68,9 @@ def compute(payload: object) -> dict[str, object]:
         raise ValueError("motif is only allowed for motif scans")
     if operation != "orf_scan" and min_aa != 30:
         raise ValueError("custom ORF minimum is only allowed for ORF detection")
+
+    if operation in MSA_OPERATIONS:
+        return run_local_msa(payload)
 
     if operation in COMPARISON_OPERATIONS:
         return compare(payload)
