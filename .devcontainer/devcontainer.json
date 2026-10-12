@@ -1,30 +1,23 @@
 {
-  "name": "Genithm Full Preview",
+  "name": "Genithm AI — Codespaces Development",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "secrets": {
-    "SUPABASE_SECRET_KEY": {
-      "description": "Server-side Supabase secret key for the Genithm preview. Do not use the publishable key."
-    },
-    "DEEPSEEK_API_KEY": {
-      "description": "DeepSeek API key used by the Genithm AI provider."
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
     }
   },
-  "forwardPorts": [3000, 8000, 9000],
+  "forwardPorts": [
+    3000
+  ],
   "portsAttributes": {
     "3000": {
-      "label": "Genithm Web",
-      "onAutoForward": "openBrowser"
-    },
-    "8000": {
-      "label": "Genithm API",
-      "onAutoForward": "silent"
-    },
-    "9000": {
-      "label": "Preview Object Storage",
-      "onAutoForward": "silent",
-      "visibility": "public"
+      "label": "Genithm AI preview",
+      "onAutoForward": "openBrowser",
+      "visibility": "private"
     }
   },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
   "remoteEnv": {
     "GENITHM_CODESPACES_PREVIEW": "1"
   }
