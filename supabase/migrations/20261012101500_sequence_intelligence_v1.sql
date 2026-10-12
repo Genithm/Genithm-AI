@@ -183,6 +183,8 @@ as $function$
   );
 $function$;
 
+revoke all on function app_private.request_sequence_insights(uuid,uuid,text,text,integer) from public,anon;
+grant execute on function app_private.request_sequence_insights(uuid,uuid,text,text,integer) to authenticated,service_role;
 revoke all on function public.request_sequence_insights(uuid,uuid,text,text,integer) from public,anon;
 grant execute on function public.request_sequence_insights(uuid,uuid,text,text,integer) to authenticated,service_role;
 
@@ -290,5 +292,7 @@ as $function$
   );
 $function$;
 
+revoke all on function app_private.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb) from public,anon,authenticated;
+grant execute on function app_private.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb) to service_role;
 revoke all on function public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.finish_sequence_insights_job_success(bigint,uuid,text,text,text,bigint,jsonb,jsonb) to service_role;
