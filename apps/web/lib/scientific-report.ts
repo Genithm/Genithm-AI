@@ -12,6 +12,7 @@ export function reportJobTitle(jobType: string) {
   if (jobType === "multiple_sequence_alignment") return "Multiple Sequence Alignment";
   if (jobType === "phylogenetic_tree") return "Phylogenetic Tree";
   if (jobType === "protein_properties") return "Protein Properties";
+  if (jobType === "sequence_insights") return "Sequence Intelligence";
   return "Pairwise Alignment";
 }
 
