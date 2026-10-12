@@ -35,6 +35,7 @@ export default async function ResearchPipelines({searchParams}:{
       <div className={styles.links}>
         <Link className="button" href="/dashboard/research-journey">Guided research</Link>
         <Link className="button" href="/dashboard/operations">Operations center</Link>
+        <Link className="button" href="/dashboard/pipeline-studies">Compare completed pipelines</Link>
       </div>
     </header>
     {params.error?<div className="error" role="alert">{params.error.slice(0,250)}</div>:null}
