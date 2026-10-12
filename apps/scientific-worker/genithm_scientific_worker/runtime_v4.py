@@ -8,7 +8,7 @@ import os
 import time
 from typing import Any
 
-from .artifact_audit import audit_json_artifact
+from .artifact_audit import ScientificArtifactAuditError, audit_json_artifact
 from .input_integrity import validate_input_manifest, validate_sequence_content
 from .msa import MsaError
 from .pairwise import PairwiseAlignmentError
@@ -158,7 +158,7 @@ def process_one(client: Client) -> bool:
         client.rpc("finish_scientific_job_error", {
             "message_id": message_id,
             "job_id": job_id,
-            "failure_class": "output_validation" if isinstance(exc, (MsaError, PhylogenyError)) else "input_integrity",
+            "failure_class": "output_validation" if isinstance(exc, (MsaError, PhylogenyError, ScientificArtifactAuditError)) else "input_integrity",
             "processing_error": str(exc)[:2000],
             "retryable": False,
             "max_attempts": client.config.max_attempts,
