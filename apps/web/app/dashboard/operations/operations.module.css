@@ -75,4 +75,4 @@
 @media(max-width:450px) { .filters { grid-template-columns:1fr; } .metricGrid { grid-template-columns:1fr 1fr; }
 .metric { padding:12px; min-height:78px; } .metric strong { font-size:25px; } .heroActions { width:100%; }
 }
-@media(prefers-reduced-motion:reduce) { .entry,button { transition:none; } }
+@media(prefers-reduced-motion:reduce) { .entry, .board button { transition:none; } }
