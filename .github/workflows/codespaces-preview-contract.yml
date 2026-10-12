@@ -102,17 +102,17 @@ jobs:
           cat > "$RUNNER_TEMP/analysis.json" <<'JSON'
           {"sequence":"ATGAAATAA","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}
           JSON
-          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \\
-            --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science \\
+          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science \
             -o "$RUNNER_TEMP/result.json"
           python -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['result']['orfs'][0]['protein']=='MK'; assert x['summary']['orf_count']==1; assert x['mode']=='local-development-only'" "$RUNNER_TEMP/result.json"
-          bad_status="$(curl -sS --max-time 15 -o "$RUNNER_TEMP/bad.json" -w '%{http_code}' \\
-            -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \\
-            --data '{"sequence":"ATG!","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}' \\
+          bad_status="$(curl -sS --max-time 15 -o "$RUNNER_TEMP/bad.json" -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data '{"sequence":"ATG!","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}' \
             http://127.0.0.1:3000/api/dev-science)"
           test "$bad_status" = "422"
-          cross_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \\
-            -H 'Content-Type: application/json' -H 'Origin: https://malicious.example' \\
+          cross_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: https://malicious.example' \
             --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science)"
           test "$cross_status" = "403"
           redirect_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/ai)"
