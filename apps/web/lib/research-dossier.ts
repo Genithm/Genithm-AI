@@ -138,7 +138,8 @@ export async function assembleDossier(
   let totalSnapshotLength = 0;
   const reports: DossierReport[] = selection.reportIds.map(id => {
     const row = byId.get(id);
-    expect(row && row.integrity_valid === true, "One or more scientific report seals failed verification.");
+    expect(row, "One or more selected reports are missing or unauthorized.");
+    expect(row.integrity_valid === true, "One or more scientific report seals failed verification.");
     expect(UUID.test(row.project_id) && row.project_id.toLowerCase() === selection.projectId,
       "Report does not belong to the selected project.");
     expect(SOURCES.has(row.source_resource_type) && UUID.test(row.source_resource_id),
@@ -157,8 +158,9 @@ export async function assembleDossier(
     // Snapshot JSON from the trusted database RPC is JSONB, so only standard
     // canonical JSON types are accepted. The size cap prevents export abuse.
     const snapshotText = canonicalDossierJson(row.report_snapshot);
-    expect(snapshotText.length <= DOSSIER_MAX_SINGLE_REPORT_CHARS, "Report is too large to bundle.");
-    totalSnapshotLength += snapshotText.length;
+    const snapshotBytes = new TextEncoder().encode(snapshotText).byteLength;
+    expect(snapshotBytes <= DOSSIER_MAX_SINGLE_REPORT_CHARS, "Report is too large to bundle.");
+    totalSnapshotLength += snapshotBytes;
     expect(totalSnapshotLength <= DOSSIER_MAX_TOTAL_SNAPSHOT_CHARS, "Dossier exceeds the export size budget.");
     const source = row.report_snapshot.source;
     const project = row.report_snapshot.project;
