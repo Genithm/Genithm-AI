@@ -203,3 +203,42 @@ export async function requestProteinProperties(formData: FormData) {
   }
   revalidatePath("/dashboard");
 }
+
+export async function requestSequenceInsights(formData: FormData) {
+  const { supabase } = await requireUser();
+  const projectId = String(formData.get("project_id") ?? "").trim();
+  const sequenceUploadId = String(formData.get("sequence_upload_id") ?? "").trim();
+  const operation = String(formData.get("operation") ?? "").trim();
+  const motif = String(formData.get("motif") ?? "").trim().toUpperCase();
+  const minAa = Number(String(formData.get("min_aa") ?? "30"));
+
+  if (!projectId || !sequenceUploadId ||
+      !["orf_scan", "six_frame_translation", "motif_scan", "reverse_complement"].includes(operation)) {
+    redirect("/dashboard/tools?error=Select%20a%20valid%20nucleotide%20sequence%20and%20operation.");
+  }
+  if (!Number.isInteger(minAa) || minAa < 1 || minAa > 1000) {
+    redirect("/dashboard/tools?error=ORF%20minimum%20amino%20acid%20length%20must%20be%201%E2%80%931000.");
+  }
+  if (operation === "motif_scan" && !/^[ACGTRYSWKMBDHVNU]{2,32}$/.test(motif)) {
+    redirect("/dashboard/tools?error=Motif%20must%20be%202%E2%80%9332%20IUPAC%20nucleotide%20letters.");
+  }
+  if (operation !== "motif_scan" && motif) {
+    redirect("/dashboard/tools?error=Only%20motif%20scanning%20accepts%20a%20motif.");
+  }
+  if (operation !== "orf_scan" && minAa !== 30) {
+    redirect("/dashboard/tools?error=Minimum%20ORF%20length%20only%20applies%20to%20ORF%20scans.");
+  }
+
+  const { data: jobId, error } = await supabase.rpc("request_sequence_insights", {
+    project_id: projectId,
+    sequence_upload_id: sequenceUploadId,
+    operation,
+    motif: motif || null,
+    min_aa: minAa,
+  });
+  if (error || typeof jobId !== "string") {
+    redirect("/dashboard/tools?error=Could%20not%20queue%20sequence%20analysis.%20Check%20the%20project%2C%20input%20and%20operation.");
+  }
+  revalidatePath("/dashboard/tools");
+  redirect(`/dashboard/scientific-jobs/${jobId}`);
+}
