@@ -365,3 +365,6 @@
  .comparisonStatStrip { grid-template-columns: repeat(2,minmax(0,1fr)); }
  .alignmentTrack code { font-size: 12px; }
 }
+
+/* Local multiple sequence alignment labels */
+.msaLabel { width: 95px; flex: 0 0 95px; overflow: hidden; text-overflow: ellipsis; color: #b5ddd2; font-size: 12px; white-space: nowrap; }
