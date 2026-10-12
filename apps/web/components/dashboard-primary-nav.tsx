@@ -7,6 +7,7 @@ const workspaceLinks = [
   { href: "/dashboard/ai", label: "Chat" },
   { href: "/dashboard/tools", label: "Advanced tools" },
   { href: "/dashboard/operations", label: "Operations" },
+  { href: "/dashboard/research-journey", label: "Research journey" },
   { href: "/dashboard/dossiers", label: "Research dossiers" },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/billing", label: "Plan & usage" },
