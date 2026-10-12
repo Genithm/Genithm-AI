@@ -43,6 +43,9 @@ from .phylogeny import (
     run_fasttree,
 )
 
+from .source_scope import validate_phylogeny_source
+from .phylogeny import validate_alignment
+
 from .sequence_insights import (
     EXECUTOR_VERSION as SEQUENCE_INSIGHTS_EXECUTOR_VERSION,
     TOOL_ID as SEQUENCE_INSIGHTS_TOOL_ID,
@@ -290,20 +293,17 @@ def process_msa(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, A
 def process_phylogeny(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
     if job["tool_id"] != PHYLOGENY_TOOL_ID or job["tool_version"] != PHYLOGENY_TOOL_VERSION:
         raise PhylogenyError("claimed job does not match approved FastTree executor")
-    params = job.get("parameters")
-    if not isinstance(params, dict):
-        raise PhylogenyError("phylogenetic job parameters are invalid")
-    source_path = str(params.get("source_result_object_path", ""))
-    source_sha = str(params.get("source_result_sha256", ""))
-    source_size = int(params.get("source_result_bytes", 0))
-    source_job_id = str(params.get("source_msa_job_id", ""))
-    sequence_type = str(params.get("sequence_type", ""))
-    expected_count = int(params.get("sequence_count", 0))
-    expected_model = str(params.get("model", ""))
-    if not source_path or not source_job_id or expected_count < 3 or expected_count > 50:
-        raise PhylogenyError("phylogenetic source MSA provenance is incomplete")
+    source_path, source_size, source_sha, source_job_id, expected_count, sequence_type = validate_phylogeny_source(job)
+    expected_model = job["parameters"]["model"]
+    expected_length = job["parameters"]["aligned_length"]
     source = client.download_result(source_path, source_size, source_sha)
-    data, metrics, model = run_fasttree(source, sequence_type=sequence_type, expected_count=expected_count)
+    source_alignment = validate_alignment(source, expected_count)
+    source_lines = source_alignment.decode("ascii").splitlines()
+    if len(source_lines) != expected_count * 2 or any(
+        len(source_lines[index * 2 + 1]) != expected_length for index in range(expected_count)
+    ):
+        raise PhylogenyError("source MSA aligned length does not match validated job parameters")
+    data, metrics, model = run_fasttree(source_alignment, sequence_type=sequence_type, expected_count=expected_count)
     if model != expected_model:
         raise PhylogenyError("phylogenetic model does not match authoritative job parameters")
     summary = {
