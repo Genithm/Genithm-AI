@@ -228,3 +228,67 @@
   .resultPanel { padding: 22px 18px; }
   .resultHeader p { margin-bottom: 10px; }
 }
+
+
+/* Executable development-only analysis lab */
+.liveLab { margin-top: 66px; }
+.liveIntro { max-width: 670px; font-size: 13px; line-height: 1.75; margin: 11px 0 0; }
+.labGrid { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 18px; align-items: stretch; }
+.labForm, .labOutput {
+  min-width: 0;
+  border: 1px solid rgba(162, 202, 216, .17);
+  border-radius: 22px;
+  background: linear-gradient(160deg, #111f2b, #0b1a24);
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+.labTopline { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid rgba(162, 202, 216, .12); }
+.labTopline strong { font-size: 14px; }
+.labTopline span { font-size: 10px; font-weight: 750; color: #91e6ce; text-align: right; letter-spacing: .035em; }
+.labForm label { display: flex; flex-direction: column; gap: 9px; color: #afc7d0; font-size: 12px; font-weight: 650; }
+.labSequence {
+  min-height: 170px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(124, 210, 210, .2);
+  background: #08151e;
+  color: #a6f6de;
+  border-radius: 12px;
+  resize: vertical;
+  font: 14px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: .035em;
+}
+.labTwoColumns { display: grid; grid-template-columns: .8fr 1.2fr; gap: 14px; }
+.labControl { width: 100%; min-height: 45px; border-radius: 10px; padding: 8px 12px; }
+.labActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.labActions button:disabled { cursor: wait; opacity: .5; }
+.labCaption { font-size: 11px; line-height: 1.7; margin: 0; color: #8ca3ae; }
+.labEmpty { flex: 1; min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 13px; }
+.labEmpty strong { color: #d4eeee; font-size: 17px; }
+.labEmpty p { max-width: 340px; font-size: 12px; margin: 0; }
+.labGlyph { color: #8cefd6; font-size: 78px; line-height: 1; text-shadow: 0 0 40px rgba(119, 230, 210, .2); }
+.labError { padding: 14px; border: 1px solid rgba(255,153,153,.3); background: rgba(255,120,120,.07); border-radius: 10px; color: #ffc4c4; font-size: 13px; }
+.labReport { display: grid; gap: 17px; }
+.labResultHead { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+.labResultHead h3 { font-size: 20px; margin: 10px 0 0; }
+.labSummaryGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.labSummaryGrid div { display: grid; gap: 8px; background: rgba(10, 25, 34, .9); border-radius: 10px; border: 1px solid rgba(162,202,216,.11); padding: 14px; }
+.labSummaryGrid span, .labHash span { color: #849faa; font-size: 10px; }
+.labSummaryGrid strong { font-size: 14px; overflow-wrap: anywhere; }
+.labDataSection h4 { margin: 5px 0 12px; font-size: 13px; color: #b0efd6; }
+.labScroll { display: grid; gap: 8px; max-height: 250px; overflow: auto; }
+.labDataRow { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-width: 0; padding: 11px 13px; background: rgba(8,22,30,.95); border-radius: 9px; }
+.labDataRow strong { font: 700 13px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; color: #a8f5d8; min-width: 0; overflow-wrap: anywhere; }
+.labDataRow span { font-size: 11px; color: #a2b9c1; white-space: nowrap; }
+.labCode { margin: 0; background: #07151d; padding: 15px; border-radius: 10px; color: #a0f1da; font: 13px/1.8 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 270px; overflow: auto; }
+.labHash { margin-top: auto; border-top: 1px solid rgba(162,202,216,.13); padding-top: 17px; display: grid; gap: 9px; }
+.labHash code { color: #98e9d6; overflow-wrap: anywhere; font: 10px/1.6 ui-monospace, Consolas, monospace; }
+@media(max-width: 950px) { .labGrid { grid-template-columns: 1fr; } }
+@media(max-width: 580px) {
+  .labGrid, .labTwoColumns, .labSummaryGrid { grid-template-columns: 1fr; }
+  .labForm, .labOutput { padding: 18px; }
+  .labDataRow { align-items: flex-start; flex-direction: column; }
+  .labDataRow span { white-space: normal; }
+}
