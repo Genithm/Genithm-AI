@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { requestScientificReport } from "@/app/dashboard/report-actions";
 import { createClient } from "@/lib/supabase/server";
 import { ScientificJobStatus } from "./scientific-job-status";
+import { ScientificResultExplorerPanel } from "./scientific-result-explorer";
 import styles from "./scientific-job.module.css";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,6 +124,8 @@ export default async function ScientificJobPage({
           </div>
         ) : null}
       </section>
+
+      {completed && job.result_sha256 ? <ScientificResultExplorerPanel jobId={job.id} /> : null}
 
       <div className="section-grid">
         <section className="card">

@@ -160,6 +160,8 @@ jobs:
       - run: npm ci
       - name: Verify tenant-scoped scientific downloads and SHA-256 tamper rejection
         run: node --experimental-strip-types --test tests/scientific-result-integrity.test.mjs
+      - name: Verify bounded scientific result interpretation, Newick trees, and alignment windows
+        run: node --experimental-strip-types --test tests/scientific-explorer.test.mjs
       - run: npm run typecheck
       - run: npm run build
 
