@@ -9,6 +9,7 @@ const workspaceLinks = [
   { href: "/dashboard/operations", label: "Operations" },
   { href: "/dashboard/research-journey", label: "Research journey" },
   { href: "/dashboard/pipelines", label: "Pipelines" },
+  { href: "/dashboard/pipeline-studies", label: "Pipeline studies" },
   { href: "/dashboard/dossiers", label: "Research dossiers" },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/billing", label: "Plan & usage" },

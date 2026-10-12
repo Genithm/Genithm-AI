@@ -172,6 +172,8 @@ jobs:
         run: node --experimental-strip-types --test tests/research-journey.test.mjs
       - name: Verify autonomous protein pipeline exactly-once transitions, authorization and evidence
         run: node --experimental-strip-types --test tests/research-pipeline.test.mjs
+      - name: Verify cross-pipeline studies, exact scientific inputs and sealed report integrity
+        run: node --experimental-strip-types --test tests/pipeline-study.test.mjs
       - run: npm run typecheck
       - run: npm run build
 
