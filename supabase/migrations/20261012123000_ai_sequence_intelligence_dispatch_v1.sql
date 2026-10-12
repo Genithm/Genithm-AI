@@ -1,7 +1,5 @@
--- Approved AI planning and dispatch of sequence intelligence actions.
--- Requires sequence_intelligence_v1 and the hardened scientific-worker/0.5.0 runtime.
--- Existing actor binding and all eight original action contracts remain unchanged.
-
+-- AI sequence intelligence dispatch: preserve existing plans, bound inputs and actor.
+-- Apply only after scientific-worker 0.5.0 and the sequence intelligence schema.
 CREATE OR REPLACE FUNCTION app_private.ai_capability_preflight(p_project_id uuid, p_organization_id uuid)
  RETURNS jsonb
  LANGUAGE sql
@@ -48,41 +46,7 @@ annotated as (
       and not (coalesce(validation_warnings,'[]'::jsonb) ? 'gap_characters_present'),
     'protein_annotation_ready', status='ready' and sha256 is not null and sequence_count=1 and sequence_type='protein'
       and residue_count between 1 and 200000 and file_size_bytes between 1 and 2097152 and ncbi_protein_origin,
-    'sequence_insights_ready', status='ready' and sha256 ~ '^[0-9a-f]{64}
-  ) as item
-  from seq
-),
-completed_msa as (
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id',s.id,
-    'status',s.status,
-    'result_sha256',s.result_sha256,
-    'result_summary',s.result_summary
-  ) order by s.created_at desc),'[]'::jsonb) as items
-  from public.scientific_jobs s
-  where s.project_id=p_project_id
-    and s.organization_id=p_organization_id
-    and s.job_type='multiple_sequence_alignment'
-    and s.status='completed'
-    and s.result_sha256 is not null
-)
-select jsonb_build_object(
-  'supported_tasks',jsonb_build_array(
-    jsonb_build_object('task','ncbi_sequence_retrieval','need','explicit nucleotide or protein accession'),
-    jsonb_build_object('task','blast','need','one compatible ready single-record sequence'),
-    jsonb_build_object('task','pairwise_alignment','need','two distinct compatible ready single-record sequences of the same type'),
-    jsonb_build_object('task','multiple_sequence_alignment','need','3-50 compatible ready ungapped single-record sequences of the same type, within V1 compute limits'),
-    jsonb_build_object('task','phylogenetic_tree','need','one completed MSA result'),
-    jsonb_build_object('task','protein_properties','need','one compatible ready protein sequence'),
-    jsonb_build_object('task','protein_annotation','need','one compatible ready protein sequence originating from a successful NCBI protein retrieval'),
-    jsonb_build_object('task','msa_phylogeny_workflow','need','3-50 compatible ready ungapped single-record sequences of the same type, within V1 compute limits'),
-    jsonb_build_object('task','sequence_insights','need','one ready ungapped DNA/RNA FASTA up to 50000 bases; ORF scanning, six-frame translation, motif scanning, or reverse complement')
-  ),
-  'sequences',coalesce((select jsonb_agg(item) from annotated),'[]'::jsonb),
-  'completed_msa_jobs',(select items from completed_msa)
-);
-$function$
-;
+    'sequence_insights_ready', status='ready' and sha256 ~ '^[0-9a-f]{64}$'
       and sequence_count=1 and sequence_type in ('dna','rna')
       and residue_count between 1 and 50000 and file_size_bytes between 1 and 2097152
       and not (coalesce(validation_warnings,'[]'::jsonb) ? 'gap_characters_present')
@@ -112,7 +76,8 @@ select jsonb_build_object(
     jsonb_build_object('task','phylogenetic_tree','need','one completed MSA result'),
     jsonb_build_object('task','protein_properties','need','one compatible ready protein sequence'),
     jsonb_build_object('task','protein_annotation','need','one compatible ready protein sequence originating from a successful NCBI protein retrieval'),
-    jsonb_build_object('task','msa_phylogeny_workflow','need','3-50 compatible ready ungapped single-record sequences of the same type, within V1 compute limits')
+    jsonb_build_object('task','msa_phylogeny_workflow','need','3-50 compatible ready ungapped single-record sequences of the same type, within V1 compute limits'),
+    jsonb_build_object('task','sequence_insights','need','one ready ungapped DNA/RNA FASTA up to 50000 bases, with an approved sequence operation')
   ),
   'sequences',coalesce((select jsonb_agg(item) from annotated),'[]'::jsonb),
   'completed_msa_jobs',(select items from completed_msa)
@@ -139,330 +104,65 @@ declare
 begin
   action := p_plan->'action'->>'type';
 
-  if p_plan->>'intent' = 'scientific_action'
-     and action = 'sequence_insights' then
-    if p_plan is null
-       or jsonb_typeof(p_plan)<>'object'
-       or not app_private.jsonb_has_exact_keys(p_plan,array['schema_version','intent','summary','limitations','action'])
-       or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
-       or char_length(coalesce(p_plan->>'summary','')) not between 1 and 2000
-       or jsonb_typeof(p_plan->'limitations') <> 'array'
-       or jsonb_array_length(p_plan->'limitations') > 10
-       or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
-       or jsonb_typeof(p_plan->'action'->'parameters') <> 'object' then
+  if p_plan->>'intent'='scientific_action' and action='sequence_insights' then
+    if p_plan is null or jsonb_typeof(p_plan)<>'object'
+      or not app_private.jsonb_has_exact_keys(p_plan,array['schema_version','intent','summary','limitations','action'])
+      or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
+      or char_length(coalesce(p_plan->>'summary','')) not between 1 and 2000
+      or jsonb_typeof(p_plan->'limitations')<>'array'
+      or jsonb_array_length(p_plan->'limitations')>10
+      or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
+      or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
       raise exception 'AI sequence intelligence plan shape is invalid';
     end if;
-
     for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
-      if jsonb_typeof(limitation) <> 'string'
-         or char_length(limitation#>>'{}') not between 1 and 500 then
+      if jsonb_typeof(limitation)<>'string' or char_length(limitation#>>'{}') not between 1 and 500 then
         raise exception 'AI sequence intelligence limitation is invalid';
       end if;
     end loop;
-
     params := p_plan->'action'->'parameters';
     if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_id','operation','motif','min_aa'])
-       or jsonb_typeof(params->'sequence_upload_id') <> 'string'
-       or coalesce(params->>'sequence_upload_id','') !~
-         '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}
-    if p_plan is null
-       or jsonb_typeof(p_plan)<>'object'
-       or not app_private.jsonb_has_exact_keys(
-         p_plan,
-         array['schema_version','intent','summary','limitations','action']
-       )
-       or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
-       or char_length(coalesce(p_plan->>'summary',''))<1
-       or char_length(p_plan->>'summary')>2000
-       or jsonb_typeof(p_plan->'limitations')<>'array'
-       or jsonb_array_length(p_plan->'limitations')>10
-       or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
-       or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
-      raise exception 'AI workflow plan schema is invalid';
-    end if;
-
-    for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
-      if jsonb_typeof(limitation)<>'string'
-         or char_length(limitation#>>'{}')<1
-         or char_length(limitation#>>'{}')>500 then
-        raise exception 'AI workflow limitation is invalid';
-      end if;
-    end loop;
-
-    params := p_plan->'action'->'parameters';
-    if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_ids'])
-       or jsonb_typeof(params->'sequence_upload_ids')<>'array' then
-      raise exception 'AI MSA + phylogeny workflow parameters are invalid';
-    end if;
-
-    begin
-      select array_agg(value::uuid)
-      into ids
-      from jsonb_array_elements_text(params->'sequence_upload_ids');
-    exception when others then
-      raise exception 'AI workflow contains an invalid sequence identifier';
-    end;
-
-    expected := coalesce(array_length(ids,1),0);
-    if expected<3 or expected>50
-       or (select count(distinct x) from unnest(ids) x)<>expected then
-      raise exception 'AI MSA + phylogeny workflow input count is invalid';
-    end if;
-
-    select count(*) into actual
-    from public.sequence_uploads u
-    where u.id=any(ids)
-      and u.project_id=p_request.project_id
-      and u.organization_id=p_request.organization_id
-      and u.status='ready'
-      and u.sequence_count=1
-      and u.sha256 is not null;
-
-    if actual<>expected then
-      raise exception 'AI MSA + phylogeny workflow inputs are not authorized or ready';
-    end if;
-
-    return action;
-  end if;
-
-  return app_private.validate_ai_plan_for_request(p_request,p_plan);
-end;
-$$;
-       or jsonb_typeof(params->'operation') <> 'string'
-       or params->>'operation' not in ('orf_scan','six_frame_translation','motif_scan','reverse_complement')
-       or jsonb_typeof(params->'min_aa') <> 'number'
-       or coalesce(params->>'min_aa','') !~ '^[1-9][0-9]{0,3}
-    if p_plan is null
-       or jsonb_typeof(p_plan)<>'object'
-       or not app_private.jsonb_has_exact_keys(
-         p_plan,
-         array['schema_version','intent','summary','limitations','action']
-       )
-       or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
-       or char_length(coalesce(p_plan->>'summary',''))<1
-       or char_length(p_plan->>'summary')>2000
-       or jsonb_typeof(p_plan->'limitations')<>'array'
-       or jsonb_array_length(p_plan->'limitations')>10
-       or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
-       or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
-      raise exception 'AI workflow plan schema is invalid';
-    end if;
-
-    for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
-      if jsonb_typeof(limitation)<>'string'
-         or char_length(limitation#>>'{}')<1
-         or char_length(limitation#>>'{}')>500 then
-        raise exception 'AI workflow limitation is invalid';
-      end if;
-    end loop;
-
-    params := p_plan->'action'->'parameters';
-    if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_ids'])
-       or jsonb_typeof(params->'sequence_upload_ids')<>'array' then
-      raise exception 'AI MSA + phylogeny workflow parameters are invalid';
-    end if;
-
-    begin
-      select array_agg(value::uuid)
-      into ids
-      from jsonb_array_elements_text(params->'sequence_upload_ids');
-    exception when others then
-      raise exception 'AI workflow contains an invalid sequence identifier';
-    end;
-
-    expected := coalesce(array_length(ids,1),0);
-    if expected<3 or expected>50
-       or (select count(distinct x) from unnest(ids) x)<>expected then
-      raise exception 'AI MSA + phylogeny workflow input count is invalid';
-    end if;
-
-    select count(*) into actual
-    from public.sequence_uploads u
-    where u.id=any(ids)
-      and u.project_id=p_request.project_id
-      and u.organization_id=p_request.organization_id
-      and u.status='ready'
-      and u.sequence_count=1
-      and u.sha256 is not null;
-
-    if actual<>expected then
-      raise exception 'AI MSA + phylogeny workflow inputs are not authorized or ready';
-    end if;
-
-    return action;
-  end if;
-
-  return app_private.validate_ai_plan_for_request(p_request,p_plan);
-end;
-$$; then
+      or jsonb_typeof(params->'sequence_upload_id')<>'string'
+      or coalesce(params->>'sequence_upload_id','') !~
+         '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      or jsonb_typeof(params->'operation')<>'string'
+      or params->>'operation' not in ('orf_scan','six_frame_translation','motif_scan','reverse_complement')
+      or jsonb_typeof(params->'min_aa')<>'number'
+      or coalesce(params->>'min_aa','') !~ '^[1-9][0-9]{0,3}$' then
       raise exception 'AI sequence intelligence parameters are invalid';
     end if;
-
     if (params->>'min_aa')::integer not between 1 and 1000 then
       raise exception 'AI sequence intelligence ORF minimum is invalid';
     end if;
     if params->>'operation'='motif_scan' then
-      if jsonb_typeof(params->'motif') <> 'string'
-         or coalesce(params->>'motif','') !~ '^[ACGTRYSWKMBDHVNU]{2,32}
-    if p_plan is null
-       or jsonb_typeof(p_plan)<>'object'
-       or not app_private.jsonb_has_exact_keys(
-         p_plan,
-         array['schema_version','intent','summary','limitations','action']
-       )
-       or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
-       or char_length(coalesce(p_plan->>'summary',''))<1
-       or char_length(p_plan->>'summary')>2000
-       or jsonb_typeof(p_plan->'limitations')<>'array'
-       or jsonb_array_length(p_plan->'limitations')>10
-       or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
-       or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
-      raise exception 'AI workflow plan schema is invalid';
-    end if;
-
-    for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
-      if jsonb_typeof(limitation)<>'string'
-         or char_length(limitation#>>'{}')<1
-         or char_length(limitation#>>'{}')>500 then
-        raise exception 'AI workflow limitation is invalid';
-      end if;
-    end loop;
-
-    params := p_plan->'action'->'parameters';
-    if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_ids'])
-       or jsonb_typeof(params->'sequence_upload_ids')<>'array' then
-      raise exception 'AI MSA + phylogeny workflow parameters are invalid';
-    end if;
-
-    begin
-      select array_agg(value::uuid)
-      into ids
-      from jsonb_array_elements_text(params->'sequence_upload_ids');
-    exception when others then
-      raise exception 'AI workflow contains an invalid sequence identifier';
-    end;
-
-    expected := coalesce(array_length(ids,1),0);
-    if expected<3 or expected>50
-       or (select count(distinct x) from unnest(ids) x)<>expected then
-      raise exception 'AI MSA + phylogeny workflow input count is invalid';
-    end if;
-
-    select count(*) into actual
-    from public.sequence_uploads u
-    where u.id=any(ids)
-      and u.project_id=p_request.project_id
-      and u.organization_id=p_request.organization_id
-      and u.status='ready'
-      and u.sequence_count=1
-      and u.sha256 is not null;
-
-    if actual<>expected then
-      raise exception 'AI MSA + phylogeny workflow inputs are not authorized or ready';
-    end if;
-
-    return action;
-  end if;
-
-  return app_private.validate_ai_plan_for_request(p_request,p_plan);
-end;
-$$;
-         or (params->>'min_aa')::integer<>30 then
+      if jsonb_typeof(params->'motif')<>'string'
+        or coalesce(params->>'motif','') !~ '^[ACGTRYSWKMBDHVNU]{2,32}$'
+        or (params->>'min_aa')::integer<>30 then
         raise exception 'AI motif scan parameters are invalid';
       end if;
     elsif params->'motif' is distinct from 'null'::jsonb
-       or (params->>'operation'<>'orf_scan' and (params->>'min_aa')::integer<>30) then
+      or (params->>'operation'<>'orf_scan' and (params->>'min_aa')::integer<>30) then
       raise exception 'AI sequence intelligence operation parameters are incompatible';
     end if;
-
     if not exists (
       select 1 from public.sequence_uploads u
       where u.id=(params->>'sequence_upload_id')::uuid
-        and u.project_id=p_request.project_id
-        and u.organization_id=p_request.organization_id
-        and u.status='ready'
-        and u.sequence_type in ('dna','rna')
-        and u.sequence_count=1
-        and u.sha256 ~ '^[0-9a-f]{64}
-    if p_plan is null
-       or jsonb_typeof(p_plan)<>'object'
-       or not app_private.jsonb_has_exact_keys(
-         p_plan,
-         array['schema_version','intent','summary','limitations','action']
-       )
-       or p_plan->>'schema_version' is distinct from 'ai-plan-v1'
-       or char_length(coalesce(p_plan->>'summary',''))<1
-       or char_length(p_plan->>'summary')>2000
-       or jsonb_typeof(p_plan->'limitations')<>'array'
-       or jsonb_array_length(p_plan->'limitations')>10
-       or not app_private.jsonb_has_exact_keys(p_plan->'action',array['type','parameters'])
-       or jsonb_typeof(p_plan->'action'->'parameters')<>'object' then
-      raise exception 'AI workflow plan schema is invalid';
-    end if;
-
-    for limitation in select value from jsonb_array_elements(p_plan->'limitations') loop
-      if jsonb_typeof(limitation)<>'string'
-         or char_length(limitation#>>'{}')<1
-         or char_length(limitation#>>'{}')>500 then
-        raise exception 'AI workflow limitation is invalid';
-      end if;
-    end loop;
-
-    params := p_plan->'action'->'parameters';
-    if not app_private.jsonb_has_exact_keys(params,array['sequence_upload_ids'])
-       or jsonb_typeof(params->'sequence_upload_ids')<>'array' then
-      raise exception 'AI MSA + phylogeny workflow parameters are invalid';
-    end if;
-
-    begin
-      select array_agg(value::uuid)
-      into ids
-      from jsonb_array_elements_text(params->'sequence_upload_ids');
-    exception when others then
-      raise exception 'AI workflow contains an invalid sequence identifier';
-    end;
-
-    expected := coalesce(array_length(ids,1),0);
-    if expected<3 or expected>50
-       or (select count(distinct x) from unnest(ids) x)<>expected then
-      raise exception 'AI MSA + phylogeny workflow input count is invalid';
-    end if;
-
-    select count(*) into actual
-    from public.sequence_uploads u
-    where u.id=any(ids)
-      and u.project_id=p_request.project_id
-      and u.organization_id=p_request.organization_id
-      and u.status='ready'
-      and u.sequence_count=1
-      and u.sha256 is not null;
-
-    if actual<>expected then
-      raise exception 'AI MSA + phylogeny workflow inputs are not authorized or ready';
-    end if;
-
-    return action;
-  end if;
-
-  return app_private.validate_ai_plan_for_request(p_request,p_plan);
-end;
-$$;
-        and u.residue_count between 1 and 50000
-        and u.file_size_bytes between 1 and 2097152
+        and u.project_id=p_request.project_id and u.organization_id=p_request.organization_id
+        and u.status='ready' and u.sequence_type in ('dna','rna')
+        and u.sequence_count=1 and u.sha256 ~ '^[0-9a-f]{64}$'
+        and u.residue_count between 1 and 50000 and u.file_size_bytes between 1 and 2097152
         and not (coalesce(u.validation_warnings,'[]'::jsonb) ? 'gap_characters_present')
     ) then
       raise exception 'AI sequence intelligence input is not authorized or executable';
     end if;
-
-    -- Limit AI-picked IDs to the same bounded preflight context the model received.
     if not exists (
       select 1 from jsonb_array_elements(
         app_private.ai_capability_preflight(p_request.project_id,p_request.organization_id)->'sequences'
-      ) as item
-      where item->>'id'=params->>'sequence_upload_id'
-        and item->>'sequence_insights_ready'='true'
+      ) as authorized_input(value)
+      where authorized_input.value->>'id'=params->>'sequence_upload_id'
+        and authorized_input.value->>'sequence_insights_ready'='true'
     ) then
-      raise exception 'AI sequence input is not present in authorized planner context';
+      raise exception 'AI sequence input was not present in the authorized planning context';
     end if;
     return action;
   end if;
@@ -607,11 +307,8 @@ begin
     r_type := 'protein_annotation_job';
   elsif action='sequence_insights' then
     result_id := app_private.request_sequence_insights(
-      target.project_id,
-      (params->>'sequence_upload_id')::uuid,
-      params->>'operation',
-      params->>'motif',
-      (params->>'min_aa')::integer
+      target.project_id,(params->>'sequence_upload_id')::uuid,
+      params->>'operation',params->>'motif',(params->>'min_aa')::integer
     );
     r_type := 'scientific_job';
   elsif action='msa_phylogeny_workflow' then
@@ -662,10 +359,7 @@ end;
 $function$
 ;
 
-revoke all on function app_private.ai_capability_preflight(uuid,uuid)
-  from public,anon,authenticated,service_role;
-revoke all on function app_private.validate_ai_plan_for_request_v2(public.ai_plan_requests,jsonb)
-  from public,anon,authenticated,service_role;
-revoke all on function app_private.dispatch_ai_plan_service(uuid,uuid)
-  from public,anon,authenticated,service_role;
+revoke all on function app_private.ai_capability_preflight(uuid,uuid) from public,anon,authenticated,service_role;
+revoke all on function app_private.validate_ai_plan_for_request_v2(public.ai_plan_requests,jsonb) from public,anon,authenticated,service_role;
+revoke all on function app_private.dispatch_ai_plan_service(uuid,uuid) from public,anon,authenticated,service_role;
 grant execute on function app_private.dispatch_ai_plan_service(uuid,uuid) to service_role;
