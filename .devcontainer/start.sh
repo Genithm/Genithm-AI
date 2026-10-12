@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+if ! curl -fsS --max-time 2 http://127.0.0.1:8769/health > /dev/null 2>&1; then
+  echo "[Genithm] Starting private local science engine on loopback port 8769..."
+  nohup python3 scripts/codespaces-live-science-server.py > /tmp/genithm-codespaces-science.log 2>&1 < /dev/null &
+fi
+
 if curl -fsS --max-time 2 http://127.0.0.1:3000/ > /dev/null 2>&1; then
   echo "[Genithm] Web preview is already running on port 3000."
   exit 0
@@ -21,3 +26,4 @@ echo "[Genithm] Starting web preview on port 3000..."
 )
 echo "[Genithm] Use Codespaces PORTS tab → Genithm AI preview → Open in Browser."
 echo "[Genithm] Development logs: tail -f /tmp/genithm-codespaces-web.log"
+echo "[Genithm] Scientific lab logs: tail -f /tmp/genithm-codespaces-science.log"
