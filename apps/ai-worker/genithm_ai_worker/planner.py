@@ -3,19 +3,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .capability_registry import executable_action_types
+
 PROMPT_VERSION = "genithm-ai-planner/0.2.0"
 POLICY_VERSION = "ai-policy-v1"
 PLAN_SCHEMA_VERSION = "ai-plan-v1"
-ALLOWED_ACTIONS = {
-    "ncbi_sequence_retrieval",
-    "blast",
-    "pairwise_alignment",
-    "multiple_sequence_alignment",
-    "phylogenetic_tree",
-    "protein_properties",
-    "protein_annotation",
-    "msa_phylogeny_workflow",
-}
+ALLOWED_ACTIONS = set(executable_action_types())
 ACTION_PARAMETER_KEYS = {
     "ncbi_sequence_retrieval": {"database_name", "accession"},
     "blast": {"query_upload_id", "program", "expect_value", "max_targets", "low_complexity_filter"},
