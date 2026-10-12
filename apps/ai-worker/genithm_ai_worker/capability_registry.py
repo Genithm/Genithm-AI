@@ -45,8 +45,10 @@ _CAPABILITIES: tuple[ScientificCapability, ...] = (
     ScientificCapability("protein_annotation", "proteins_proteomics", "Protein annotation evidence", "available", "direct", "protein_annotation"),
     ScientificCapability("msa_phylogeny_workflow", "ai_knowledge_workflows", "MSA to phylogeny workflow", "available", "workflow", "msa_phylogeny_workflow"),
 
-    ScientificCapability("orf_detection", "sequences_annotation", "ORF detection and translation", "planned", "planned"),
-    ScientificCapability("motif_scan", "sequences_annotation", "Sequence motif scanning", "planned", "planned"),
+    ScientificCapability("orf_detection", "sequences_annotation", "Complete ORF discovery", "available", "direct"),
+    ScientificCapability("motif_scan", "sequences_annotation", "IUPAC motif scanning", "available", "direct"),
+    ScientificCapability("six_frame_translation", "sequences_annotation", "Six-frame nucleotide translation", "available", "direct"),
+    ScientificCapability("reverse_complement", "sequences_annotation", "Reverse complement nucleotide sequence", "available", "direct"),
     ScientificCapability("primer_design", "sequences_annotation", "Primer and PCR design", "planned", "planned"),
     ScientificCapability("genome_assembly", "genomics", "Genome assembly", "planned", "planned"),
     ScientificCapability("genome_annotation", "genomics", "Genome annotation", "planned", "planned"),
