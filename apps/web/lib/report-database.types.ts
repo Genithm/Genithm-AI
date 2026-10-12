@@ -121,6 +121,10 @@ type PlatformSupportCaseRow = {
 };
 
 type ReportFunctions = AiPublic["Functions"] & {
+  request_research_nucleotide_pipeline: {
+    Args: { project_id: string; accession: string };
+    Returns: string;
+  };
   request_research_protein_pipeline: {
     Args: { project_id: string; accession: string };
     Returns: string;
