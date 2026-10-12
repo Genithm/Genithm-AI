@@ -292,3 +292,37 @@
   .labDataRow { align-items: flex-start; flex-direction: column; }
   .labDataRow span { white-space: normal; }
 }
+
+
+/* Composition and exploratory genomics: accessible chart and tables. */
+.compositionReport { display: grid; gap: 24px; min-width: 0; }
+.compositionStatGrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+.compositionStatGrid div {
+  display: grid; gap: 8px; padding: 13px;
+  border: 1px solid rgba(125,224,205,.14);
+  border-radius: 10px; background: rgba(9,24,33,.75);
+}
+.compositionStatGrid span { font-size: 10px; color: #97b6bd; }
+.compositionStatGrid strong { font-size: 20px; color: #a5f5dc; }
+.baseCounts { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; }
+.baseCounts div { display: grid; justify-items: center; gap: 7px; padding: 12px 3px; background: rgba(13,37,46,.9); border-radius: 9px; }
+.baseCounts span { color: #91ebd3; font: 750 17px/1 ui-monospace,monospace; }
+.baseCounts strong { font-size: 13px; }
+.gcChart { min-width: 0; border: 1px solid rgba(162,202,216,.13); border-radius: 13px; background: #071822; padding: 14px; }
+.gcChart svg { display: block; width: 100%; color: #8dabba; overflow: visible; }
+.gcChart p { margin: 10px 0 0; }
+.kmerList { display: grid; gap: 8px; }
+.kmerRow { display: grid; grid-template-columns: 47px minmax(0,1fr) 28px; gap: 11px; align-items: center; }
+.kmerRow code { color: #a2efda; font-size: 12px; }
+.kmerRow span { font-size: 11px; color: #bdcdd3; text-align: right; }
+.kmerTrack { height: 9px; border-radius: 9px; background: #172c35; overflow: hidden; }
+.kmerTrack div { height: 100%; border-radius: inherit; background: linear-gradient(90deg,#357f87,#83e3b9); }
+.codonGrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.codonGrid div { min-width: 0; padding: 9px; border: 1px solid rgba(162,202,216,.12); border-radius: 8px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.codonGrid code { color: #a2efda; font-size: 11px; }
+.codonGrid strong { color: #e4f0f2; }
+.codonGrid span { color: #8aa5ae; font-size: 11px; margin-left: auto; }
+@media (max-width: 640px) {
+  .compositionStatGrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .codonGrid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
