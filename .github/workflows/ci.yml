@@ -164,6 +164,8 @@ jobs:
         run: node --experimental-strip-types --test tests/scientific-explorer.test.mjs
       - name: Verify unified operations classifications, diagnostics, and data-minimization rules
         run: node --experimental-strip-types --test tests/research-operations.test.mjs
+      - name: Verify workflow reconciliation, dependency lineage, and safe recovery diagnostics
+        run: node --experimental-strip-types --test tests/workflow-reconciliation.test.mjs
       - run: npm run typecheck
       - run: npm run build
 
