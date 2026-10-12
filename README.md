@@ -27,7 +27,19 @@ Foundation and Phase 1 authentication/workspace:
 6. FastAPI health/readiness endpoints
 7. CI gates
 
-The first scientific workflow (FASTA -> queued worker -> validated result -> provenance -> AI explanation) comes after the workspace foundation.
+Genithm includes worker-backed scientific workflows, AI planning, sequence intelligence and provenance. Actual processing requires an appropriately configured development backend and running workers.
+
+## Codespaces: no Oracle deployment required
+
+Open **Code → Codespaces** from GitHub, start a Codespace, then select
+**Ports → Genithm AI preview (3000) → Open in Browser**.
+
+The Codespace automatically installs the locked Next.js dependencies, starts
+the UI, and runs four actual scientific algorithm smoke tests. Visit
+`/preview` to explore the offline research workbench without Supabase keys.
+Real authenticated features need a **separate development Supabase project**.
+
+Full instructions: [GitHub Codespaces development](docs/development/CODESPACES.md).
 
 ## Local setup
 
