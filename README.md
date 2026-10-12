@@ -35,8 +35,8 @@ Open **Code → Codespaces** from GitHub, start a Codespace, then select
 **Ports → Genithm AI preview (3000) → Open in Browser**.
 
 The Codespace automatically installs the locked Next.js dependencies, starts
-the UI, and runs four actual scientific algorithm smoke tests. Visit
-`/preview` to explore the offline research workbench without Supabase keys.
+the UI and a private local scientific engine, and runs four actual scientific algorithm smoke tests. Visit
+`/preview` to explore the research workbench and **run real DNA/RNA analysis locally** without Supabase keys.
 Real authenticated features need a **separate development Supabase project**.
 
 Full instructions: [GitHub Codespaces development](docs/development/CODESPACES.md).

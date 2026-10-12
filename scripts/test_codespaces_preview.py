@@ -43,7 +43,7 @@ class CodespacesPreviewContractTests(unittest.TestCase):
     def test_preview_never_enabled_in_production(self):
         self.assertIn('process.env.NODE_ENV !== "development"', self.preview)
         self.assertIn("notFound()", self.preview)
-        self.assertIn("no live customer job is submitted", self.preview)
+        self.assertIn("No live customer job is submitted", self.preview)
         self.assertIn("SampleWorkbench", self.preview)
 
     def test_real_science_is_used_by_local_smoke(self):
@@ -51,6 +51,24 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertIn("from genithm_scientific_worker.sequence_insights import", smoke)
         for operation in ("orf_scan", "six_frame_translation", "motif_scan", "reverse_complement"):
             self.assertIn(f'operation="{operation}"', smoke)
+
+    def test_live_science_api_is_development_only_and_routes_are_protected(self):
+        route = (WEB / "app/api/dev-science/route.ts").read_text(encoding="utf-8")
+        self.assertIn('process.env.NODE_ENV !== "development"', route)
+        self.assertIn('process.env.GENITHM_CODESPACES_PREVIEW !== "1"', route)
+        self.assertIn('request.headers.get("sec-fetch-site")', route)
+        self.assertIn("MAX_BODY_BYTES = 8192", route)
+        self.assertIn('http://127.0.0.1:8769/analyze', route)
+        self.assertIn('request.nextUrl.pathname === "/api/dev-science"', self.proxy)
+        self.assertIn('return updateSession(request)', self.proxy)
+
+    def test_local_scientific_server_is_loopback_only(self):
+        server = (ROOT / "scripts/codespaces-live-science-server.py").read_text(encoding="utf-8")
+        start = (DEV / "start.sh").read_text(encoding="utf-8")
+        self.assertIn('("127.0.0.1", PORT)', server)
+        self.assertIn("threading.BoundedSemaphore(2)", server)
+        self.assertIn("scripts/codespaces-live-science-server.py", start)
+        self.assertNotIn("8769", json.dumps(self.config))
 
     def test_setup_installs_from_lockfile(self):
         setup = (DEV / "setup.sh").read_text(encoding="utf-8")

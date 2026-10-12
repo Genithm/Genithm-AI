@@ -14,6 +14,12 @@ export async function proxy(request: NextRequest) {
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 
+  // The local science API has its own development-only validation and
+  // is never a Supabase-authenticated customer endpoint.
+  if (codespacesDemo && request.nextUrl.pathname === "/api/dev-science") {
+    return NextResponse.next();
+  }
+
   if (codespacesDemo && !hasPublicCredentials) {
     const pathname = request.nextUrl.pathname;
     if (pathname === "/" || pathname === "/preview" || pathname.startsWith("/legal/")) {

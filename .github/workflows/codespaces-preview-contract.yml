@@ -9,6 +9,10 @@ on:
       - 'apps/web/app/page.tsx'
       - 'apps/web/proxy.ts'
       - 'scripts/codespaces-science-smoke.py'
+      - 'scripts/codespaces-live-science.py'
+      - 'scripts/codespaces-live-science-server.py'
+      - 'scripts/test_codespaces_live_lab.py'
+      - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
       - '.github/workflows/codespaces-preview-contract.yml'
   push:
@@ -20,6 +24,10 @@ on:
       - 'apps/web/app/page.tsx'
       - 'apps/web/proxy.ts'
       - 'scripts/codespaces-science-smoke.py'
+      - 'scripts/codespaces-live-science.py'
+      - 'scripts/codespaces-live-science-server.py'
+      - 'scripts/test_codespaces_live_lab.py'
+      - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
       - '.github/workflows/codespaces-preview-contract.yml'
 
@@ -46,6 +54,8 @@ jobs:
           python-version: "3.13"
       - name: Run real scientific-worker methods offline
         run: python scripts/codespaces-science-smoke.py
+      - name: Test live scientific workbench algorithms
+        run: python scripts/test_codespaces_live_lab.py
       - name: Verify Codespaces security and auth boundaries
         run: python scripts/test_codespaces_preview.py
       - name: Install pinned frontend dependencies
@@ -57,6 +67,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          nohup python scripts/codespaces-live-science-server.py > "$RUNNER_TEMP/science.log" 2>&1 < /dev/null &
+          for attempt in $(seq 1 20); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8769/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
           (
             cd apps/web
             nohup npm run dev -- --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/preview.log" 2>&1 < /dev/null &
@@ -82,3 +99,21 @@ jobs:
           test "$status" = "307"
           curl -sSI --max-time 10 http://127.0.0.1:3000/dashboard/ai > "$RUNNER_TEMP/auth-redirect.txt"
           grep -q '/preview?setup=1' "$RUNNER_TEMP/auth-redirect.txt"
+          cat > "$RUNNER_TEMP/analysis.json" <<'JSON'
+          {"sequence":"ATGAAATAA","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}
+          JSON
+          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science \
+            -o "$RUNNER_TEMP/result.json"
+          python -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['result']['orfs'][0]['protein']=='MK'; assert x['summary']['orf_count']==1; assert x['mode']=='local-development-only'" "$RUNNER_TEMP/result.json"
+          bad_status="$(curl -sS --max-time 15 -o "$RUNNER_TEMP/bad.json" -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data '{"sequence":"ATG!","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}' \
+            http://127.0.0.1:3000/api/dev-science)"
+          test "$bad_status" = "422"
+          cross_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+            -H 'Content-Type: application/json' -H 'Origin: https://malicious.example' \
+            --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science)"
+          test "$cross_status" = "403"
+          redirect_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/ai)"
+          test "$redirect_status" = "307"

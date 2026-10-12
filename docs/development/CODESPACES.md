@@ -30,12 +30,45 @@ tail -f /tmp/genithm-codespaces-web.log
 Do not manually make the preview port public. Port 9000 is no longer
 automatically forwarded publicly.
 
+## Interactive scientific lab — real computation, no keys
+
+The `/preview` page now includes **Analyze your own DNA or RNA** beneath
+the reference-fixture explorer. Paste plain nucleotides or a single-record FASTA,
+choose DNA/RNA, and run **complete ORF discovery, six-frame translation,
+IUPAC motif scanning or reverse complement**. A sample `ATGAAATAA` is
+preloaded, and the resulting report can be exported as JSON.
+
+This is **actual Python execution of the same bounded algorithms used by
+the scientific worker**, not an AI-generated result or hard-coded example.
+The tiny Python server binds only to `127.0.0.1:8769`, never forwards a
+second port, requires no database, and runs no external network requests.
+The Next.js proxy route is **development-only**, accepts only same-origin
+JSON requests, and rejects oversized payloads. The lab limits runs to
+**5,000 nucleotide bases**, two simultaneous computations, and the
+engine's bounded result counts.
+
+No user accounts, customer jobs, billing or permanent storage are created
+by this lab. Its local exported JSON includes a reproducible input SHA-256
+fingerprint, but it is **not an authenticated, signed scientific job artifact**.
+
+If the results panel reports the local engine is unavailable:
+
+```bash
+bash .devcontainer/start.sh
+curl -fsS http://127.0.0.1:8769/health
+tail -n 60 /tmp/genithm-codespaces-science.log
+```
+
+Run its validation tests without npm or any database:
+
+```bash
+python3 scripts/test_codespaces_live_lab.py
+python3 scripts/test_codespaces_preview.py
+```
+
 ## Preview versus an authenticated scientific workspace
 
-**Offline UI demo (no keys):** The `/preview` page uses a clearly labeled
-9-base DNA sample. No analysis is submitted, no users are impersonated,
-and the fixture data does not come from Supabase. The four demo results
-correspond to actual deterministic scientific-worker algorithms.
+**Offline development lab (no keys):** The `/preview` page contains both clearly labeled reference examples and a live local scientific input form. The local lab computes results from a sequence you paste; no customer job is submitted, no user is impersonated, and no data is sent to Supabase.
 
 **Authenticated development (optional):** Create a **separate Supabase
 development project**, not Genithm's production project. Apply reviewed
