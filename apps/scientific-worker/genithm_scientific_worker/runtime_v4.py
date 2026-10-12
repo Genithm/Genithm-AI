@@ -8,6 +8,8 @@ import os
 import time
 from typing import Any
 
+from .artifact_audit import audit_json_artifact
+from .input_integrity import validate_input_manifest, validate_sequence_content
 from .msa import MsaError
 from .pairwise import PairwiseAlignmentError
 from .phylogeny import PhylogenyError
@@ -94,16 +96,13 @@ def canonical_protein_result(job: dict[str, Any], sequence: str) -> tuple[bytes,
 def process_protein(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
     if job["tool_id"] != PROTEIN_TOOL_ID or job["tool_version"] != PROTEIN_TOOL_VERSION:
         raise ProteinPropertiesError("claimed job does not match approved protein properties executor")
-    inputs = job.get("inputs")
-    if not isinstance(inputs, list) or len(inputs) != 1:
-        raise ProteinPropertiesError("protein properties require exactly one scientific input")
+    inputs = validate_input_manifest(
+        job, count_min=1, count_max=1, allowed_types=frozenset({"protein"}),
+    )
     item = inputs[0]
-    if str(item.get("sequence_type", "")) != "protein":
-        raise ProteinPropertiesError("protein properties require a validated protein input")
     raw = client.download(str(item["object_path"]), int(item["file_size_bytes"]), str(item["sha256"]))
     sequence = parse_single_protein_fasta(raw)
-    if len(sequence) != int(item["residue_count"]):
-        raise ProteinPropertiesError("protein residue count does not match validated input provenance")
+    validate_sequence_content(item, sequence, tool="protein properties")
     data, summary, provenance = canonical_protein_result(job, sequence)
     path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/protein-properties.json"
     return data, summary, provenance, path, "application/json", PROTEIN_EXECUTOR_VERSION
@@ -135,6 +134,14 @@ def process_one(client: Client) -> bool:
         else:
             raise ValueError("claimed scientific job type is not supported by this worker")
 
+        # Independent fail-closed evidence validation before any result is uploaded
+        # or success is acknowledged. Existing MAFFT and FastTree handlers already
+        # validate their non-JSON scientific artifacts against the source records.
+        if job["job_type"] in {"pairwise_alignment", "sequence_insights", "protein_properties"}:
+            audit_json_artifact(
+                data, expected_job_type=job["job_type"],
+                expected_summary=summary, expected_provenance=provenance,
+            )
         client.upload_result(path, data, content_type)
         client.rpc(success_rpc, {
             "message_id": message_id,
