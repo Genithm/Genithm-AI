@@ -70,6 +70,7 @@ export default async function AiOperationsPage({ searchParams }: { searchParams:
           <p className="small">Bounded lifecycle metrics for your own AI requests only. Underlying row-level security remains authoritative; prompts, frozen evidence, AI answers, and scientific result bodies are not exposed here.</p>
         </div>
         <div className="actions" style={{ marginTop: 0 }}>
+          <Link className="button primary" href="/dashboard/operations">Unified research operations</Link>
           <Link className="button" href="/dashboard/ai">Back to Genithm AI</Link>
         </div>
       </header>
