@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+if ! command -v mafft >/dev/null 2>&1 || { ! command -v FastTree >/dev/null 2>&1 && ! command -v fasttree >/dev/null 2>&1; }; then
+  echo "[Genithm] Installing Codespaces MAFFT/FastTree scientific executables..."
+  sudo apt-get update -qq
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends mafft fasttree
+fi
+
 echo "[Genithm] Installing locked Next.js dependencies..."
 node --version
 npm --version

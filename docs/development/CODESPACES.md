@@ -131,6 +131,14 @@ python3 scripts/test_codespaces_comparative.py
 python3 scripts/test_codespaces_live_lab.py
 ```
 
+## Science V5 — multiple alignment, conservation and phylogeny
+
+Codespaces supports 3–8 named DNA/RNA FASTA records (up to 300 bases each),
+real MAFFT alignment, per-column conservation, consensus and optional
+FastTree unrooted phylogenetic inference. Exports: aligned FASTA, CSV,
+JSON and Newick. These results are exploratory and local, not production
+jobs or claims of biological ancestry. No Oracle or Supabase is required.
+
 ## Preview versus an authenticated scientific workspace
 
 **Offline development lab (no keys):** The `/preview` page contains both clearly labeled reference examples and a live local scientific input form. The local lab computes results from a sequence you paste; no customer job is submitted, no user is impersonated, and no data is sent to Supabase.
