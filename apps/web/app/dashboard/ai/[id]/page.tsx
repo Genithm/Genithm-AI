@@ -251,7 +251,7 @@ export default async function AiConversationPage({
                           <button className="button primary" type="submit">Approve & run</button>
                         </form>
                       ) : null}
-                      {href ? <Link className="button" href={href}>Open result</Link> : null}
+                      {href ? <Link className="button" href={href}>{workflow ? "Track workflow" : "Open result"}</Link> : null}
                       {plan.status === "dispatched" &&
                       state &&
                       isInterpretationEligible(plan.dispatched_resource_type, state.status) &&
