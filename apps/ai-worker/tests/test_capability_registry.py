@@ -29,9 +29,15 @@ def test_available_capabilities_match_planner_action_contracts():
     assert executable == frozenset(ACTION_PARAMETER_KEYS)
 
 
-def test_available_capabilities_are_mapped_to_actions():
+def test_available_capabilities_are_not_planned_executors():
     assert available_capabilities()
-    assert all(capability.action_type for capability in available_capabilities())
+    assert all(capability.execution_kind != "planned" for capability in available_capabilities())
+
+
+def test_current_manual_tools_do_not_extend_ai_allowlist_without_dispatch_contracts():
+    manual = {"orf_detection", "motif_scan", "six_frame_translation", "reverse_complement"}
+    assert all(get_capability(capability_id).status == "available" for capability_id in manual)
+    assert all(get_capability(capability_id).action_type is None for capability_id in manual)
 
 
 def test_planned_capabilities_are_not_accidentally_executable():
