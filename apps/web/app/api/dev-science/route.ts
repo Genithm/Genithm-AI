@@ -99,7 +99,12 @@ export async function POST(request: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      // MAFFT and FastTree each have a bounded local runtime. The proxy must
+      // allow both stages to finish without changing the short timeout for
+      // basic nucleotide operations.
+      signal: AbortSignal.timeout(
+        params.operation === "msa_conservation" || params.operation === "msa_phylogeny" ? 45000 : 8000
+      ),
     });
     if (!response.ok && ![400, 413, 415, 422, 429].includes(response.status)) {
       return json({ error: "local scientific engine is unavailable" }, 503);
