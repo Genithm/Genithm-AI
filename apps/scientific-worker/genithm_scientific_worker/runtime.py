@@ -12,6 +12,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .input_integrity import (
+    ScientificInputIntegrityError,
+    validate_input_manifest,
+    validate_sequence_content,
+    validate_shared_sequence_type,
+)
 from .msa import (
     EXECUTOR_VERSION as MSA_EXECUTOR_VERSION,
     TOOL_ID as MSA_TOOL_ID,
@@ -248,13 +254,16 @@ def canonical_msa_result(job: dict[str, Any], sequences: list[str]) -> tuple[byt
 def process_pairwise(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
     if job["tool_id"] != PAIRWISE_TOOL_ID or job["tool_version"] != PAIRWISE_TOOL_VERSION:
         raise PairwiseAlignmentError("claimed job does not match approved pairwise executor")
-    inputs = job["inputs"]
-    if not isinstance(inputs, list) or len(inputs) != 2:
-        raise PairwiseAlignmentError("pairwise scientific job inputs are invalid")
+    inputs = validate_input_manifest(
+        job, count_min=2, count_max=2, allowed_types=frozenset({"dna", "rna", "protein"}),
+    )
+    validate_shared_sequence_type(inputs)
     raw_a = client.download(str(inputs[0]["object_path"]), int(inputs[0]["file_size_bytes"]), str(inputs[0]["sha256"]))
     raw_b = client.download(str(inputs[1]["object_path"]), int(inputs[1]["file_size_bytes"]), str(inputs[1]["sha256"]))
     sequence_a = parse_pairwise_fasta(raw_a)
     sequence_b = parse_pairwise_fasta(raw_b)
+    validate_sequence_content(inputs[0], sequence_a, tool="pairwise")
+    validate_sequence_content(inputs[1], sequence_b, tool="pairwise")
     data, summary, provenance = canonical_pairwise_result(job, sequence_a, sequence_b)
     path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/pairwise-result.json"
     return data, summary, provenance, path, "application/json", PAIRWISE_EXECUTOR_VERSION
@@ -263,13 +272,16 @@ def process_pairwise(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[s
 def process_msa(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
     if job["tool_id"] != MSA_TOOL_ID or job["tool_version"] != MSA_TOOL_VERSION:
         raise MsaError("claimed job does not match approved MAFFT executor")
-    inputs = job["inputs"]
-    if not isinstance(inputs, list) or not 3 <= len(inputs) <= 50:
-        raise MsaError("MSA scientific job inputs are outside approved bounds")
+    inputs = validate_input_manifest(
+        job, count_min=3, count_max=50, allowed_types=frozenset({"dna", "rna", "protein"}),
+    )
+    validate_shared_sequence_type(inputs)
     sequences: list[str] = []
     for item in inputs:
         raw = client.download(str(item["object_path"]), int(item["file_size_bytes"]), str(item["sha256"]))
-        sequences.append(parse_msa_fasta(raw))
+        parsed = parse_msa_fasta(raw)
+        validate_sequence_content(item, parsed, tool="MAFFT")
+        sequences.append(parsed)
     data, summary, provenance = canonical_msa_result(job, sequences)
     path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/msa-result.fasta"
     return data, summary, provenance, path, "text/plain; charset=utf-8", MSA_EXECUTOR_VERSION
@@ -319,14 +331,14 @@ def process_phylogeny(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[
 def process_sequence_insights(client: Client, job: dict[str, Any]) -> tuple[bytes, dict[str, Any], dict[str, Any], str, str, str]:
     if job["tool_id"] != SEQUENCE_INSIGHTS_TOOL_ID or job["tool_version"] != SEQUENCE_INSIGHTS_TOOL_VERSION:
         raise SequenceInsightsError("claimed sequence insights job does not match approved executor")
-    inputs = job.get("inputs")
-    if not isinstance(inputs, list) or len(inputs) != 1:
-        raise SequenceInsightsError("sequence insights requires exactly one sequence")
+    inputs = validate_input_manifest(
+        job, count_min=1, count_max=1, allowed_types=frozenset({"dna", "rna"}),
+        roles=("nucleotide_sequence",),
+    )
     item = inputs[0]
     raw = client.download(str(item["object_path"]), int(item["file_size_bytes"]), str(item["sha256"]))
     sequence_input = parse_nucleotide_fasta(raw, sequence_type=str(item["sequence_type"]))
-    if int(item["residue_count"]) != len(sequence_input.sequence):
-        raise SequenceInsightsError("claimed sequence length does not match verified FASTA")
+    validate_sequence_content(item, sequence_input.sequence, tool="sequence insights")
     data, summary, provenance = canonical_sequence_insights_result(job, sequence_input)
     path = f"{job['organization_id']}/{job['project_id']}/{job['job_id']}/sequence-insights-result.json"
     return data, summary, provenance, path, "application/json", SEQUENCE_INSIGHTS_EXECUTOR_VERSION
