@@ -51,6 +51,7 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
         </div>
 
         <div className={styles.sidebarFooter}>
+          <Link href="/dashboard/research-journey">Research journey</Link>
           <Link href="/dashboard/reports">Reports</Link>
           <Link href="/dashboard/billing">Plan & usage</Link>
         </div>

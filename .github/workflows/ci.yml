@@ -168,6 +168,8 @@ jobs:
         run: node --experimental-strip-types --test tests/workflow-reconciliation.test.mjs
       - name: Verify multi-report dossier identity, report integrity and canonical export checksum
         run: node --experimental-strip-types --test tests/research-dossier.test.mjs
+      - name: Verify NCBI source to scientific input provenance and project-safe research journeys
+        run: node --experimental-strip-types --test tests/research-journey.test.mjs
       - run: npm run typecheck
       - run: npm run build
 
