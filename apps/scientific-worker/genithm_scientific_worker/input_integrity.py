@@ -52,7 +52,7 @@ def validate_input_manifest(
         if not isinstance(item.get("sha256"), str) or not SHA.fullmatch(item["sha256"]):
             raise ScientificInputIntegrityError("scientific input SHA-256 provenance is invalid")
         count = item.get("residue_count")
-        if isinstance(count, bool) or not isinstance(count, int) or count < 1 or count > 100_000:
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1 or count > 200_000:
             raise ScientificInputIntegrityError("scientific input residue count is invalid")
         size = item.get("file_size_bytes")
         if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= 2 * 1024 * 1024:
