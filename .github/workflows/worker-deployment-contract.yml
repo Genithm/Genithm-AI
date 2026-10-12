@@ -13,6 +13,8 @@ on:
       - 'scripts/worker_activation_gate.py'
       - 'scripts/test_worker_activation_gate.py'
       - 'scripts/test_ai_deployment_contract.py'
+      - 'scripts/verify_worker_rollout.py'
+      - 'scripts/test_verify_worker_rollout.py'
       - 'apps/ai-worker/genithm_ai_worker/entrypoint.py'
       - 'apps/ai-worker/genithm_ai_worker/runtime.py'
       - '.github/workflows/worker-deployment-contract.yml'
@@ -55,6 +57,8 @@ jobs:
         run: python scripts/test_worker_activation_gate.py
       - name: Verify deployed AI provider settings contract
         run: python scripts/test_ai_deployment_contract.py
+      - name: Test exact Kubernetes release rollout verification
+        run: python scripts/test_verify_worker_rollout.py
       - name: Render digest-pinned fixture
         run: |
           digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
