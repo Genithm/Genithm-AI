@@ -88,7 +88,7 @@ def test_tampered_evidence_never_uploads_or_claims_success():
     assert client.uploads==[]
     assert client.rpc_calls[-1][0]=="finish_scientific_job_error"
     assert client.rpc_calls[-1][1]["retryable"] is False
-    assert client.rpc_calls[-1][1]["failure_class"]=="input_integrity"
+    assert client.rpc_calls[-1][1]["failure_class"]=="output_validation"
     assert not any(name.endswith("_success") for name,_ in client.rpc_calls)
 
 
