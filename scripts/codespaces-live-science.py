@@ -24,6 +24,12 @@ from genithm_scientific_worker.sequence_insights import (  # noqa: E402
     parse_nucleotide_fasta,
 )
 
+from genithm_scientific_worker.sequence_composition import (
+    VERSION as COMPOSITION_VERSION,
+    analyze_composition,
+)
+
+ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"})
 MAX_LAB_BASES = 5000
 MAX_INPUT_CHARS = 5500
 EXPECTED_FIELDS = frozenset({"sequence", "sequence_type", "operation", "motif", "min_aa"})
@@ -44,7 +50,7 @@ def compute(payload: object) -> dict[str, object]:
         raise ValueError("provide 1-5500 characters of DNA/RNA sequence or single-record FASTA")
     if sequence_type not in ("dna", "rna") or not isinstance(sequence_type, str):
         raise ValueError("select DNA or RNA")
-    if not isinstance(operation, str) or operation not in OPERATIONS:
+    if not isinstance(operation, str) or operation not in ALLOWED_OPERATIONS:
         raise ValueError("select an approved sequence analysis")
     if type(min_aa) is not int or not 1 <= min_aa <= 1000:
         raise ValueError("ORF minimum must be an integer from 1 to 1000")
@@ -64,14 +70,19 @@ def compute(payload: object) -> dict[str, object]:
     if len(item.sequence) > MAX_LAB_BASES:
         raise ValueError("Codespaces interactive analysis is limited to 5000 bases")
 
-    summary, result = analyze(item, operation=operation, motif=motif, min_aa=min_aa)
+    if operation == "composition_profile":
+        summary, result = analyze_composition(item)
+        tool = {"id": "genithm-local-composition", "version": COMPOSITION_VERSION}
+    else:
+        summary, result = analyze(item, operation=operation, motif=motif, min_aa=min_aa)
+        tool = {"id": TOOL_ID, "version": TOOL_VERSION}
     return {
         "mode": "local-development-only",
         "persistence": "none",
         "summary": summary,
         "result": result,
         "input_sha256": hashlib.sha256(item.sequence.encode("ascii")).hexdigest(),
-        "tool": {"id": TOOL_ID, "version": TOOL_VERSION},
+        "tool": tool,
         "genetic_code": "NCBI_translation_table_1",
     }
 

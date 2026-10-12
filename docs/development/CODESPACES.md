@@ -35,7 +35,7 @@ automatically forwarded publicly.
 The `/preview` page now includes **Analyze your own DNA or RNA** beneath
 the reference-fixture explorer. Paste plain nucleotides or a single-record FASTA,
 choose DNA/RNA, and run **complete ORF discovery, six-frame translation,
-IUPAC motif scanning or reverse complement**. A sample `ATGAAATAA` is
+IUPAC motif scanning, reverse complement, or genomic composition profiling**. A sample `ATGAAATAA` is
 preloaded, and the resulting report can be exported as JSON.
 
 This is **actual Python execution of the same bounded algorithms used by
@@ -63,8 +63,32 @@ Run its validation tests without npm or any database:
 
 ```bash
 python3 scripts/test_codespaces_live_lab.py
+python3 scripts/test_codespaces_genomics_qc.py
 python3 scripts/test_codespaces_preview.py
 ```
+
+### Exploratory genomic composition and quality profile
+
+Choose **GC content & sequence quality** in the local analysis selector to
+calculate actual statistics from a single DNA/RNA record:
+
+- GC/AT percentages, unknown-base percentage, per-base composition,
+  Shannon nucleotide entropy, CpG count, and observed/expected CpG ratio.
+- Sliding-window GC plot with 1-based coordinates, up to 101 windows. A
+  100-base window and 50-base stride are used when the sequence is long
+  enough; short sequences use their full length.
+- Overlapping trinucleotide frequency table and forward +1 reading-frame
+  codon usage (standard genetic code 1), including stop codons.
+- JSON export with the exact input SHA-256 and computation methodology.
+
+Unknown `N` is **excluded from the denominator for GC/AT percentages**,
+and an entirely unknown input reports the percent as *N/A*, not 0%.
+RNA is internally normalized from U to T for calculations, but results
+report U in RNA nucleotide counts.
+
+These metrics are **descriptive only**: CpG observed/expected does not
+automatically prove a CpG island, and the forward-frame codon table does
+not identify actual genes or protein products.
 
 ## Preview versus an authenticated scientific workspace
 
