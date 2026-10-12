@@ -52,6 +52,24 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         for operation in ("orf_scan", "six_frame_translation", "motif_scan", "reverse_complement"):
             self.assertIn(f'operation="{operation}"', smoke)
 
+    def test_live_science_api_is_development_only_and_routes_are_protected(self):
+        route = (WEB / "app/api/dev-science/route.ts").read_text(encoding="utf-8")
+        self.assertIn('process.env.NODE_ENV !== "development"', route)
+        self.assertIn('process.env.GENITHM_CODESPACES_PREVIEW !== "1"', route)
+        self.assertIn('request.headers.get("sec-fetch-site")', route)
+        self.assertIn("MAX_BODY_BYTES = 8192", route)
+        self.assertIn('http://127.0.0.1:8769/analyze', route)
+        self.assertIn('request.nextUrl.pathname === "/api/dev-science"', self.proxy)
+        self.assertIn('return updateSession(request)', self.proxy)
+
+    def test_local_scientific_server_is_loopback_only(self):
+        server = (ROOT / "scripts/codespaces-live-science-server.py").read_text(encoding="utf-8")
+        start = (DEV / "start.sh").read_text(encoding="utf-8")
+        self.assertIn('("127.0.0.1", PORT)', server)
+        self.assertIn("threading.BoundedSemaphore(2)", server)
+        self.assertIn("scripts/codespaces-live-science-server.py", start)
+        self.assertNotIn("8769", json.dumps(self.config))
+
     def test_setup_installs_from_lockfile(self):
         setup = (DEV / "setup.sh").read_text(encoding="utf-8")
         self.assertIn("npm --prefix apps/web ci", setup)
