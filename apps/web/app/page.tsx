@@ -11,7 +11,11 @@ export default function HomePage() {
           trusted computational tools, evidence tracking, and provenance-first research execution.
         </p>
         <div className="actions">
-          <Link className="button primary glow" href="/signup">Create Research Account</Link>
+          {process.env.NODE_ENV === "development" && process.env.GENITHM_CODESPACES_PREVIEW === "1" ? (
+            <Link className="button primary glow" href="/preview">Open Development Preview</Link>
+          ) : (
+            <Link className="button primary glow" href="/signup">Create Research Account</Link>
+          )}
           <Link className="button" href="/login">Sign In</Link>
           <a className="button" href="#capabilities">Explore Platform</a>
         </div>
