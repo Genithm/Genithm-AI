@@ -32,8 +32,9 @@ from genithm_scientific_worker.sequence_composition import (
 from genithm_scientific_worker.sequence_comparison import compare
 
 COMPARISON_OPERATIONS = frozenset({"pairwise_global", "pairwise_local", "comparison_matrix"})
-ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"}) | COMPARISON_OPERATIONS | MSA_OPERATIONS
 from genithm_scientific_worker.codespaces_msa import OPERATIONS as MSA_OPERATIONS, run_local_msa
+
+ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"}) | COMPARISON_OPERATIONS | MSA_OPERATIONS
 
 MAX_LAB_BASES = 5000
 MAX_INPUT_CHARS = 5500
