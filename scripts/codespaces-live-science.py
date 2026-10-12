@@ -29,7 +29,10 @@ from genithm_scientific_worker.sequence_composition import (
     analyze_composition,
 )
 
-ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"})
+from genithm_scientific_worker.sequence_comparison import compare
+
+COMPARISON_OPERATIONS = frozenset({"pairwise_global", "pairwise_local", "comparison_matrix"})
+ALLOWED_OPERATIONS = OPERATIONS | frozenset({"composition_profile"}) | COMPARISON_OPERATIONS
 MAX_LAB_BASES = 5000
 MAX_INPUT_CHARS = 5500
 EXPECTED_FIELDS = frozenset({"sequence", "sequence_type", "operation", "motif", "min_aa"})
@@ -63,6 +66,9 @@ def compute(payload: object) -> dict[str, object]:
         raise ValueError("motif is only allowed for motif scans")
     if operation != "orf_scan" and min_aa != 30:
         raise ValueError("custom ORF minimum is only allowed for ORF detection")
+
+    if operation in COMPARISON_OPERATIONS:
+        return compare(payload)
 
     stripped = source.strip()
     fasta = stripped if stripped.startswith(">") else ">codespaces-local\n" + stripped
