@@ -35,7 +35,7 @@ from .planner import (
 )
 from .providers import JsonHttpClient, OpenAICompatibleProvider, ProviderConfig, ProviderHttpError, ProviderRouter
 
-USER_AGENT = "genithm-ai-worker/0.4.0"
+USER_AGENT = "genithm-ai-worker/0.5.0"
 
 
 def _required_env(name: str) -> str:
