@@ -12,6 +12,8 @@ on:
       - 'scripts/codespaces-live-science.py'
       - 'scripts/codespaces-live-science-server.py'
       - 'scripts/test_codespaces_live_lab.py'
+      - 'scripts/test_codespaces_genomics_qc.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
       - '.github/workflows/codespaces-preview-contract.yml'
@@ -27,6 +29,8 @@ on:
       - 'scripts/codespaces-live-science.py'
       - 'scripts/codespaces-live-science-server.py'
       - 'scripts/test_codespaces_live_lab.py'
+      - 'scripts/test_codespaces_genomics_qc.py'
+      - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
       - '.github/workflows/codespaces-preview-contract.yml'
@@ -56,6 +60,8 @@ jobs:
         run: python scripts/codespaces-science-smoke.py
       - name: Test live scientific workbench algorithms
         run: python scripts/test_codespaces_live_lab.py
+      - name: Test compositional genomics and edge cases
+        run: python scripts/test_codespaces_genomics_qc.py
       - name: Verify Codespaces security and auth boundaries
         run: python scripts/test_codespaces_preview.py
       - name: Install pinned frontend dependencies
@@ -117,3 +123,11 @@ jobs:
           test "$cross_status" = "403"
           redirect_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/ai)"
           test "$redirect_status" = "307"
+          cat > "$RUNNER_TEMP/qc.json" <<'JSON'
+          {"sequence":"ACGCGTT","sequence_type":"dna","operation":"composition_profile","motif":null,"min_aa":30}
+          JSON
+          curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \
+            --data-binary @"$RUNNER_TEMP/qc.json" http://127.0.0.1:3000/api/dev-science \
+            -o "$RUNNER_TEMP/qc-result.json"
+          python -c "import json,sys; o=json.load(open(sys.argv[1])); assert o['summary']['gc_percent']==57.14; assert o['summary']['cpg_count']==2; assert o['summary']['cpg_observed_expected']==3.5; assert o['tool']['id']=='genithm-local-composition'" "$RUNNER_TEMP/qc-result.json"
+
