@@ -34,10 +34,14 @@ def test_available_capabilities_are_not_planned_executors():
     assert all(capability.execution_kind != "planned" for capability in available_capabilities())
 
 
-def test_current_manual_tools_do_not_extend_ai_allowlist_without_dispatch_contracts():
-    manual = {"orf_detection", "motif_scan", "six_frame_translation", "reverse_complement"}
-    assert all(get_capability(capability_id).status == "available" for capability_id in manual)
-    assert all(get_capability(capability_id).action_type is None for capability_id in manual)
+def test_sequence_intelligence_capabilities_share_one_dispatch_contract():
+    operations = {"orf_detection", "motif_scan", "six_frame_translation", "reverse_complement"}
+    assert all(get_capability(capability_id).status == "available" for capability_id in operations)
+    assert all(get_capability(capability_id).action_type == "sequence_insights" for capability_id in operations)
+    assert "sequence_insights" in ALLOWED_ACTIONS
+    assert ACTION_PARAMETER_KEYS["sequence_insights"] == {
+        "sequence_upload_id", "operation", "motif", "min_aa",
+    }
 
 
 def test_planned_capabilities_are_not_accidentally_executable():
