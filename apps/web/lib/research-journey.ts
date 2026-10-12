@@ -61,7 +61,7 @@ export function reconcileResearchJourney(
       state="retrieving";guidance="The authoritative source retrieval is still in progress.";
     } else if (!upload || upload.project_id!==projectId || (upload.sha256 && !SHA.test(upload.sha256 ?? ""))) {
       state="integrity_review";guidance="The retrieved sequence record is unavailable or its recorded integrity metadata is invalid.";
-    } else if (upload.status!=="ready" || upload.sequence_count!==1 || !SHA.test(upload.sha256)) {
+    } else if (upload.status!=="ready" || upload.sequence_count!==1 || !SHA.test(upload.sha256 ?? "")) {
       state="needs_validation";guidance="Sequence data must be validated as one supported FASTA record before analysis.";
     } else if (!linkedJobs.length) {
       state="ready";guidance="This validated NCBI-derived sequence can now be selected for a compatible scientific analysis.";
