@@ -57,6 +57,7 @@ export default async function ResearchJourney({
       <div className={styles.links}>
         <Link className="button" href="/dashboard/ai">AI research assistant</Link>
         <Link className="button" href="/dashboard/dossiers">Research dossiers</Link>
+        <Link className="button" href="/dashboard/pipelines">Autonomous pipelines</Link>
       </div>
     </header>
     <form className={styles.projectSelector} action="/dashboard/research-journey" method="get">
