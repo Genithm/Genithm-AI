@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SampleWorkbench } from "./sample-workbench";
 import { LiveSequenceLab } from "./live-sequence-lab";
+import { ComparativeSequenceLab } from "./comparative-sequence-lab";
 import styles from "./preview.module.css";
 
 export const metadata = {
@@ -96,6 +97,8 @@ export default async function PreviewPage({
       </section>
 
       <LiveSequenceLab />
+
+      <ComparativeSequenceLab />
 
       <section className={styles.bottomGrid}>
         <article className={styles.foundation}>
