@@ -16,6 +16,7 @@ export default async function PipelineStudies(){
     supabase.from("research_pipeline_runs")
       .select("id,project_id,requested_accession,scientific_job_id,template,status,finished_at")
       .eq("requested_by",claims.claims.sub).eq("status","completed")
+      .eq("template","ncbi_protein_profile_v1")
       .order("created_at",{ascending:false}).limit(200),
   ]);
   return <main className={"container dashboard "+styles.screen}>

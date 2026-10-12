@@ -24,8 +24,8 @@ export default async function PipelineDetail({params}:{params:Promise<{id:string
     <header className={styles.hero}>
       <div>
         <div className={styles.eyebrow}>Automated scientific research · Recorded evidence</div>
-        <h1>NCBI protein → properties</h1>
-        <p>Accession {run.requested_accession} · template ncbi_protein_profile_v1</p>
+        <h1>{run.template==="ncbi_nucleotide_orf_v1"?"NCBI nucleotide → ORF scan":"NCBI protein → properties"}</h1>
+        <p>Accession {run.requested_accession} · template {run.template}</p>
         <small className={styles.ident}>Pipeline {run.id}</small>
       </div>
       <div className={styles.links}>
