@@ -53,7 +53,7 @@ describe("Science V10 authoritative pipeline lifecycle", () => {
     }), NOW);
     assert.equal(item.state, "needs_action");
     assert.equal(item.attention, false);
-    assert.equal(item.href, "/dashboard/ai/" + CONVERSATION);
+    assert.equal(item.href, "/dashboard/workflows/" + JOB);
     assert.equal(classifyOperationState("ai_plan", "dispatched"), "completed");
     assert.equal(classifyOperationState("ai_plan", "awaiting_confirmation"), "needs_action");
   });
