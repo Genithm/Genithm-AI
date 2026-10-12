@@ -43,7 +43,7 @@ class CodespacesPreviewContractTests(unittest.TestCase):
     def test_preview_never_enabled_in_production(self):
         self.assertIn('process.env.NODE_ENV !== "development"', self.preview)
         self.assertIn("notFound()", self.preview)
-        self.assertIn("No analysis is submitted", self.preview)
+        self.assertIn("no live customer job is submitted", self.preview)
         self.assertIn("SampleWorkbench", self.preview)
 
     def test_real_science_is_used_by_local_smoke(self):
