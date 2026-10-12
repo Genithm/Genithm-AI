@@ -263,7 +263,7 @@ export function ScientificResultExplorerPanel({ jobId }: { jobId: string }) {
               <div className={styles.residues}>
                 {payload.view.composition.map(p => <div key={p.residue} className={styles.residue}>
                   <span>{p.residue}</span>
-                  <div className={styles.residueTrack}><i style={{ width: pct(p.count / payload.view.length) }} /></div>
+                  <div className={styles.residueTrack}><i style={{ width: pct(p.count / (payload.view.kind === "protein" ? payload.view.length : 1)) }} /></div>
                   <strong>{p.count}</strong>
                 </div>)}
               </div>
