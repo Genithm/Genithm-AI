@@ -167,8 +167,8 @@ begin
   perform pg_catalog.set_config('request.jwt.claim.sub',coalesce(original_sub,''),true);
   perform pg_catalog.set_config('request.jwt.claim.role',coalesce(original_role,''),true);
 
-  -- Lock even an already active deduplicated scientific job until our
-  -- pipeline link commits. This closes the worker-finish-before-link race.
+  -- Lock a deduplicated active scientific job before recording the link.
+  -- Its worker cannot complete until this transaction commits.
   select * into downstream from public.scientific_jobs
   where id=created_job for share;
   if not found or downstream.organization_id<>run.organization_id
@@ -183,171 +183,7 @@ begin
     raise exception 'scientific job provenance mismatch' using errcode='23514';
   end if;
 
-  if downstream.status='completed' and downstream.result_sha256 ~ '^[0-9a-f]{64}
-end;
-$$;
-revoke all on function app_private.advance_research_protein_pipeline(uuid)
-  from public,anon,authenticated,service_role;
-
--- Explicit user intent creates one pipeline, linked to one immutable source.
-create or replace function app_private.request_research_protein_pipeline(
-  p_project_id uuid, p_accession text
-)
-returns uuid language plpgsql security definer set search_path='' as $$
-declare
-  actor uuid := auth.uid();
-  org uuid;
-  acc text := upper(trim(p_accession));
-  retrieval uuid;
-  source public.sequence_retrievals%rowtype;
-  prior uuid;
-  run_id uuid;
-begin
-  if actor is null then raise exception 'authentication required' using errcode='42501'; end if;
-  if acc is null or char_length(acc) not between 1 and 64 or
-     acc !~ '^[A-Z0-9_]+(\.[0-9]+)?$' or acc !~ '[A-Z]' then
-    raise exception 'invalid protein accession' using errcode='22023';
-  end if;
-  select organization_id into org from public.projects
-  where id=p_project_id and status='active';
-  if not found or not app_private.can_write_org(org) then
-    raise exception 'project not found or access denied' using errcode='42501';
-  end if;
-  -- Serialize identical explicit requests before the legacy NCBI dedup query.
-  -- This prevents two concurrent clicks from creating parallel retrievals.
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      'v14:protein:'||p_project_id::text||':'||acc,48521
-    )
-  );
-  retrieval := app_private.request_ncbi_sequence_retrieval(p_project_id,'protein',acc);
-
-  -- The private NCBI requester may deduplicate a concurrent accession request
-  -- inside the whole project. A separate user's active retrieval must never be
-  -- silently used under this user's pipeline.
-  select * into source from public.sequence_retrievals where id=retrieval for share;
-  if not found or source.project_id<>p_project_id or
-     source.organization_id<>org or source.requested_by<>actor or
-     source.source_database<>'protein' or source.requested_accession<>acc then
-    raise exception 'active retrieval belongs to another requester or scope'
-      using errcode='42501';
-  end if;
-  select id into prior from public.research_pipeline_runs
-  where retrieval_id=retrieval;
-  if prior is not null then return prior; end if;
-  insert into public.research_pipeline_runs(
-    organization_id,project_id,requested_by,template,requested_accession,retrieval_id
-  ) values (
-    org,p_project_id,actor,'ncbi_protein_profile_v1',acc,retrieval
-  ) returning id into run_id;
-
-  perform app_private.advance_research_protein_pipeline(run_id);
-  return run_id;
-end;
-$$;
-
--- This wrapper runs under invoker permission checks but executes only the
--- narrowly-scoped internal function. Never grant raw table INSERT/UPDATE.
-create or replace function public.request_research_protein_pipeline(
-  project_id uuid, accession text
-) returns uuid language sql security invoker set search_path=''
-as $$ select app_private.request_research_protein_pipeline(project_id,accession); $$;
-
-revoke all on function app_private.request_research_protein_pipeline(uuid,text)
-  from public,anon,authenticated,service_role;
-grant execute on function app_private.request_research_protein_pipeline(uuid,text)
-  to authenticated;
-revoke all on function public.request_research_protein_pipeline(uuid,text)
-  from public,anon,authenticated,service_role;
-grant execute on function public.request_research_protein_pipeline(uuid,text)
-  to authenticated;
-
--- Source completion and validation completion are independent events. Both
--- call the same lock-serialized idempotent advancement function.
-create or replace function app_private.on_protein_pipeline_source_change()
-returns trigger language plpgsql security definer set search_path='' as $$
-declare target uuid;
-begin
-  if new.status is not distinct from old.status then return new; end if;
-  if new.status not in ('retrieved','not_found','rejected','error') then return new; end if;
-  for target in
-    select id from public.research_pipeline_runs
-    where retrieval_id=new.id and status in ('awaiting_source','awaiting_validation')
-  loop
-    perform app_private.advance_research_protein_pipeline(target);
-  end loop;
-  return new;
-end;
-$$;
-revoke all on function app_private.on_protein_pipeline_source_change()
-  from public,anon,authenticated,service_role;
-create trigger research_pipeline_source_completed
-after update of status on public.sequence_retrievals for each row
-execute function app_private.on_protein_pipeline_source_change();
-
-create or replace function app_private.on_protein_pipeline_validation_change()
-returns trigger language plpgsql security definer set search_path='' as $$
-declare target uuid;
-begin
-  if new.status is not distinct from old.status then return new; end if;
-  if new.status not in ('ready','rejected','error') then return new; end if;
-  for target in
-    select id from public.research_pipeline_runs
-    where sequence_upload_id=new.id and status='awaiting_validation'
-  loop
-    perform app_private.advance_research_protein_pipeline(target);
-  end loop;
-  return new;
-end;
-$$;
-revoke all on function app_private.on_protein_pipeline_validation_change()
-  from public,anon,authenticated,service_role;
-create trigger research_pipeline_fasta_validated
-after update of status on public.sequence_uploads for each row
-execute function app_private.on_protein_pipeline_validation_change();
-
-create or replace function app_private.on_protein_pipeline_scientific_finished()
-returns trigger language plpgsql security definer set search_path='' as $$
-declare target public.research_pipeline_runs%rowtype;
-begin
-  if new.status is not distinct from old.status or
-    new.status not in ('completed','error','cancelled') then return new; end if;
-  for target in
-    select * from public.research_pipeline_runs
-    where scientific_job_id=new.id and status='running' for update
-  loop
-    if new.status='completed' and
-       new.organization_id=target.organization_id and
-       new.project_id=target.project_id and
-       new.requested_by=target.requested_by and
-       new.job_type='protein_properties' and
-       new.result_sha256 ~ '^[0-9a-f]{64}$' and
-       exists(
-         select 1 from public.scientific_job_inputs i
-         where i.job_id=new.id and i.sequence_upload_id=target.sequence_upload_id
-           and i.input_sha256=target.sequence_sha256
-       ) then
-      update public.research_pipeline_runs set
-        status='completed',finished_at=now()
-      where id=target.id and status='running';
-    else
-      update public.research_pipeline_runs set status='error',
-        failure_stage=case when new.status='completed' then 'integrity' else 'analysis' end,
-        failure_code=case when new.status='completed'
-          then 'result_metadata_invalid' else 'analysis_failed' end,
-        finished_at=now()
-      where id=target.id and status='running';
-    end if;
-  end loop;
-  return new;
-end;
-$$;
-revoke all on function app_private.on_protein_pipeline_scientific_finished()
-  from public,anon,authenticated,service_role;
-create trigger research_pipeline_scientific_finished
-after update of status on public.scientific_jobs for each row
-execute function app_private.on_protein_pipeline_scientific_finished();
- then
+  if downstream.status='completed' and downstream.result_sha256 ~ '^[0-9a-f]{64}$' then
     update public.research_pipeline_runs
     set status='completed',sequence_upload_id=seq.id,
       sequence_sha256=seq.sha256,scientific_job_id=created_job,finished_at=now()
@@ -393,6 +229,12 @@ begin
   if not found or not app_private.can_write_org(org) then
     raise exception 'project not found or access denied' using errcode='42501';
   end if;
+  -- Serialize duplicate launch requests before the NCBI retrieval deduplication.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'v14:protein:'||p_project_id::text||':'||acc,48521
+    )
+  );
   retrieval := app_private.request_ncbi_sequence_retrieval(p_project_id,'protein',acc);
 
   -- The private NCBI requester may deduplicate a concurrent accession request
