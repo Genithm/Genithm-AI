@@ -100,7 +100,7 @@ jobs:
           curl -sSI --max-time 10 http://127.0.0.1:3000/dashboard/ai > "$RUNNER_TEMP/auth-redirect.txt"
           grep -q '/preview?setup=1' "$RUNNER_TEMP/auth-redirect.txt"
           cat > "$RUNNER_TEMP/analysis.json" <<'JSON'
-          {"sequence":">fixture\\nATGAAATAA","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}
+          {"sequence":"ATGAAATAA","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}
           JSON
           curl -fsS --max-time 15 -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:3000' \\
             --data-binary @"$RUNNER_TEMP/analysis.json" http://127.0.0.1:3000/api/dev-science \\
