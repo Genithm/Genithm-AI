@@ -75,7 +75,9 @@ export default async function ScientificJobPage({
   const title = jobTitle(job.job_type);
   const composition = proteinComposition(summary.amino_acid_composition);
   const completed = job.status === "completed";
-  const failed = job.status === "failed";
+  const failed = job.status === "error" || job.status === "failed";
+  const cancelled = job.status === "cancelled";
+  const stopped = failed || cancelled;
 
   return (
     <main className="container dashboard">
@@ -114,7 +116,7 @@ export default async function ScientificJobPage({
         <div className="small" style={{ marginTop: 14 }}>
           Tool {job.tool_id}/{job.tool_version}{job.executor_version ? ` · executor ${job.executor_version}` : ""}
         </div>
-        {failed && job.processing_error ? (
+        {stopped && job.processing_error ? (
           <div className={styles.failurePanel} style={{ marginTop: 16 }}>
             <strong>{job.failure_class ? job.failure_class.replaceAll("_", " ") : "Scientific job failed"}</strong>
             <p>{job.processing_error}</p>
@@ -186,8 +188,8 @@ export default async function ScientificJobPage({
             </div>
           ) : null}
 
-          {!completed && !failed ? <div className="notice">Results will appear here automatically after the isolated scientific worker finishes and the output passes validation.</div> : null}
-          {failed ? <div className="notice">No scientific result is presented because this execution did not complete successfully.</div> : null}
+          {!completed && !stopped ? <div className="notice">Results will appear here automatically after the isolated scientific worker finishes and the output passes validation.</div> : null}
+          {stopped ? <div className="notice">No scientific result is presented because this execution {cancelled ? "was cancelled" : "failed"}.</div> : null}
         </section>
 
         <section className="card">
@@ -196,10 +198,13 @@ export default async function ScientificJobPage({
           <div className="list">
             <div className="item"><strong>Tool</strong><div className="small">{job.tool_id}/{job.tool_version}{job.executor_version ? ` · executor ${job.executor_version}` : ""}</div></div>
             <div className="item"><strong>Attempts</strong><div className="small">{job.processing_attempts}</div></div>
-            {job.result_sha256 ? <div className="item"><strong>Result SHA-256</strong><div className={`small ${styles.hash}`}><code>{job.result_sha256}</code></div></div> : null}
-            {job.result_bytes ? <div className="item"><strong>Result size</strong><div className="small">{job.result_bytes} bytes</div></div> : null}
+            {job.result_sha256 ? <div className="item"><strong>Recorded result SHA-256</strong><div className={`small ${styles.hash}`}><code>{job.result_sha256}</code></div></div> : null}
+            {job.result_bytes ? <div className="item"><strong>Recorded result size</strong><div className="small">{job.result_bytes} bytes</div></div> : null}
             {existingReport ? <div className="item"><strong>Report SHA-256</strong><div className={`small ${styles.hash}`}><code>{existingReport.report_sha256}</code></div><div className="small">Generated {new Date(existingReport.generated_at).toLocaleString()}</div></div> : null}
           </div>
+          {completed ? <div className="notice" style={{ marginTop: 16 }}>
+            <strong>Artifact integrity:</strong> The SHA-256 and byte count above are recorded job metadata, not a browser-side verification. Downloading the raw result triggers a fresh server-side size and SHA-256 check. If the stored file has changed, download is blocked.
+          </div> : null}
         </section>
       </div>
 
