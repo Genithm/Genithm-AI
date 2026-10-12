@@ -96,7 +96,7 @@ describe("Science V10 authoritative pipeline lifecycle", () => {
     }), NOW);
     assert.equal(item.state, "unknown");
     assert.equal(item.attention, true);
-    assert.equal(item.href, "/dashboard/ai/" + CONVERSATION);
+    assert.equal(item.href, "/dashboard/workflows/" + JOB);
   });
 
   it("does not expose provider error bodies or prompts through normalized projections", () => {
