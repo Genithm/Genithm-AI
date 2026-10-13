@@ -368,3 +368,22 @@
 
 /* Local multiple sequence alignment labels */
 .msaLabel { width: 95px; flex: 0 0 95px; overflow: hidden; text-overflow: ellipsis; color: #b5ddd2; font-size: 12px; white-space: nowrap; }
+
+.advancedLabs {
+  margin-top: 56px;
+  border: 1px solid rgba(126, 224, 205, .24);
+  border-radius: 20px;
+  padding: 20px 24px;
+  background: rgba(12, 30, 39, .58);
+}
+.advancedLabs > summary {
+  cursor: pointer;
+  color: #baf6e6;
+  font-weight: 800;
+  font-size: 16px;
+}
+.advancedLabs > p {
+  color: #97b7bc;
+  font-size: 13px;
+  margin: 12px 0 0;
+}
