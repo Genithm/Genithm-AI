@@ -326,7 +326,7 @@ export default async function AiConversationPage({
 
         <ConversationProgressRefresh active={(plans ?? []).some((plan) => ["pending", "processing", "ready"].includes(plan.status)) || (plans ?? []).some((plan) => plan.status === "dispatched" && (() => { const state = plan.dispatched_resource_type && plan.dispatched_resource_id ? execution.get(plan.dispatched_resource_type + ":" + plan.dispatched_resource_id) : null; return !state || !["completed", "error", "failed", "cancelled", "not_found", "no_mapping", "retrieved"].includes(state.status); })()) || (interpretations ?? []).some((item) => !["completed", "error", "failed"].includes(item.status))} />
         <AiChatComposer
-          key={conversation.id + ":" + (messages?.length ?? 0)}
+          key={`${conversation.id}:${messages?.length ?? 0}`}
           projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
           conversationId={conversation.id}
           defaultProjectId={conversation.project_id}
