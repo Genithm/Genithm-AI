@@ -368,3 +368,6 @@
 
 /* Local multiple sequence alignment labels */
 .msaLabel { width: 95px; flex: 0 0 95px; overflow: hidden; text-overflow: ellipsis; color: #b5ddd2; font-size: 12px; white-space: nowrap; }
+
+.legacyLabs { width:min(1040px,100%); margin: 12px auto; padding:16px; border:1px solid var(--border); border-radius:16px; }
+.legacyLabs > summary {cursor:pointer;font-weight:700;}
