@@ -12,6 +12,52 @@ async function requireUser() {
   return supabase;
 }
 
+
+/**
+ * One-click, explicitly requested setup for first-time chat users.
+ * This creates a private project in an organization the signed-in user may
+ * access; never adds a public membership or initiates paid compute.
+ */
+export async function startChatWorkspace() {
+  const supabase = await requireUser();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+  if (!userId) redirect("/login");
+
+  const { data: existing } = await supabase
+    .from("projects").select("id").eq("status", "active").limit(1);
+  if (existing?.length) redirect("/dashboard/ai");
+
+  const { data: orgs, error: orgReadError } = await supabase
+    .from("organizations").select("id").order("created_at", { ascending: true }).limit(1);
+  if (orgReadError) redirect("/dashboard/ai?error=Could%20not%20verify%20your%20organization%20access.");
+
+  let organizationId = orgs?.[0]?.id;
+  if (!organizationId) {
+    const slug = "genithm-" + crypto.randomUUID().slice(0, 16);
+    const { error: createError } = await supabase.rpc("create_organization", {
+      org_name: "My Research Workspace",
+      org_slug: slug,
+    });
+    if (createError) redirect("/dashboard/ai?error=Could%20not%20create%20your%20research%20workspace.");
+    const { data: created } = await supabase.from("organizations")
+      .select("id").eq("slug", slug).maybeSingle();
+    organizationId = created?.id;
+  }
+  if (!organizationId) redirect("/dashboard/ai?error=Could%20not%20find%20your%20new%20research%20workspace.");
+
+  const { error: projectError } = await supabase.from("projects").insert({
+    organization_id: organizationId,
+    name: "My Research",
+    description: "Private, chat-first scientific research workspace.",
+    status: "active",
+    created_by: userId,
+  });
+  if (projectError) redirect("/dashboard/ai?error=Could%20not%20create%20your%20research%20project.");
+  revalidatePath("/dashboard/ai");
+  redirect("/dashboard/ai");
+}
+
 export async function requestAiPlan(formData: FormData) {
   const supabase = await requireUser();
   const projectId = String(formData.get("project_id") ?? "").trim();
