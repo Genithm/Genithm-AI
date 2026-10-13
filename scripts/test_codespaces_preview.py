@@ -20,10 +20,21 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertEqual(self.config["forwardPorts"], [3000])
         self.assertEqual(self.config["portsAttributes"]["3000"]["visibility"], "private")
         self.assertEqual(self.config["portsAttributes"]["3000"]["onAutoForward"], "openBrowser")
-        self.assertEqual(self.config["postCreateCommand"], "bash .devcontainer/setup.sh")
-        self.assertEqual(self.config["postStartCommand"], "bash .devcontainer/start.sh")
+        self.assertTrue(self.config["postCreateCommand"].startswith("bash .devcontainer/setup.sh || "))
+        self.assertTrue(self.config["postStartCommand"].startswith("bash .devcontainer/start.sh || "))
+        self.assertIn("true;", self.config["postCreateCommand"])
+        self.assertIn("true;", self.config["postStartCommand"])
         self.assertEqual(self.config["remoteEnv"]["GENITHM_CODESPACES_PREVIEW"], "1")
         self.assertNotIn("9000", self.config["portsAttributes"])
+
+    def test_codespaces_uses_preinstalled_node22_not_fragile_feature_install(self):
+        self.assertEqual(
+            self.config["image"],
+            "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+        )
+        self.assertNotIn("features", self.config)
+        self.assertIn("setup.sh", self.config["postCreateCommand"])
+        self.assertIn("start.sh", self.config["postStartCommand"])
 
     def test_no_secrets_embedded_in_codespace_definition(self):
         document = json.dumps(self.config)
