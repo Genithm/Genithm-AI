@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SampleWorkbench } from "./sample-workbench";
 import { LiveSequenceLab } from "./live-sequence-lab";
+import { ChatScienceLab } from "./chat-science-lab";
 import { ComparativeSequenceLab } from "./comparative-sequence-lab";
 import { MsaTreeWorkbench } from "./msa-tree-workbench";
 import styles from "./preview.module.css";
@@ -97,7 +98,12 @@ export default async function PreviewPage({
         <SampleWorkbench />
       </section>
 
-      <LiveSequenceLab />
+      <ChatScienceLab />
+
+      <details className={styles.legacyLabs}>
+        <summary>Advanced interactive sequence forms</summary>
+        <LiveSequenceLab />
+      </details>
 
       <ComparativeSequenceLab />
 

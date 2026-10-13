@@ -16,6 +16,7 @@ type Props = {
   conversationId?: string | null;
   defaultProjectId?: string;
   placeholder?: string;
+  suggestions?: string[];
 };
 
 type ReservationResponse = {
@@ -109,6 +110,7 @@ export function AiChatComposer({
   conversationId = null,
   defaultProjectId,
   placeholder = "Message Genithm…",
+  suggestions = [],
 }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -411,6 +413,7 @@ export function AiChatComposer({
 
   return (
     <div className={styles.wrapper}>
+      {suggestions.length ? <div className={styles.suggestions} aria-label="Example bioinformatics requests">{suggestions.map((suggestion) => <button key={suggestion} type="button" className={styles.suggestion} onClick={() => { setMessage(suggestion); textareaRef.current?.focus(); }}>{suggestion}</button>)}</div> : null}
       {liveUserMessage ? (
         <div className={styles.liveTurn}>
           <div className={styles.liveUser}>

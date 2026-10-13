@@ -5,6 +5,7 @@ import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
+import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -124,7 +125,7 @@ export default async function AiConversationPage({
 
   const [scientific, annotations, retrievals, blasts, workflows] = await Promise.all([
     scientificIds.length
-      ? supabase.from("scientific_jobs").select("id,status,job_type,processing_error,updated_at").in("id", scientificIds)
+      ? supabase.from("scientific_jobs").select("id,status,job_type,result_summary,result_sha256,processing_error,updated_at").in("id", scientificIds)
       : Promise.resolve({ data: [] }),
     annotationIds.length
       ? supabase.from("protein_annotation_jobs").select("id,status,processing_error,updated_at").in("id", annotationIds)
@@ -148,6 +149,7 @@ export default async function AiConversationPage({
   for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
+  const scientificById = new Map((scientific.data ?? []).map((row) => [row.id, row]));
   const activityPlans = (plans ?? []).filter((plan) =>
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
   );
@@ -207,16 +209,11 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <AiChatComposer
-          key={`${conversation.id}:${messages?.length ?? 0}`}
-          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
-          conversationId={conversation.id}
-          defaultProjectId={conversation.project_id}
-          placeholder="Reply to Genithm… or attach FASTA files directly here."
-        />
+        <ResearchActivityRefresh active={Boolean((plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
-        <details className={styles.activity} open>
-          <summary>Research activity</summary>
+        <section className={styles.activity} aria-label="Scientific research results and execution">
+          <h2 className={styles.activityTitle}>Research activity · progress &amp; results</h2>
+          <p className={styles.activityDescription}>Your analyses run in the background. Approve, track and review their results here without leaving this conversation.</p>
           <div className={styles.activityList}>
             {activityPlans.map((plan) => {
               const resourceKey =
@@ -231,6 +228,15 @@ export default async function AiConversationPage({
                 ? "/dashboard/workflows/" + workflow.id
                 : resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
               const interpretation = interpretationByPlan.get(plan.id);
+              const scientificResult = plan.dispatched_resource_type === "scientific_job" && plan.dispatched_resource_id
+                ? scientificById.get(plan.dispatched_resource_id)
+                : null;
+              const findings = scientificResult?.status === "completed" && isRecord(scientificResult.result_summary)
+                ? Object.entries(scientificResult.result_summary).filter(([key, value]) =>
+                    !/sequence|accession|raw|fasta|error|secret|token|password|api.key/i.test(key) &&
+                    (typeof value === "number" || typeof value === "boolean" ||
+                    (typeof value === "string" && value.length <= 120))).slice(0, 10)
+                : [];
 
               return (
                 <div className={styles.activityCard} key={plan.id}>
@@ -251,7 +257,7 @@ export default async function AiConversationPage({
                           <button className="button primary" type="submit">Approve & run</button>
                         </form>
                       ) : null}
-                      {href ? <Link className="button" href={href}>{workflow ? "Track workflow" : "Open result"}</Link> : null}
+                      {href ? <details className={styles.evidenceDetails}><summary>{workflow ? "View workflow evidence" : "View result and evidence"}</summary><p>Scientific evidence is available in the verified results workspace. This link opens the full report and provenance record.</p><Link className="button" href={href}>Open verified evidence</Link></details> : null}
                       {plan.status === "dispatched" &&
                       state &&
                       isInterpretationEligible(plan.dispatched_resource_type, state.status) &&
@@ -266,6 +272,8 @@ export default async function AiConversationPage({
                   </div>
 
                   {planSummary(plan.plan) ? <p>{planSummary(plan.plan)}</p> : null}
+                  {findings.length ? <div className={styles.findings} aria-label="Scientific findings">{findings.map(([key, value]) => <div className={styles.finding} key={key}><span>{readable(key)}</span><strong>{String(value)}</strong></div>)}</div> : null}
+                  {scientificResult?.status === "completed" && scientificResult.result_sha256 ? <div className={styles.muted}>Recorded result fingerprint: <code>{scientificResult.result_sha256}</code></div> : null}
                   {state?.error ? <div className="error">{state.error}</div> : null}
                   {plan.processing_error ? <div className="error">{plan.processing_error}</div> : null}
                   {interpretation?.processing_error ? <div className="error">{interpretation.processing_error}</div> : null}
@@ -280,7 +288,15 @@ export default async function AiConversationPage({
             })}
             {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
-        </details>
+        </section>
+
+        <AiChatComposer
+          key={`${conversation.id}:${messages?.length ?? 0}`}
+          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
+          conversationId={conversation.id}
+          defaultProjectId={conversation.project_id}
+          placeholder="Ask a follow-up, paste an accession or attach another FASTA file..."
+        />
       </section>
     </main>
   );

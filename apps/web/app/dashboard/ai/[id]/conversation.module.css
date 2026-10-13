@@ -250,3 +250,14 @@
     width: 100%;
   }
 }
+
+.activityTitle { font-size:18px; margin:0 0 6px; }
+.activityDescription { color:var(--muted); font-size:13px; line-height:1.5; margin:0 0 14px; }
+.evidenceDetails { display:grid; gap:8px; max-width:260px; }
+.evidenceDetails > summary { cursor:pointer; color:var(--foreground); border:1px solid var(--border); border-radius:9px; padding:8px 10px; font-size:12px; }
+.evidenceDetails p { font-size:12px; color:var(--muted); }
+
+.findings { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; margin:12px 0; }
+.finding { border:1px solid var(--border); padding:10px; border-radius:10px; display:grid; gap:6px; min-width:0; }
+.finding span { font-size:11px; color:var(--muted); overflow-wrap:anywhere; text-transform:capitalize; }
+.finding strong { font-size:15px; overflow-wrap:anywhere; }

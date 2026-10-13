@@ -49,8 +49,8 @@ export async function approveAiPlan(formData: FormData) {
   }
 
   revalidatePath(`/dashboard/ai/${conversationId}`);
-  if (dispatched.resource_type === "scientific_job") redirect(`/dashboard/scientific-jobs/${dispatched.resource_id}`);
-  if (dispatched.resource_type === "protein_annotation_job") redirect(`/dashboard/protein-annotations/${dispatched.resource_id}`);
+  // Never force the researcher out of chat after approving a scientific action.
+  // The same conversation displays execution status and evidence links.
   redirect(`/dashboard/ai/${conversationId}`);
 }
 

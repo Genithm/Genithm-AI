@@ -73,7 +73,8 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
           <AiChatComposer
             projects={activeProjects.map((project) => ({ id: project.id, name: project.name }))}
             defaultProjectId={activeProjects[0]?.id}
-            placeholder="Message Genithm… ask a bioinformatics question, request an analysis, or attach FASTA files."
+            placeholder="Message Genithm… paste an NCBI accession or attach FASTA files."
+            suggestions={[...starterPrompts]}
           />
         ) : (
           <div className={styles.noProject}>
@@ -83,9 +84,7 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
           </div>
         )}
 
-        <div className={styles.starters}>
-          {starterPrompts.map((prompt) => <div className={styles.starter} key={prompt}>{prompt}</div>)}
-        </div>
+
 
         <div className={styles.capabilityNote}>
           <strong>Fast chat, controlled scientific execution</strong>
