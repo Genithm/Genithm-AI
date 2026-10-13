@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { approveAiPlan, requestAiInterpretation } from "../actions";
+import { ConversationProgressRefresh } from "./conversation-progress-refresh";
 import styles from "./conversation.module.css";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -22,6 +23,25 @@ function planSummary(value: unknown) {
 function interpretationSummary(value: unknown) {
   if (!isRecord(value)) return null;
   return typeof value.summary === "string" ? value.summary : null;
+}
+
+const SCIENTIFIC_METRICS: Record<string, string[]> = {
+  pairwise_alignment: ["score", "identity_percent", "aligned_length", "matches", "mismatches", "gaps"],
+  multiple_sequence_alignment: ["sequence_count", "aligned_length", "strategy"],
+  phylogenetic_tree: ["leaf_count", "model", "internal_support_count"],
+  sequence_insights: ["operation", "sequence_type", "sequence_length", "orf_count", "reported_orfs", "frame_count", "motif_hits"],
+  protein_properties: ["sequence_length", "molecular_weight_da", "isoelectric_point", "gravy", "instability_index"],
+};
+
+function recordedMetrics(jobType: string, summary: unknown): Array<{ label: string; value: string }> {
+  if (!isRecord(summary)) return [];
+  return (SCIENTIFIC_METRICS[jobType] ?? [])
+    .filter((key) => typeof summary[key] === "number" || typeof summary[key] === "string")
+    .slice(0, 6)
+    .map((key) => ({
+      label: key.replaceAll("_", " "),
+      value: String(summary[key]).slice(0, 100),
+    }));
 }
 
 function resultHref(resourceType: string | null, resourceId: string | null) {
@@ -124,7 +144,7 @@ export default async function AiConversationPage({
 
   const [scientific, annotations, retrievals, blasts, workflows] = await Promise.all([
     scientificIds.length
-      ? supabase.from("scientific_jobs").select("id,status,job_type,processing_error,updated_at").in("id", scientificIds)
+      ? supabase.from("scientific_jobs").select("id,status,job_type,processing_error,updated_at,result_summary,result_sha256,result_object_path").in("id", scientificIds)
       : Promise.resolve({ data: [] }),
     annotationIds.length
       ? supabase.from("protein_annotation_jobs").select("id,status,processing_error,updated_at").in("id", annotationIds)
@@ -147,6 +167,7 @@ export default async function AiConversationPage({
   for (const row of blasts.data ?? []) execution.set(`blast_job:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
+  const scientificById = new Map((scientific.data ?? []).map((row) => [row.id, row]));
 
   const activityPlans = (plans ?? []).filter((plan) =>
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
@@ -207,16 +228,11 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <AiChatComposer
-          key={`${conversation.id}:${messages?.length ?? 0}`}
-          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
-          conversationId={conversation.id}
-          defaultProjectId={conversation.project_id}
-          placeholder="Reply to Genithm… or attach FASTA files directly here."
-        />
-
-        <details className={styles.activity} open>
-          <summary>Research activity</summary>
+        <section className={styles.activity} aria-label="Research results and approvals">
+          <div className={styles.activityTitle}>
+            <strong>Scientific results in this chat</strong>
+            <span>Approvals, live progress, measured results and evidence-grounded explanations</span>
+          </div>
           <div className={styles.activityList}>
             {activityPlans.map((plan) => {
               const resourceKey =
@@ -231,9 +247,15 @@ export default async function AiConversationPage({
                 ? "/dashboard/workflows/" + workflow.id
                 : resultHref(plan.dispatched_resource_type, plan.dispatched_resource_id);
               const interpretation = interpretationByPlan.get(plan.id);
+              const scientificResult = plan.dispatched_resource_type === "scientific_job" && plan.dispatched_resource_id
+                ? scientificById.get(plan.dispatched_resource_id)
+                : null;
+              const metrics = scientificResult?.status === "completed"
+                ? recordedMetrics(scientificResult.job_type, scientificResult.result_summary)
+                : [];
 
               return (
-                <div className={styles.activityCard} key={plan.id}>
+                <article className={styles.activityCard} key={plan.id}>
                   <div className={styles.activityHeader}>
                     <div>
                       <strong>{plan.action_type ? readable(plan.action_type) : readable(plan.status)}</strong>
@@ -251,7 +273,7 @@ export default async function AiConversationPage({
                           <button className="button primary" type="submit">Approve & run</button>
                         </form>
                       ) : null}
-                      {href ? <Link className="button" href={href}>{workflow ? "Track workflow" : "Open result"}</Link> : null}
+                      {href ? <Link className="button" href={href}>{workflow ? "Full workflow evidence" : "Detailed result evidence"}</Link> : null}
                       {plan.status === "dispatched" &&
                       state &&
                       isInterpretationEligible(plan.dispatched_resource_type, state.status) &&
@@ -266,6 +288,26 @@ export default async function AiConversationPage({
                   </div>
 
                   {planSummary(plan.plan) ? <p>{planSummary(plan.plan)}</p> : null}
+                  {plan.status === "ready" && plan.requires_confirmation ? (
+                    <p className={styles.consentNote}>This analysis requires your approval before computing. You can review its scope here without navigating to another page.</p>
+                  ) : null}
+                  {state && !["completed", "retrieved", "not_found", "no_mapping", "error", "failed", "cancelled"].includes(state.status) ? (
+                    <p className={styles.running} role="status">Scientific work is {readable(state.status)}. This conversation refreshes its status automatically.</p>
+                  ) : null}
+                  {scientificResult?.status === "completed" && scientificResult.result_sha256 ? (
+                    <div className={styles.measured}>
+                      <strong>Recorded scientific findings</strong>
+                      {metrics.length ? (
+                        <dl className={styles.metricGrid}>
+                          {metrics.map((metric) => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}
+                        </dl>
+                      ) : <p>Completed scientific result recorded. Use the verified evidence link for its full data.</p>}
+                      <small>Result SHA-256: {scientificResult.result_sha256}</small>
+                      {scientificResult.result_object_path && plan.dispatched_resource_id ? (
+                        <a className="button" href={"/dashboard/scientific-jobs/" + plan.dispatched_resource_id + "/download"}>Download verified scientific output</a>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {state?.error ? <div className="error">{state.error}</div> : null}
                   {plan.processing_error ? <div className="error">{plan.processing_error}</div> : null}
                   {interpretation?.processing_error ? <div className="error">{interpretation.processing_error}</div> : null}
@@ -275,12 +317,21 @@ export default async function AiConversationPage({
                       <p>{interpretationSummary(interpretation.interpretation)}</p>
                     </div>
                   ) : null}
-                </div>
+                </article>
               );
             })}
             {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
-        </details>
+        </section>
+
+        <ConversationProgressRefresh active={(plans ?? []).some((plan) => ["pending", "processing", "ready"].includes(plan.status)) || (plans ?? []).some((plan) => plan.status === "dispatched" && (() => { const state = plan.dispatched_resource_type && plan.dispatched_resource_id ? execution.get(plan.dispatched_resource_type + ":" + plan.dispatched_resource_id) : null; return !state || !["completed", "error", "failed", "cancelled", "not_found", "no_mapping", "retrieved"].includes(state.status); })()) || (interpretations ?? []).some((item) => !["completed", "error", "failed"].includes(item.status))} />
+        <AiChatComposer
+          key={conversation.id + ":" + (messages?.length ?? 0)}
+          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
+          conversationId={conversation.id}
+          defaultProjectId={conversation.project_id}
+          placeholder="Ask a follow-up, supply missing data or attach FASTA here…"
+        />
       </section>
     </main>
   );
