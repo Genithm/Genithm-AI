@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { SampleWorkbench } from "./sample-workbench";
+import { ChatFirstLab } from "./chat-first-lab";
 import { LiveSequenceLab } from "./live-sequence-lab";
 import { ComparativeSequenceLab } from "./comparative-sequence-lab";
 import { MsaTreeWorkbench } from "./msa-tree-workbench";
@@ -39,14 +40,14 @@ export default async function PreviewPage({
           <div className={styles.kicker}>Explore the scientific platform</div>
           <h1>From biological sequence to explainable insight.</h1>
           <p>
-            Preview the Genithm research experience with a small verified DNA fixture.
+            Ask Genithm for DNA/RNA analysis in one conversation, or explore a small verified reference fixture.
             The sample examples are illustrative; the interactive lab computes actual local results. No live customer job is submitted.
           </p>
           <div className={styles.heroActions}>
             {configured ? (
               <Link className="button primary" href="/dashboard/ai">Open authenticated workspace</Link>
             ) : (
-              <a className="button primary" href="#research-workbench">Explore sample analyses</a>
+              <a className="button primary" href="#chat-first-lab">Start research chat</a>
             )}
             <Link className="button" href="/">Back to Genithm home</Link>
           </div>
@@ -86,6 +87,11 @@ export default async function PreviewPage({
         </section>
       )}
 
+      <ChatFirstLab />
+
+      <details className={styles.advancedLabs}>
+        <summary>Advanced research labs (manual tools)</summary>
+        <p>Optional low-level controls for comparing the same algorithms. Chat-first analysis is the default above.</p>
       <section className={styles.workspace} id="research-workbench">
         <div className={styles.sectionHeading}>
           <div>
@@ -102,6 +108,7 @@ export default async function PreviewPage({
       <ComparativeSequenceLab />
 
       <MsaTreeWorkbench />
+      </details>
 
       <section className={styles.bottomGrid}>
         <article className={styles.foundation}>
