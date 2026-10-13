@@ -230,7 +230,7 @@ export default async function AiConversationPage({
 
         <section className={styles.activity} aria-label="Research results and approvals">
           <div className={styles.activityTitle}>
-            <strong>Scientific results in this chat</strong>
+            <strong>Research activity · scientific results in this chat</strong>
             <span>Approvals, live progress, measured results and evidence-grounded explanations</span>
           </div>
           <div className={styles.activityList}>
