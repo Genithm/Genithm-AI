@@ -212,7 +212,7 @@ export default async function AiConversationPage({
         <ResearchActivityRefresh active={Boolean((plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
         <section className={styles.activity} aria-label="Scientific research results and execution">
-          <h2 className={styles.activityTitle}>Research progress &amp; results</h2>
+          <h2 className={styles.activityTitle}>Research activity · progress &amp; results</h2>
           <p className={styles.activityDescription}>Your analyses run in the background. Approve, track and review their results here without leaving this conversation.</p>
           <div className={styles.activityList}>
             {activityPlans.map((plan) => {
