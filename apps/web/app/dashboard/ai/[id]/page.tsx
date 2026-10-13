@@ -5,6 +5,7 @@ import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
+import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -207,16 +208,11 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <AiChatComposer
-          key={`${conversation.id}:${messages?.length ?? 0}`}
-          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
-          conversationId={conversation.id}
-          defaultProjectId={conversation.project_id}
-          placeholder="Reply to Genithm… or attach FASTA files directly here."
-        />
+        <ResearchActivityRefresh active={Boolean((plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
-        <details className={styles.activity} open>
-          <summary>Research activity</summary>
+        <section className={styles.activity} aria-label="Scientific research results and execution">
+          <h2 className={styles.activityTitle}>Research progress &amp; results</h2>
+          <p className={styles.activityDescription}>Your analyses run in the background. Approve, track and review their results here without leaving this conversation.</p>
           <div className={styles.activityList}>
             {activityPlans.map((plan) => {
               const resourceKey =
@@ -251,7 +247,7 @@ export default async function AiConversationPage({
                           <button className="button primary" type="submit">Approve & run</button>
                         </form>
                       ) : null}
-                      {href ? <Link className="button" href={href}>{workflow ? "Track workflow" : "Open result"}</Link> : null}
+                      {href ? <details className={styles.evidenceDetails}><summary>{workflow ? "View workflow evidence" : "View result and evidence"}</summary><p>Scientific evidence is available in the verified results workspace. This link opens the full report and provenance record.</p><Link className="button" href={href}>Open verified evidence</Link></details> : null}
                       {plan.status === "dispatched" &&
                       state &&
                       isInterpretationEligible(plan.dispatched_resource_type, state.status) &&
@@ -280,7 +276,15 @@ export default async function AiConversationPage({
             })}
             {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
-        </details>
+        </section>
+
+        <AiChatComposer
+          key={`${conversation.id}:${messages?.length ?? 0}`}
+          projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
+          conversationId={conversation.id}
+          defaultProjectId={conversation.project_id}
+          placeholder="Ask a follow-up, paste an accession or attach another FASTA file..."
+        />
       </section>
     </main>
   );
