@@ -32,7 +32,7 @@ export async function startChatWorkspace() {
     .from("organizations").select("id").order("created_at", { ascending: true }).limit(1);
   if (orgReadError) redirect("/dashboard/ai?error=Could%20not%20verify%20your%20organization%20access.");
 
-  let organizationId = orgs?.[0]?.id;
+  let organizationId: string | undefined = orgs?.[0]?.id;
   if (!organizationId) {
     const slug = "genithm-" + crypto.randomUUID().slice(0, 16);
     const { error: createError } = await supabase.rpc("create_organization", {
