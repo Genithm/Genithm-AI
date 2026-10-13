@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# This script is only for local Codespaces development, never production.
+# Set preview explicitly even in older Codespaces missing remoteEnv settings.
+export GENITHM_CODESPACES_PREVIEW=1
+
 if ! curl -fsS --max-time 2 http://127.0.0.1:8769/health > /dev/null 2>&1; then
   echo "[Genithm] Starting private local science engine on loopback port 8769..."
   nohup python3 scripts/codespaces-live-science-server.py > /tmp/genithm-codespaces-science.log 2>&1 < /dev/null &
