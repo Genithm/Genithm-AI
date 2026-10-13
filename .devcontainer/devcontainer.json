@@ -1,11 +1,6 @@
 {
   "name": "Genithm AI — Codespaces Development",
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    }
-  },
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
   "forwardPorts": [
     3000
   ],
@@ -16,8 +11,8 @@
       "visibility": "private"
     }
   },
-  "postCreateCommand": "bash .devcontainer/setup.sh",
-  "postStartCommand": "bash .devcontainer/start.sh",
+  "postCreateCommand": "bash .devcontainer/setup.sh || { echo '[Genithm] Codespace ready; installation needs retry from Terminal.'; true; }",
+  "postStartCommand": "bash .devcontainer/start.sh || { echo '[Genithm] Preview unavailable; run bash .devcontainer/setup.sh and then bash .devcontainer/start.sh'; true; }",
   "remoteEnv": {
     "GENITHM_CODESPACES_PREVIEW": "1"
   }
