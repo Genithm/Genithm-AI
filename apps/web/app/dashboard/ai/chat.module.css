@@ -246,3 +246,6 @@
     text-align: left;
   }
 }
+
+.workspaceConsent{color:var(--muted);font-size:11px;margin:10px auto 0;max-width:520px;line-height:1.5}
+.noProject form{margin-top:20px}

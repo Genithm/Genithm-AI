@@ -250,3 +250,19 @@
     width: 100%;
   }
 }
+
+/* Chat-native progress and result cards — never require another workflow page. */
+.activityTitle{display:grid;gap:6px;margin-bottom:16px}
+.activityTitle strong{font-size:17px}
+.activityTitle span{color:var(--muted);font-size:12px;line-height:1.5}
+.consentNote{font-size:13px;border-left:3px solid #83d6c8;padding:8px 12px;background:rgba(111,208,186,.07)}
+.running{font-size:12px;color:#a4e8d9;margin:10px 0}
+.measured{display:grid;gap:13px;margin-top:14px;padding:16px;border:1px solid rgba(119,216,193,.3);border-radius:14px;background:rgba(106,214,185,.06)}
+.measured>strong{color:#a7f2df}
+.measured small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.measured>a{justify-self:start}
+.metricGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+.metricGrid>div{padding:12px;border:1px solid var(--border);background:rgba(0,0,0,.07);border-radius:12px;min-width:0}
+.metricGrid dt{color:var(--muted);font-size:11px;text-transform:capitalize}
+.metricGrid dd{font-size:16px;font-weight:700;margin:6px 0 0;overflow-wrap:anywhere}
+@media(max-width:600px){.metricGrid{grid-template-columns:1fr}}

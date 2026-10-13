@@ -3,13 +3,14 @@ import { redirect } from "next/navigation";
 
 import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
+import { startChatWorkspace } from "./actions";
 import styles from "./chat.module.css";
 
 const starterPrompts = [
-  "Fetch an NCBI accession and help me analyze it.",
-  "Run BLAST on one of my sequences and explain the strongest hits.",
-  "Compare my sequences with an alignment and summarize the differences.",
-  "Build a phylogenetic workflow from my available sequences.",
+  "Find the human TP53 nucleotide reference in NCBI and explain what I can analyze.",
+  "I attached a sequence. Run BLAST and explain the strongest hits.",
+  "Compare my uploaded sequences and summarize the differences.",
+  "Build an MSA and phylogenetic tree from my sequences.",
 ] as const;
 
 export default async function AiWorkspacePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -77,9 +78,13 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
           />
         ) : (
           <div className={styles.noProject}>
-            <h2>Create a project once, then work by chatting.</h2>
-            <p>Projects provide the secure container for your sequences, analyses, provenance, and conversations.</p>
-            <Link className="button primary" href="/dashboard/tools">Create project in Advanced tools</Link>
+            <div className="eyebrow">Genithm</div>
+            <h2>Ready to research together?</h2>
+            <p>I can set up your private research space here in chat. You will be able to attach FASTA files, ask for NCBI retrieval and receive scientific results in the conversation. No workflow configuration is required.</p>
+            <form action={startChatWorkspace}>
+              <button className="button primary" type="submit">Start my research chat</button>
+            </form>
+            <p className={styles.workspaceConsent}>Creates one private organization if needed and an active research project. Does not start scientific computing, incur charges or upload data.</p>
           </div>
         )}
 
