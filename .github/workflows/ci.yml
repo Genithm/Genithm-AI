@@ -176,6 +176,8 @@ jobs:
         run: node --experimental-strip-types --test tests/research-pipeline-v16.test.mjs
       - name: Verify cross-pipeline studies, exact scientific inputs and sealed report integrity
         run: node --experimental-strip-types --test tests/pipeline-study.test.mjs
+      - name: Verify chat-first private onboarding, scientific results and progress
+        run: python3 ../../scripts/test_codespaces_chat_first.py
       - run: npm run typecheck
       - run: npm run build
 
