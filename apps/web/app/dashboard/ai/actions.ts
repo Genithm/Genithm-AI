@@ -48,9 +48,9 @@ export async function approveAiPlan(formData: FormData) {
     redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("The plan could not be approved. It may no longer be ready, or its referenced project resources may have changed.")}`);
   }
 
+  // Keep approvals and execution progress inside the same chat, not a
+  // separate workflow or job detail page.
   revalidatePath(`/dashboard/ai/${conversationId}`);
-  if (dispatched.resource_type === "scientific_job") redirect(`/dashboard/scientific-jobs/${dispatched.resource_id}`);
-  if (dispatched.resource_type === "protein_annotation_job") redirect(`/dashboard/protein-annotations/${dispatched.resource_id}`);
   redirect(`/dashboard/ai/${conversationId}`);
 }
 
