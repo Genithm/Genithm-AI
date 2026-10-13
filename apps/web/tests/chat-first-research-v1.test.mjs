@@ -16,7 +16,7 @@ test("approved analysis remains in chat; never forces separate results navigatio
 });
 
 test("research progress and verified metrics are in the same chat before composer", () => {
-  assert.match(thread, /Research progress &amp; results/);
+  assert.match(thread, /Research activity · progress &amp; results/);
   assert.match(thread, /scientific_jobs"\)\.select\("id,status,job_type,result_summary,result_sha256/);
   assert.match(thread, /scientificResult\.result_summary/);
   assert.match(thread, /Recorded result fingerprint/);
