@@ -81,6 +81,17 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertIn("scripts/codespaces-live-science-server.py", start)
         self.assertNotIn("8769", json.dumps(self.config))
 
+    def test_chat_first_science_preview_is_primary_and_local(self):
+        source = (WEB / "app/preview/chat-science-lab.tsx").read_text(encoding="utf-8")
+        self.assertIn("ChatScienceLab", self.preview)
+        self.assertLess(self.preview.index("<ChatScienceLab />"), self.preview.index("<LiveSequenceLab />"))
+        self.assertIn('fetch("/api/dev-science"', source)
+        self.assertIn("Attach FASTA", source)
+        self.assertIn("Export scientific JSON", source)
+        self.assertIn("data.input_sha256", source)
+        self.assertNotIn("service_role", source)
+        self.assertNotIn("NEXT_PUBLIC_SUPABASE", source)
+
     def test_setup_installs_from_lockfile(self):
         setup = (DEV / "setup.sh").read_text(encoding="utf-8")
         self.assertIn("npm --prefix apps/web ci", setup)
