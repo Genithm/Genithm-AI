@@ -43,6 +43,8 @@ jobs:
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v16_nucleotide_pipeline_contract.sql
       - name: Verify V22 chat-to-pipeline lineage, RLS and authorized parser behavior
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_lineage_contract.sql
+      - name: Verify V22 PostgreSQL research intent parity with the shared chat corpus
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_intent_parity.sql
       - name: Exercise V22 two-user approval, replay, RLS and media attestation against local PostgreSQL
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_integration.sql
       - name: Verify V2 sequence intelligence database boundaries
