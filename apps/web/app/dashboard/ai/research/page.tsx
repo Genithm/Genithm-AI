@@ -78,30 +78,36 @@ export default async function ResearchArchivePage({
     .map((message) => message.research_pipeline_run_id)
     .filter((id): id is string => Boolean(id)))];
 
-  const [{ data: conversationRows }, { data: runRows }, { data: projectRows }] = await Promise.all([
+  const [
+    { data: conversationRows, error: conversationsError },
+    { data: runRows, error: runsError },
+    { data: projectRows, error: projectsError },
+  ] = await Promise.all([
     conversationIds.length
       ? supabase.from("ai_conversations")
           .select("id,title,project_id,created_by")
           .eq("created_by", userId)
           .in("id", conversationIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     runIds.length && projectIds.length
       ? supabase.from("research_pipeline_runs")
           .select("id,template,status,requested_accession,project_id,requested_by")
           .eq("requested_by", userId)
           .in("project_id", projectIds)
           .in("id", runIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     projectIds.length
       ? supabase.from("projects").select("id,name").in("id", projectIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const conversations = new Map((conversationRows ?? []).map((row) => [row.id, row]));
   const pipelines = new Map((runRows ?? []).map((row) => [row.id, row]));
   const projects = new Map((projectRows ?? []).map((row) => [row.id, row.name]));
 
-  const entries = pageMessages.flatMap((message) => {
+  const archiveError = messagesError || conversationsError || runsError || projectsError;
+
+  const entries = archiveError ? [] : pageMessages.flatMap((message) => {
     const conversation = conversations.get(message.conversation_id);
     const pipeline = message.research_pipeline_run_id
       ? pipelines.get(message.research_pipeline_run_id) : null;
@@ -123,7 +129,7 @@ export default async function ResearchArchivePage({
     }];
   });
   const last = pageMessages[pageMessages.length - 1];
-  const nextCursor = hasNextPage && last ? { time: last.created_at, id: last.id } : null;
+  const nextCursor = !archiveError && hasNextPage && last ? { time: last.created_at, id: last.id } : null;
 
   return (
     <main className={styles.shell}>
@@ -153,7 +159,7 @@ export default async function ResearchArchivePage({
         Open a study to inspect scientific evidence and use authenticated downloads.
       </p>
 
-      {messagesError ? (
+      {archiveError ? (
         <p className={styles.failure} role="alert">Research history could not be loaded. Refresh or try again.</p>
       ) : (
         <>
