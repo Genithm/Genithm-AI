@@ -128,6 +128,8 @@ export function buildConversationDossier(input: {
     const sequence = sequenceId ? fixedSequence.get(sequenceId) : undefined;
     const science = jobId ? fixedScience.get(jobId) : undefined;
     const expectedJob = template === "ncbi_nucleotide_orf_v1" ? "sequence_insights" : "protein_properties";
+    const expectedDatabase = template === "ncbi_nucleotide_orf_v1" ? "nucleotide" : "protein";
+    const accession = str(run.requested_accession);
     const hash = sha(run.sequence_sha256);
     const jobInputs = fixedInputs.filter((record) => uid(record.job_id) === jobId);
     const matchingInput = jobInputs.length === 1 && jobInputs[0].input_position === 1 &&
@@ -138,6 +140,8 @@ export function buildConversationDossier(input: {
       (parameters.operation === "orf_scan" && String(parameters.min_aa) === "30");
     const provenanceValid = Boolean(
       retrieval && retrieval.status === "retrieved" &&
+      retrieval.source_database === expectedDatabase &&
+      accession && retrieval.requested_accession === accession &&
       sequence && sequence.status === "ready" && hash &&
       sha(sequence.sha256) === hash && matchingInput &&
       science && science.status === "completed" && science.job_type === expectedJob &&
@@ -165,6 +169,7 @@ export function buildConversationDossier(input: {
     const state: State =
       parentStatus === "error" ? "failed" :
       parentStatus === "completed" ? (provenanceValid ? "completed" : "unknown") :
+      progress.some((step) => step.status === "failed") ? "failed" :
       ["awaiting_source", "awaiting_validation", "running"].includes(parentStatus ?? "")
         ? "running" : "unknown";
     const resultSha = state === "completed" ? sha(science?.result_sha256) : null;
