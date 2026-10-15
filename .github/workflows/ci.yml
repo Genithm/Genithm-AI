@@ -180,6 +180,9 @@ jobs:
       - name: Verify V17 chat research consent and bounded evidence
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-research-consent-v17.test.mjs
+      - name: Verify conversation science dossier evidence and workflow lineage V19
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/conversation-research-dossier-v19.test.mjs
       - name: Verify cross-pipeline studies, exact scientific inputs and sealed report integrity
         run: node --experimental-strip-types --test tests/pipeline-study.test.mjs
       - run: npm run typecheck
