@@ -17,6 +17,7 @@ declare
   actual_template text;
   actual_accession text;
   result_count integer;
+  expected_count integer;
 begin
   if (select count(*) from v22_intent_cases) < 25 then
     raise exception 'V22 intent parity corpus is incomplete';
@@ -25,7 +26,8 @@ begin
     select count(*),max(template),max(accession)
       into result_count,actual_template,actual_accession
     from app_private.parse_fixed_chat_protocol(fixture.prompt);
-    if result_count <> case when fixture.expected_template='-' then 0 else 1 end
+    expected_count := case when fixture.expected_template='-' then 0 else 1 end;
+    if result_count <> expected_count
        or coalesce(actual_template,'-') <> fixture.expected_template
        or coalesce(actual_accession,'-') <> fixture.expected_accession then
       raise exception 'V22 SQL consent parity failed on case % (got % / %; expected % / %)',
