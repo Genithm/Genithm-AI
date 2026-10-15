@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildConversationDossier } from "../lib/conversation-research-dossier.ts";
 import { archiveEvidenceLabel, archiveTemplate, parseResearchArchiveSearch } from "../lib/research-archive.ts";
+import { MAX_CONVERSATION_EVIDENCE_RUNS, selectEvidenceRuns } from "../lib/integrated-science-history.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const page = read("../app/dashboard/ai/[id]/page.tsx");
@@ -76,7 +77,7 @@ test("V25 one proven message-to-run link is required before old-run evidence is 
   assert.match(page, /\.eq\("research_pipeline_run_id", candidatePipelineId \?\? ""\)/);
   assert.match(page, /exactSourceAuthorized/);
   assert.match(page, /query\.pipeline_id !== undefined \? requestedPipelineId/);
-  assert.match(page, /pipeline && !linkedPipelineById\.has\(pipeline\.id\) \? \[pipeline\] : \[\]/);
+  assert.match(page, /selectEvidenceRuns\(/);
   assert.match(page, /evidencePipelines/);
   assert.match(page, /fixedPipelines: fixedEvidenceQueryError \? \[\] : evidencePipelines/);
   assert.match(page, /fixedEvidenceQueryError/);
@@ -106,4 +107,16 @@ test("V25 engine and evidence statuses remain explicitly different", () => {
   assert.equal(archiveEvidenceLabel("running"), "Evidence still accumulating");
   assert.equal(archiveEvidenceLabel(null), "Evidence unavailable");
   assert.equal(parseResearchArchiveSearch({before_id:id}).invalid, true);
+});
+
+test("V25 historical selection cannot be evicted by 100 more recent linked runs", () => {
+  const recent = Array.from({ length: 110 }, (_, i) => ({ id: "recent-"+i, status: "completed" }));
+  const chosen = { id: "older-consented-run", status: "completed" };
+  const result = selectEvidenceRuns(recent, chosen);
+  assert.equal(MAX_CONVERSATION_EVIDENCE_RUNS, 100);
+  assert.equal(result.length, 100);
+  assert.equal(result[0].id, chosen.id);
+  assert.equal(result.some((run) => run.id === recent[109].id), false);
+  assert.equal(selectEvidenceRuns([{id:chosen.id,status:"completed"}], chosen).length, 1);
+  assert.equal(selectEvidenceRuns(recent, null).length, 100);
 });
