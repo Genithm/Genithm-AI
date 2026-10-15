@@ -5,7 +5,7 @@ import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
-import { parseChatResearchProtocol, pipelineProgress } from "@/lib/chat-research-protocol";
+import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
@@ -115,26 +115,8 @@ export default async function AiConversationPage({
         .eq("id", pipelineId).eq("project_id", conversation.project_id)
         .eq("requested_by", claimsData.claims.sub).maybeSingle()
     : { data: null };
-  const [{ data: pipelineRetrieval }, { data: pipelineSequence }, { data: pipelineScience }] = await Promise.all([
-    pipeline?.retrieval_id
-      ? supabase.from("sequence_retrievals").select("id,status,resolved_accession")
-          .eq("id", pipeline.retrieval_id).eq("project_id", conversation.project_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    pipeline?.sequence_upload_id
-      ? supabase.from("sequence_uploads").select("id,status")
-          .eq("id", pipeline.sequence_upload_id).eq("project_id", conversation.project_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    pipeline?.scientific_job_id
-      ? supabase.from("scientific_jobs").select("id,status,job_type,result_sha256,result_object_path,result_summary")
-          .eq("id", pipeline.scientific_job_id).eq("project_id", conversation.project_id)
-          .eq("requested_by", claimsData.claims.sub).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
   const protocolTemplate = pipeline?.template === "ncbi_nucleotide_orf_v1" || pipeline?.template === "ncbi_protein_profile_v1"
     ? pipeline.template : null;
-  const pipelineSteps = protocolTemplate
-    ? pipelineProgress(protocolTemplate, pipeline?.status ?? "", pipelineRetrieval?.status ?? null, pipelineSequence?.status ?? null, pipelineScience?.status ?? null)
-    : [];
 
   const attachmentIds = [...new Set([...(plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []), ...(messages ?? []).flatMap((message) => message.attachment_upload_ids ?? [])])];
   const { data: attachmentRows } = attachmentIds.length
@@ -443,8 +425,8 @@ export default async function AiConversationPage({
             <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
             <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Engine status: <strong>{readable(pipeline.status)}</strong> · Evidence status: <strong>{readable(selectedPipelineEvidence?.state)}</strong></p>
             <ol className={styles.protocolSteps}>
-              {pipelineSteps.map((step) => (
-                <li key={step.name}><strong>{step.name}</strong><span>{readable(step.status)}</span></li>
+              {(selectedPipelineEvidence?.steps ?? []).map((step) => (
+                <li key={step.label}><strong>{step.label}</strong><span>{readable(step.state)}</span></li>
               ))}
             </ol>
             {selectedPipelineEvidence?.state === "completed" && selectedPipelineEvidence.verified_download ? (
