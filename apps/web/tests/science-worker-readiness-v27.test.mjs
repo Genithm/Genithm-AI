@@ -51,7 +51,7 @@ test("V27 chat proposal requires worker readiness and preserves normal chat fall
   const route = source("../app/api/ai/chat/route.ts");
   assert.match(route, /if \(!schemaError && await scienceExecutionReady\(service\)\)/);
   assert.match(route, /offerFixedResearch = !inputScopeError/);
-  assert.match(route, /const fixedProtocol = offerFixedResearch &&/);
+  assert.match(route, /const fixedProtocol = offerFixedResearch \? requestedFixedProtocol : null/);
   assert.match(route, /const providerResult = await startStreamingChat\(/);
   assert.match(page, /const scienceWorkersAvailable = scienceV22Ready && await scienceExecutionReady\(\)/);
   assert.match(page, /\{scienceWorkersAvailable && message\.role === "user"/);
