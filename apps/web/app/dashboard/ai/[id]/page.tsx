@@ -382,6 +382,13 @@ export default async function AiConversationPage({
               pipelineScience.result_object_path ? (
                 <a className={styles.download} href={`/dashboard/scientific-jobs/${pipelineScience.id}/download`}>Download integrity-checked scientific result</a>
               ) : null}
+            {pipeline.status === "completed" && pipelineScience?.status === "completed" ? (
+              <div className={styles.findings} aria-label="Verified in-chat protocol findings">
+                {recordedEvidenceMetrics("scientific_job", pipelineScience).map((metric) => (
+                  <div className={styles.finding} key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>
+                ))}
+              </div>
+            ) : null}
             {pipeline.status === "error" ? <p className="error">Research stopped safely at {readable(pipeline.failure_stage)}: {readable(pipeline.failure_code)}</p> : null}
             {pipeline.status === "completed" ? <p>Recorded pipeline completed. Scientific results are preserved by the verified research engine.</p> : null}
           </section>
