@@ -18,9 +18,9 @@ test("approved analysis remains in chat; never forces separate results navigatio
 test("research progress and verified metrics are in the same chat before composer", () => {
   assert.match(thread, /Research activity · progress &amp; results/);
   assert.match(thread, /scientific_jobs"\)\.select\("id,status,job_type,result_summary,result_sha256/);
-  assert.match(thread, /scientificResult\.result_summary/);
+  assert.match(thread, /recordedEvidenceMetrics\(evidenceType, evidenceRow\)/);
   assert.match(thread, /Recorded result fingerprint/);
-  assert.match(thread, /Approve & run/);
+  assert.match(thread, /Approve this analysis/);
   assert.ok(thread.indexOf('<section className={styles.activity}') < thread.lastIndexOf('<AiChatComposer'));
 });
 
