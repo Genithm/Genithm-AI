@@ -90,6 +90,9 @@ test("V24 deep links into old runs only after proving the original message is in
   assert.match(page,/linkedPipelineById\.has\(candidatePipelineId\) \|\| historicalMessageLink\?\.id/);
   assert.match(page,/\.eq\("requested_by", claimsData\.claims\.sub\)\.maybeSingle\(\)/);
   assert.match(page,/selectedOlderResearch/);
+  assert.match(page,/\.select\("id,content,created_at"\)/);
+  assert.match(page,/historicalMessageLink\.content/);
+  assert.match(page,/Recovered original approved request/);
   assert.match(page,/href="\/dashboard\/ai\/research"/);
 });
 
