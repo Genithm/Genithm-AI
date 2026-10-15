@@ -119,10 +119,14 @@ export async function approveChatResearchProtocol(formData: FormData) {
   }
 
   const { data: source } = await supabase.from("ai_messages")
-    .select("id,role,content,conversation_id,conversation_owner_id")
+    .select("id,role,content,conversation_id,conversation_owner_id,attachment_upload_ids")
     .eq("id", messageId).eq("conversation_id", conversationId)
     .eq("conversation_owner_id", userId).eq("role", "user").maybeSingle();
-  const protocol = source ? parseChatResearchProtocol(source.content) : null;
+  // Never dispatch a reference-only NCBI protocol for an original message
+  // carrying user sequence files. Consent must refer to the exact same inputs.
+  const protocol = source && Array.isArray(source.attachment_upload_ids) &&
+    source.attachment_upload_ids.length === 0
+    ? parseChatResearchProtocol(source.content) : null;
   if (!protocol) {
     redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("No eligible fixed research protocol was found in the original chat message.")}`);
   }
