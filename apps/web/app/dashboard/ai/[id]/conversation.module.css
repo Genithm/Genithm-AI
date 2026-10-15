@@ -261,3 +261,7 @@
 .finding { border:1px solid var(--border); padding:10px; border-radius:10px; display:grid; gap:6px; min-width:0; }
 .finding span { font-size:11px; color:var(--muted); overflow-wrap:anywhere; text-transform:capitalize; }
 .finding strong { font-size:15px; overflow-wrap:anywhere; }
+
+/* The artifact is verified by the existing authenticated download route. */
+.download { display:inline-flex; margin-top:10px; font-weight:700; text-decoration:underline; text-underline-offset:3px; color:var(--foreground); font-size:13px; }
+.download:focus-visible { outline:2px solid currentColor; outline-offset:3px; }

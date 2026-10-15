@@ -359,6 +359,8 @@ export function AiChatComposer({
             message?: string;
             conversation_id?: string;
             error?: string;
+            status?: string;
+            requires_confirmation?: boolean;
           };
           try {
             payload = JSON.parse(dataText) as typeof payload;
@@ -372,7 +374,10 @@ export function AiChatComposer({
             finalMessage += payload.text;
             setLiveAssistantMessage(finalMessage);
           } else if (eventName === "done") {
-            if (payload.message && !finalMessage) {
+            if (payload.status === "awaiting_approval") {
+              finalMessage = (payload.message || "Scientific action ready for your approval.") + "\nApprove the proposed analysis inside this conversation before it starts.";
+              setLiveAssistantMessage(finalMessage);
+            } else if (payload.message && !finalMessage) {
               finalMessage = payload.message;
               setLiveAssistantMessage(finalMessage);
             }

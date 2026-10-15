@@ -177,6 +177,9 @@ jobs:
       - name: Verify chat-first science execution stays inside conversation
         working-directory: apps/web
         run: node --test tests/chat-first-research-v1.test.mjs
+      - name: Verify V17 chat research consent and bounded evidence
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/chat-research-consent-v17.test.mjs
       - name: Verify cross-pipeline studies, exact scientific inputs and sealed report integrity
         run: node --experimental-strip-types --test tests/pipeline-study.test.mjs
       - run: npm run typecheck
