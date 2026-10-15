@@ -105,6 +105,39 @@ end
 $approved$;
 reset role;
 
+-- Even a privileged maintenance mistake cannot attach an unrelated or
+-- unverified message to an existing pipeline: constraints fail closed.
+do $scoped_link$
+declare run_id uuid;
+begin
+  select research_pipeline_run_id into run_id
+  from public.ai_messages
+  where id='a5000000-0000-4000-8000-000000000001';
+  if run_id is null then raise exception 'test run missing'; end if;
+
+  begin
+    update public.ai_messages set research_pipeline_run_id=run_id
+    where id='a5000000-0000-4000-8000-000000000004';
+    raise exception 'cross-tenant research link incorrectly accepted';
+  exception when foreign_key_violation then null;
+  end;
+
+  begin
+    update public.ai_messages set research_pipeline_run_id=run_id
+    where id='a5000000-0000-4000-8000-000000000003';
+    raise exception 'media-attached research link incorrectly accepted';
+  exception when check_violation then null;
+  end;
+
+  begin
+    update public.ai_messages set research_pipeline_run_id=run_id
+    where id='a5000000-0000-4000-8000-000000000002';
+    raise exception 'unverified historical research link incorrectly accepted';
+  exception when check_violation then null;
+  end;
+end
+$scoped_link$;
+
 -- Service-only attestation must distinguish media from plain text.
 insert into public.ai_messages
  (id,conversation_id,organization_id,project_id,conversation_owner_id,role,content)
