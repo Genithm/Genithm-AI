@@ -125,7 +125,6 @@ export async function approveChatResearchProtocol(formData: FormData) {
   // Never dispatch a reference-only NCBI protocol for an original message
   // carrying user sequence files. Consent must refer to the exact same inputs.
   const protocol = source && source.protocol_input_scope === "text_only" &&
-    source.research_pipeline_run_id === null &&
     Array.isArray(source.attachment_upload_ids) && source.attachment_upload_ids.length === 0
     ? parseChatResearchProtocol(source.content) : null;
   if (!protocol) {
