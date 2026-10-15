@@ -62,7 +62,8 @@ function workflowState(parent: Row, steps: DossierStep[]): State {
 export function buildConversationDossier(input: {
   conversationId: string; plans: unknown; scientificJobs?: unknown; blastJobs?: unknown;
   retrievals?: unknown; annotations?: unknown; workflows?: unknown; workflowChildJobs?: unknown;
-  fixedPipelines?: unknown; fixedRetrievals?: unknown; fixedSequences?: unknown; fixedScientificJobs?: unknown;
+  fixedPipelines?: unknown; fixedRetrievals?: unknown; fixedSequences?: unknown;
+  fixedScientificJobs?: unknown; fixedJobInputs?: unknown;
 }): ConversationDossier {
   const resources: Record<Kind, Map<string, Row>> = {
     scientific_job: keyed(input.scientificJobs), blast_job: keyed(input.blastJobs),
@@ -112,6 +113,7 @@ export function buildConversationDossier(input: {
   const fixedSource = keyed(input.fixedRetrievals);
   const fixedSequence = keyed(input.fixedSequences);
   const fixedScience = keyed(input.fixedScientificJobs);
+  const fixedInputs = list(input.fixedJobInputs);
   const pipelineSeen = new Set<string>();
   for (const run of list(input.fixedPipelines).slice(0, 100)) {
     const pipelineId = uid(run.id);
@@ -127,12 +129,19 @@ export function buildConversationDossier(input: {
     const science = jobId ? fixedScience.get(jobId) : undefined;
     const expectedJob = template === "ncbi_nucleotide_orf_v1" ? "sequence_insights" : "protein_properties";
     const hash = sha(run.sequence_sha256);
+    const jobInputs = fixedInputs.filter((record) => uid(record.job_id) === jobId);
+    const matchingInput = jobInputs.length === 1 && jobInputs[0].input_position === 1 &&
+      uid(jobInputs[0].sequence_upload_id) === sequenceId &&
+      sha(jobInputs[0].input_sha256) === hash;
+    const parameters = obj(science?.parameters);
+    const operationValid = template !== "ncbi_nucleotide_orf_v1" ||
+      (parameters.operation === "orf_scan" && String(parameters.min_aa) === "30");
     const provenanceValid = Boolean(
       retrieval && retrieval.status === "retrieved" &&
       sequence && sequence.status === "ready" && hash &&
-      sha(sequence.sha256) === hash &&
+      sha(sequence.sha256) === hash && matchingInput &&
       science && science.status === "completed" && science.job_type === expectedJob &&
-      sha(science.result_sha256) && str(science.result_object_path)
+      operationValid && sha(science.result_sha256) && str(science.result_object_path)
     );
     const progress = pipelineProgress(
       template, str(run.status) ?? "",
@@ -192,7 +201,7 @@ export function buildConversationDossier(input: {
       "These are recorded computational results, not experimentally verified biological conclusions.",
       "Missing, inaccessible, and pending jobs are never reported as completed.",
       "Multi-step workflow completion requires evidence from every scientific dependency.",
-      "Fixed NCBI pipelines require recorded retrieval, matching FASTA hash, and correct scientific job evidence before completion.",
+      "Fixed NCBI pipelines require recorded retrieval, matching FASTA and scientific input hashes, fixed compute parameters, and a valid result fingerprint before completion.",
     ],
   };
 }
