@@ -150,7 +150,9 @@ test("V23 conversation fetches all children under RLS and binds them only to cha
   assert.match(page,/\.eq\("project_id", conversation\.project_id\)/);
   assert.match(page,/\.eq\("requested_by", claimsData\.claims\.sub\)/);
   assert.match(page,/\.eq\("created_by", claimsData\.claims\.sub\)/);
-  assert.match(page,/fixedPipelines: linkedPipelines \?\? \[\]/);
+  assert.match(page,/fixedPipelines: fixedEvidenceQueryError \? \[\] : evidencePipelines/);
+  assert.match(page,/pipeline && !linkedPipelineById\.has\(pipeline\.id\) \? \[pipeline\] : \[\]/);
+  assert.match(page,/fixedEvidenceQueryError/);
   assert.match(page,/fixedScientificJobs: fixedScientificJobs \?\? \[\]/);
   assert.match(module,/const provenanceValid = Boolean\(/);
   assert.match(module,/sha\(sequence\.sha256\) === hash/);
