@@ -79,7 +79,9 @@ def main() -> int:
     assert 'request_ai_chat_turn' in chat_api
     assert 'finish_ai_chat_turn' in chat_api
     assert 'create_ai_plan_from_chat' in chat_api
-    assert 'dispatch_ai_plan_service' in chat_api
+    assert 'dispatch_ai_plan_service' not in chat_api
+    assert 'status: "awaiting_approval"' in chat_api
+    assert 'requires_confirmation: true' in chat_api
     assert 'requires_confirmation: false' in chat_api
     assert 'request_ai_plan_inline' not in chat_api
     assert '/content' in chat_composer
@@ -87,7 +89,7 @@ def main() -> int:
     assert 'processing_error' in chat_composer
     assert 'I can do [supported task] for you.' in chat_provider
     assert 'capability_preflight' in chat_provider
-    assert 'relevant capability_preflight flag is false' in chat_provider
+    assert 'database validator enforces access' in chat_provider
     assert 'closest supported path' in chat_provider
     assert 'you do not need to know its accession' in chat_provider
     assert 'normalizeScientificPlanForExecution' in chat_provider
@@ -96,7 +98,7 @@ def main() -> int:
     assert 'organism' in chat_provider
     assert 'esearch.fcgi' in chat_provider
     assert 'esummary.fcgi' in chat_provider
-    assert 'Genithm will start the validated task automatically' in chat_provider
+    assert 'must approve it before authoritative execution' in chat_provider
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 
     print("PASS: V1 dashboard UI shell contract")
