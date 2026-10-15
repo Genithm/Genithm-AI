@@ -78,6 +78,7 @@ test("V24 archive only retrieves persisted user-message links with explicit owne
   assert.match(archive,/conversation\.created_by !== userId/);
   assert.match(archive,/\.eq\("id", filter\.projectId\)\.maybeSingle\(\)/);
   assert.match(archive,/href=\{researchArchiveHref\(authorizedProjectId, nextCursor\)\}/);
+  assert.match(archive,/source_message_id=\$\{item\.id\}/);
   assert.doesNotMatch(archive,/createServiceClient|service_role|supabaseAdmin/);
 });
 
@@ -91,6 +92,13 @@ test("V24 deep links into old runs only after proving the original message is in
   assert.match(page,/\.eq\("requested_by", claimsData\.claims\.sub\)\.maybeSingle\(\)/);
   assert.match(page,/selectedOlderResearch/);
   assert.match(page,/\.select\("id,content,created_at"\)/);
+  assert.match(page,/historicalMessageLink\.content/);
+  assert.match(page,/source_message_id\?: string/);
+  assert.match(page,/sourceMessageId = isUuid\(query\.source_message_id\)/);
+  assert.match(page,/sourceLookup\.eq\("id", sourceMessageId\)\.maybeSingle\(\)/);
+  assert.match(page,/\.order\("id", \{ ascending: false \}\)\.limit\(1\)\.maybeSingle\(\)/);
+  assert.match(page,/exactSourceAuthorized/);
+  assert.match(page,/query\.pipeline_id !== undefined \? requestedPipelineId/);
   assert.match(page,/historicalMessageLink\.content/);
   assert.match(page,/Recovered original approved request/);
   assert.match(page,/href="\/dashboard\/ai\/research"/);
