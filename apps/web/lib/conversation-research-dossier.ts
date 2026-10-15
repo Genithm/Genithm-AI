@@ -1,4 +1,4 @@
-import { recordedEvidenceMetrics, type EvidenceMetric } from "./recorded-chat-evidence";
+import { recordedEvidenceMetrics, type EvidenceMetric } from "./recorded-chat-evidence.ts";
 
 /** Pure evidence-only dossier. Callers must supply conversation- and RLS-scoped rows. */
 type Row = Record<string, unknown>;
