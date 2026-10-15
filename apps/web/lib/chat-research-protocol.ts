@@ -32,7 +32,8 @@ export function parseChatResearchProtocol(message: string): ChatResearchProtocol
   // Negated, hypothetical and script-oriented requests belong in normal
   // conversation, not the narrowly authorized reference-only protocol.
   if (/\b(don't|do not|never|without|avoid|instead of|rather than)\b/i.test(input) ||
-      /\b(python|javascript|script|shell|terminal|execute|commands?)\b/i.test(input)) return null;
+      /\b(python|javascript|script|shell|terminal|execute|commands?)\b/i.test(input) ||
+      /\b(ignore\s+(?:previous|prior|all)\s+instructions?|system\s+prompt|developer\s+instructions?)\b/i.test(input)) return null;
 
   if (nucleotide.length === 1 &&
       /\b(orf|orfs|open reading frames?)\b/i.test(input) &&
