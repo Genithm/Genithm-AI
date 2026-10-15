@@ -229,7 +229,7 @@ export default async function AiConversationPage({
     .map((run) => run.sequence_upload_id).filter((id): id is string => Boolean(id)))];
   const fixedScientificIds = [...new Set((linkedPipelines ?? [])
     .map((run) => run.scientific_job_id).filter((id): id is string => Boolean(id)))];
-  const [{ data: fixedRetrievals }, { data: fixedSequences }, { data: fixedScientificJobs }] = await Promise.all([
+  const [{ data: fixedRetrievals }, { data: fixedSequences }, { data: fixedScientificJobs }, { data: fixedJobInputs }] = await Promise.all([
     fixedRetrievalIds.length
       ? supabase.from("sequence_retrievals")
           .select("id,status,resolved_accession,source_database,sequence_upload_id")
@@ -246,10 +246,16 @@ export default async function AiConversationPage({
       : Promise.resolve({ data: [] }),
     fixedScientificIds.length
       ? supabase.from("scientific_jobs")
-          .select("id,status,job_type,result_sha256,result_object_path,result_summary")
+          .select("id,status,job_type,parameters,result_sha256,result_object_path,result_summary")
           .eq("project_id", conversation.project_id)
           .eq("requested_by", claimsData.claims.sub)
           .in("id", fixedScientificIds)
+      : Promise.resolve({ data: [] }),
+    fixedScientificIds.length
+      ? supabase.from("scientific_job_inputs")
+          .select("job_id,sequence_upload_id,input_sha256,input_position")
+          .eq("project_id", conversation.project_id)
+          .in("job_id", fixedScientificIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -266,6 +272,7 @@ export default async function AiConversationPage({
     fixedRetrievals: fixedRetrievals ?? [],
     fixedSequences: fixedSequences ?? [],
     fixedScientificJobs: fixedScientificJobs ?? [],
+    fixedJobInputs: fixedJobInputs ?? [],
   });
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
