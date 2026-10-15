@@ -1,4 +1,5 @@
 import type { Json } from "@/lib/ai-database.types";
+import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {
   conversationalPlan,
   POLICY_VERSION,
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
 
           const providerResult = await startStreamingChat(
             row.user_message,
-            row.authorized_context,
+            buildAuthorizedResearchContext(row.authorized_context),
             mediaAttachments,
             request.signal,
           );
@@ -224,23 +225,15 @@ export async function POST(request: Request) {
             if (planError || !createdPlan?.plan_request_id) {
               throw new Error(planError?.message || "Could not create the scientific plan.");
             }
-            const { data: dispatchedRows, error: dispatchError } = await service.rpc("dispatch_ai_plan_service", {
-              plan_request_id: createdPlan.plan_request_id,
-              expected_user_id: userId,
-            });
-            const dispatched = dispatchedRows?.[0];
-            if (dispatchError || !dispatched?.resource_id) {
-              throw new Error(dispatchError?.message || "Could not start the scientific task.");
-            }
-
+            // Planning is not user authorization. Persist a constrained ready
+            // plan; the project owner must approve via approve_ai_plan, which
+            // atomically revalidates permissions, resources and compute quotas.
             controller.enqueue(sse("done", {
               conversation_id: row.conversation_id,
               plan_request_id: createdPlan.plan_request_id,
-              status: "dispatched",
-              resource_type: dispatched.resource_type,
-              resource_id: dispatched.resource_id,
+              status: "awaiting_approval",
               message: plan.summary,
-              requires_confirmation: false,
+              requires_confirmation: true,
             }));
           } else {
             const plan = conversationalPlan(partialVisible);
