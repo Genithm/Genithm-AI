@@ -63,8 +63,10 @@ test("V26 existing chat history uses legacy columns before migration", () => {
   assert.match(thread, /const scienceV22Ready = scienceSchemaReady\(/);
   assert.match(thread, /\(scienceV22Ready\s*\? supabase\.from\("ai_messages"\)/);
   assert.match(thread, /\.select\("id,role,content,message_kind,plan_request_id,attachment_upload_ids,created_at"\)/);
-  assert.match(thread, /"protocol_input_scope" in message \? message\.protocol_input_scope : null/);
-  assert.match(thread, /"research_pipeline_run_id" in message \? message\.research_pipeline_run_id : null/);
+  assert.match(thread, /"protocol_input_scope" in message &&/);
+  assert.match(thread, /typeof message\.protocol_input_scope === "string"/);
+  assert.match(thread, /"research_pipeline_run_id" in message &&/);
+  assert.match(thread, /typeof message\.research_pipeline_run_id === "string"/);
   assert.match(thread, /scienceV22Ready && message\.role === "user"/);
   assert.match(thread, /scienceV22Ready && isUuid\(query\.pipeline_id\)/);
   assert.match(thread, /Chat remains available/);
