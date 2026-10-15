@@ -67,7 +67,9 @@ test("V26 existing chat history uses legacy columns before migration", () => {
   assert.match(thread, /typeof message\.protocol_input_scope === "string"/);
   assert.match(thread, /"research_pipeline_run_id" in message &&/);
   assert.match(thread, /typeof message\.research_pipeline_run_id === "string"/);
-  assert.match(thread, /scienceV22Ready && message\.role === "user"/);
+  // V27 additionally requires fresh workers before offering a new approval.
+  assert.match(thread, /scienceWorkersAvailable && message\.role === "user"/);
+  assert.match(thread, /const scienceWorkersAvailable = scienceV22Ready && await scienceExecutionReady\(\)/);
   assert.match(thread, /scienceV22Ready && isUuid\(query\.pipeline_id\)/);
   assert.match(thread, /Chat remains available/);
 });
