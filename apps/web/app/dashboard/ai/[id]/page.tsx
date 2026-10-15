@@ -259,7 +259,7 @@ export default async function AiConversationPage({
                       </div>
                     </div>
                     <div className={styles.actions}>
-                      {plan.status === "ready" && plan.requires_confirmation ? (
+                      {plan.status === "ready" ? (
                         <form action={approveAiPlan}>
                           <input type="hidden" name="plan_request_id" value={plan.id} />
                           <input type="hidden" name="conversation_id" value={conversation.id} />
