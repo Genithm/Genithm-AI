@@ -9,10 +9,10 @@ import { scienceWorkersReady } from "@/lib/science-worker-readiness";
  * This does not change the independent source-message approval/RLS rules.
  */
 export async function scienceExecutionReady(
-  service: ReturnType<typeof createServiceClient> = createServiceClient(),
+  service?: ReturnType<typeof createServiceClient>,
 ): Promise<boolean> {
   try {
-    const { data, error } = await service.rpc("get_release_readiness");
+    const { data, error } = await (service ?? createServiceClient()).rpc("get_release_readiness");
     return !error && scienceWorkersReady(data);
   } catch {
     return false;
