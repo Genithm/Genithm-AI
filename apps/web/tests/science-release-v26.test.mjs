@@ -54,7 +54,7 @@ test("V26 chat streams normally without V22 but never proposes unauthorized scie
   assert.match(chat, /service\.rpc\("mark_chat_protocol_input_scope"/);
   assert.match(chat, /scienceSchemaUnavailableError\(inputScopeError\)/);
   assert.match(chat, /offerFixedResearch = !inputScopeError/);
-  assert.match(chat, /const fixedProtocol = offerFixedResearch &&/);
+  assert.match(chat, /const fixedProtocol = offerFixedResearch \? requestedFixedProtocol : null/);
   assert.match(chat, /const providerResult = await startStreamingChat\(/);
   assert.doesNotMatch(chat, /if \(inputScopeError\) throw/);
 });

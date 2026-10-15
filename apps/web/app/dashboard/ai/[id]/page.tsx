@@ -11,9 +11,11 @@ import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release"
 import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
+import { ResearchAvailabilityRefresh } from "@/components/research-availability-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
 import { buildConversationDossier } from "@/lib/conversation-research-dossier";
 import { selectEvidenceRuns } from "@/lib/integrated-science-history";
+import { latestRecoverableResearchRequest } from "@/lib/recoverable-research-request";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -114,6 +116,12 @@ export default async function AiConversationPage({
     research_pipeline_run_id: "research_pipeline_run_id" in message &&
       typeof message.research_pipeline_run_id === "string" ? message.research_pipeline_run_id : null,
   })).reverse();
+
+  // When the workers recover, let a researcher manually resubmit an older,
+  // unverified fixed request as a NEW chat message. Never seal a legacy message
+  // after the fact: the original turn may have included unrecorded media.
+  const retryableRequest = scienceWorkersAvailable
+    ? latestRecoverableResearchRequest(chronologicalMessages) : null;
 
   // Science V22: the message-to-run link is persisted by the atomic approval
   // RPC. Reopen/refresh resolves only runs bound to the current conversation,
@@ -338,6 +346,7 @@ export default async function AiConversationPage({
     <main className={styles.shell}>
       <aside className={styles.sidebar}>
         <Link className={styles.back} href="/dashboard/ai">← Chats</Link>
+        <ResearchAvailabilityRefresh watching={scienceV22Ready && !scienceWorkersAvailable} />
         {scienceV22Ready && !scienceWorkersAvailable ? (
           <p role="status" className={styles.muted}>
             Scientific workers are currently offline or not ready. You can read past research and use chat, but new fixed-protocol approvals are paused.
@@ -539,12 +548,22 @@ export default async function AiConversationPage({
 
         <ConversationDossierPanel dossier={dossier} />
 
+        {retryableRequest ? (
+          <p role="status" className={styles.muted}>
+            Research services have recovered. Select the suggested earlier request below
+            to compose a new message; nothing runs until you submit it and explicitly approve the new proposal.
+          </p>
+        ) : null}
+
         <AiChatComposer
           key={`${conversation.id}:${messages?.length ?? 0}`}
           projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
           conversationId={conversation.id}
           defaultProjectId={conversation.project_id}
           placeholder="Ask a follow-up, paste an accession or attach another FASTA file..."
+          suggestions={retryableRequest
+            ? [retryableRequest.content]
+            : []}
         />
       </section>
     </main>

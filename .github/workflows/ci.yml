@@ -200,6 +200,9 @@ jobs:
       - name: Verify V27 worker heartbeat gating and honest offline science consent
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/science-worker-readiness-v27.test.mjs
+      - name: Verify V28 unavailable research no-result, safe manual recovery and refresh
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/offline-science-recovery-v28.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

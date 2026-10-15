@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/ai-database.types";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
+import { fixedResearchProposalReply, offlineResearchReply } from "@/lib/offline-research-response";
 import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
 import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import {
@@ -148,17 +149,38 @@ export async function POST(request: Request) {
             user_message_id: row.user_message_id,
           }));
 
+          // Explicit NCBI execution requests must never be answered by the
+          // conversational model when scientific execution is unavailable.
+          // Persist a truthful availability notice against the saved user
+          // message. No attestation, queue, run, or approval is created.
+          const requestedFixedProtocol = attachmentIds.length === 0 &&
+            mediaAttachments.length === 0
+              ? parseChatResearchProtocol(row.user_message) : null;
+          if (requestedFixedProtocol && !offerFixedResearch) {
+            const reply = offlineResearchReply(requestedFixedProtocol);
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: reply,
+            });
+            if (finishError) throw new Error(finishError.message);
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              status: "research_unavailable",
+              message: reply,
+              requires_confirmation: false,
+            }));
+            return;
+          }
+
           // A fixed protocol with an explicit accession can be proposed
           // deterministically. No provider tool-call, cost-bearing science,
           // queue or worker dispatch occurs until the human clicks Approve.
           // Attachments take the normal model pathway: the fixed NCBI
           // protocol must never silently ignore user-supplied files.
-          const fixedProtocol = offerFixedResearch &&
-            attachmentIds.length === 0 && mediaAttachments.length === 0
-            ? parseChatResearchProtocol(row.user_message) : null;
+          const fixedProtocol = offerFixedResearch ? requestedFixedProtocol : null;
           if (fixedProtocol) {
-            const reply = "I can run " + fixedProtocol.title + " for " + fixedProtocol.accession +
-              ". This approved workflow retrieves the NCBI reference, validates the FASTA, and performs the fixed scientific calculation. Please review and approve the protocol below your message. No analysis has started.";
+            const reply = fixedResearchProposalReply(fixedProtocol);
             const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
               user_message_id: row.user_message_id,
               expected_user_id: userId,
