@@ -5,7 +5,7 @@ import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
-import { parseChatResearchProtocol, pipelineProgress } from "@/lib/chat-research-protocol";
+import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { isUuid } from "@/lib/research-archive";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
@@ -100,11 +100,11 @@ export default async function AiConversationPage({
     .filter((runId): runId is string => Boolean(runId)))].slice(-100);
   const { data: linkedPipelines } = linkedPipelineIds.length
     ? await supabase.from("research_pipeline_runs")
-        .select("id,status,template,requested_accession,project_id,requested_by")
+        .select("id,status,template,requested_accession,project_id,requested_by,retrieval_id,sequence_upload_id,scientific_job_id,sequence_sha256")
         .eq("project_id", conversation.project_id)
         .eq("requested_by", claimsData.claims.sub)
         .in("id", linkedPipelineIds)
-    : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string }> };
+    : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string; retrieval_id: string; sequence_upload_id: string | null; scientific_job_id: string | null; sequence_sha256: string | null }> };
   const linkedPipelineById = new Map((linkedPipelines ?? []).map((run) => [run.id, run]));
   // The visible 250-message window is NOT the full research archive.
   // A link to an older run is accepted only after a separate owner-scoped
@@ -146,26 +146,9 @@ export default async function AiConversationPage({
         .eq("id", pipelineId).eq("project_id", conversation.project_id)
         .eq("requested_by", claimsData.claims.sub).maybeSingle()
     : { data: null };
-  const [{ data: pipelineRetrieval }, { data: pipelineSequence }, { data: pipelineScience }] = await Promise.all([
-    pipeline?.retrieval_id
-      ? supabase.from("sequence_retrievals").select("id,status,resolved_accession")
-          .eq("id", pipeline.retrieval_id).eq("project_id", conversation.project_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    pipeline?.sequence_upload_id
-      ? supabase.from("sequence_uploads").select("id,status")
-          .eq("id", pipeline.sequence_upload_id).eq("project_id", conversation.project_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    pipeline?.scientific_job_id
-      ? supabase.from("scientific_jobs").select("id,status,job_type,result_sha256,result_object_path,result_summary")
-          .eq("id", pipeline.scientific_job_id).eq("project_id", conversation.project_id)
-          .eq("requested_by", claimsData.claims.sub).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
   const protocolTemplate = pipeline?.template === "ncbi_nucleotide_orf_v1" || pipeline?.template === "ncbi_protein_profile_v1"
     ? pipeline.template : null;
-  const pipelineSteps = protocolTemplate
-    ? pipelineProgress(protocolTemplate, pipeline?.status ?? "", pipelineRetrieval?.status ?? null, pipelineSequence?.status ?? null, pipelineScience?.status ?? null)
-    : [];
+
 
   const attachmentIds = [...new Set([...(plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []), ...(messages ?? []).flatMap((message) => message.attachment_upload_ids ?? [])])];
   const { data: attachmentRows } = attachmentIds.length
@@ -253,6 +236,56 @@ export default async function AiConversationPage({
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
   );
 
+  // V25: recent chat + V24 deep-history locators must share V23 provenance.
+  // The explicit old run is included only AFTER owner/message/project validation
+  // has succeeded; the archive URL itself grants no access to evidence.
+  const evidencePipelines = [
+    ...(linkedPipelines ?? []),
+    ...(pipeline && !linkedPipelineById.has(pipeline.id) ? [pipeline] : []),
+  ];
+  const fixedRetrievalIds = [...new Set(evidencePipelines.map((run) => run.retrieval_id))];
+  const fixedSequenceIds = [...new Set(evidencePipelines
+    .map((run) => run.sequence_upload_id).filter((id): id is string => Boolean(id)))];
+  const fixedScientificIds = [...new Set(evidencePipelines
+    .map((run) => run.scientific_job_id).filter((id): id is string => Boolean(id)))];
+
+  const [
+    { data: fixedRetrievals, error: fixedRetrievalError },
+    { data: fixedSequences, error: fixedSequenceError },
+    { data: fixedScientificJobs, error: fixedScienceError },
+    { data: fixedJobInputs, error: fixedInputError },
+  ] = await Promise.all([
+    fixedRetrievalIds.length
+      ? supabase.from("sequence_retrievals")
+          .select("id,status,resolved_accession,source_database,requested_accession,sequence_upload_id")
+          .eq("project_id", conversation.project_id)
+          .eq("requested_by", claimsData.claims.sub)
+          .in("id", fixedRetrievalIds)
+      : Promise.resolve({ data: [], error: null }),
+    fixedSequenceIds.length
+      ? supabase.from("sequence_uploads")
+          .select("id,status,sha256")
+          .eq("project_id", conversation.project_id)
+          .eq("created_by", claimsData.claims.sub)
+          .in("id", fixedSequenceIds)
+      : Promise.resolve({ data: [], error: null }),
+    fixedScientificIds.length
+      ? supabase.from("scientific_jobs")
+          .select("id,status,job_type,parameters,result_sha256,result_object_path,result_summary")
+          .eq("project_id", conversation.project_id)
+          .eq("requested_by", claimsData.claims.sub)
+          .in("id", fixedScientificIds)
+      : Promise.resolve({ data: [], error: null }),
+    fixedScientificIds.length
+      ? supabase.from("scientific_job_inputs")
+          .select("job_id,sequence_upload_id,input_sha256,input_position")
+          .eq("project_id", conversation.project_id)
+          .in("job_id", fixedScientificIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const fixedEvidenceQueryError = Boolean(fixedRetrievalError || fixedSequenceError ||
+    fixedScienceError || fixedInputError);
+
   const dossier = buildConversationDossier({
     conversationId: conversation.id,
     plans: activityPlans,
@@ -262,7 +295,16 @@ export default async function AiConversationPage({
     annotations: annotations.data ?? [],
     workflows: workflows.data ?? [],
     workflowChildJobs: workflowChildJobs ?? [],
+    // A database query error cannot be interpreted as verified completion.
+    fixedPipelines: fixedEvidenceQueryError ? [] : evidencePipelines,
+    fixedRetrievals: fixedRetrievals ?? [],
+    fixedSequences: fixedSequences ?? [],
+    fixedScientificJobs: fixedScientificJobs ?? [],
+    fixedJobInputs: fixedJobInputs ?? [],
   });
+  const selectedPipelineEvidence = dossier.findings.find((finding) =>
+    finding.source === "fixed_pipeline" && finding.pipeline_id === pipelineId
+  ) ?? null;
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
@@ -419,14 +461,15 @@ export default async function AiConversationPage({
                 </div>
               );
             })}
-            {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
+            {!activityPlans.length && !evidencePipelines.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </section>
 
         {pipeline && protocolTemplate ? (
           <section className={styles.protocolRun} aria-label="Active chat research protocol">
+            {/* An archive deep link is resolved against the persisted source message, not an arbitrary run ID. */}
             <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
-            <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Pipeline: <strong>{readable(pipeline.status)}</strong></p>
+            <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Engine status: <strong>{readable(pipeline.status)}</strong> · Evidence status: <strong>{readable(selectedPipelineEvidence?.state)}</strong></p>
             {selectedOlderResearch && historicalMessageLink ? (
               <div className={styles.recoveredRequest}>
                 <strong>Recovered original approved request</strong>
@@ -438,24 +481,28 @@ export default async function AiConversationPage({
               </div>
             ) : null}
             <ol className={styles.protocolSteps}>
-              {pipelineSteps.map((step) => (
-                <li key={step.name}><strong>{step.name}</strong><span>{readable(step.status)}</span></li>
+              {(selectedPipelineEvidence?.steps ?? []).map((step) => (
+                <li key={step.label}><strong>{step.label}</strong><span>{readable(step.state)}</span></li>
               ))}
             </ol>
-            {pipeline.status === "completed" && pipelineScience?.status === "completed" &&
-              /^[a-f0-9]{64}$/i.test(pipelineScience.result_sha256 ?? "") &&
-              pipelineScience.result_object_path ? (
-                <a className={styles.download} href={`/dashboard/scientific-jobs/${pipelineScience.id}/download`}>Download integrity-checked scientific result</a>
-              ) : null}
-            {pipeline.status === "completed" && pipelineScience?.status === "completed" ? (
+            {selectedPipelineEvidence?.state === "completed" && selectedPipelineEvidence.verified_download ? (
+              <a className={styles.download} href={selectedPipelineEvidence.verified_download}>Download integrity-checked scientific result</a>
+            ) : null}
+            {selectedPipelineEvidence?.state === "completed" && selectedPipelineEvidence.metrics.length ? (
               <div className={styles.findings} aria-label="Verified in-chat protocol findings">
-                {recordedEvidenceMetrics("scientific_job", pipelineScience).map((metric) => (
+                {selectedPipelineEvidence.metrics.map((metric) => (
                   <div className={styles.finding} key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>
                 ))}
               </div>
             ) : null}
             {pipeline.status === "error" ? <p className="error">Research stopped safely at {readable(pipeline.failure_stage)}: {readable(pipeline.failure_code)}</p> : null}
-            {pipeline.status === "completed" ? <p>Recorded pipeline completed. Scientific results are preserved by the verified research engine.</p> : null}
+            {fixedEvidenceQueryError ? <p role="alert" className="error">Research evidence could not be loaded. Refresh before interpreting or downloading this run.</p> : null}
+            {pipeline.status === "completed" && selectedPipelineEvidence?.state !== "completed" ? (
+              <p className={styles.muted}>The engine recorded completion, but the source-to-result evidence could not be fully verified. No scientific measurements or download are presented as verified.</p>
+            ) : null}
+            {selectedPipelineEvidence?.state === "completed" ? (
+              <p>The recorded NCBI source, validated FASTA, scientific input, algorithm parameters and result fingerprint agree. Artifact bytes are checked when downloaded.</p>
+            ) : null}
           </section>
         ) : null}
 
