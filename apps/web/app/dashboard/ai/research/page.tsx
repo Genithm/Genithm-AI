@@ -176,7 +176,7 @@ export default async function ResearchArchivePage({
                   <div><dt>Conversation</dt><dd>{item.conversationTitle}</dd></div>
                   <div><dt>Requested (UTC)</dt><dd>{new Date(item.createdAt).toISOString().replace("T", " ").replace("Z", " UTC")}</dd></div>
                 </dl>
-                <Link className={styles.open} href={`/dashboard/ai/${item.conversationId}?pipeline_id=${item.pipelineId}`}>
+                <Link className={styles.open} href={`/dashboard/ai/${item.conversationId}?pipeline_id=${item.pipelineId}&source_message_id=${item.id}`}>
                   Reopen original research →
                 </Link>
               </article>
