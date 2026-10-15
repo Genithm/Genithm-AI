@@ -232,7 +232,7 @@ export default async function AiConversationPage({
   const [{ data: fixedRetrievals }, { data: fixedSequences }, { data: fixedScientificJobs }, { data: fixedJobInputs }] = await Promise.all([
     fixedRetrievalIds.length
       ? supabase.from("sequence_retrievals")
-          .select("id,status,resolved_accession,source_database,sequence_upload_id")
+          .select("id,status,resolved_accession,source_database,requested_accession,sequence_upload_id")
           .eq("project_id", conversation.project_id)
           .eq("requested_by", claimsData.claims.sub)
           .in("id", fixedRetrievalIds)
