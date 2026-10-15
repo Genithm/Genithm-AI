@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
 import { parseChatResearchProtocol, pipelineProgress } from "@/lib/chat-research-protocol";
+import { isUuid } from "@/lib/research-archive";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
@@ -49,7 +50,7 @@ export default async function AiConversationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; pipeline_id?: string }>;
+  searchParams: Promise<{ error?: string; pipeline_id?: string; source_message_id?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -108,23 +109,37 @@ export default async function AiConversationPage({
   // The visible 250-message window is NOT the full research archive.
   // A link to an older run is accepted only after a separate owner-scoped
   // lookup proves that it was approved by a user message in this exact chat.
-  const candidatePipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "")
-    ? query.pipeline_id : null;
-  const { data: historicalMessageLink } = candidatePipelineId && !linkedPipelineById.has(candidatePipelineId)
-    ? await supabase.from("ai_messages")
-        .select("id,content,created_at")
-        .eq("conversation_id", conversation.id)
-        .eq("conversation_owner_id", claimsData.claims.sub)
-        .eq("role", "user")
-        .eq("research_pipeline_run_id", candidatePipelineId)
-        .maybeSingle()
+  const candidatePipelineId = isUuid(query.pipeline_id) ? query.pipeline_id : null;
+  const exactSourceRequested = query.source_message_id !== undefined;
+  const sourceMessageId = isUuid(query.source_message_id) ? query.source_message_id : null;
+  // The same scientific run can be reused by several consented messages.
+  // A supplied source_message_id must match the exact user message AND run;
+  // older legacy run-only URLs still resolve one owned message deterministically.
+  const needsMessageVerification = Boolean(candidatePipelineId &&
+    (!linkedPipelineById.has(candidatePipelineId) || exactSourceRequested));
+  const sourceLookup = supabase.from("ai_messages")
+    .select("id,content,created_at")
+    .eq("conversation_id", conversation.id)
+    .eq("conversation_owner_id", claimsData.claims.sub)
+    .eq("role", "user")
+    .eq("research_pipeline_run_id", candidatePipelineId ?? "");
+  const { data: historicalMessageLink } = needsMessageVerification
+    ? await (sourceMessageId
+        ? sourceLookup.eq("id", sourceMessageId).maybeSingle()
+        : sourceLookup.order("created_at", { ascending: false })
+            .order("id", { ascending: false }).limit(1).maybeSingle())
     : { data: null };
-  const requestedPipelineId = candidatePipelineId &&
+  const exactSourceAuthorized = !exactSourceRequested ||
+    Boolean(sourceMessageId && historicalMessageLink?.id === sourceMessageId);
+  const requestedPipelineId = candidatePipelineId && exactSourceAuthorized &&
     (linkedPipelineById.has(candidatePipelineId) || historicalMessageLink?.id)
     ? candidatePipelineId : null;
-  const pipelineId = requestedPipelineId ?? [...linkedPipelineIds].reverse()
-    .find((id) => linkedPipelineById.has(id)) ?? null;
-  const selectedOlderResearch = Boolean(pipelineId && historicalMessageLink?.id);
+  // A supplied but invalid/foreign locator must not silently fall back to an
+  // unrelated run. Only a URL without a pipeline locator chooses the newest.
+  const pipelineId = query.pipeline_id !== undefined ? requestedPipelineId :
+    [...linkedPipelineIds].reverse().find((id) => linkedPipelineById.has(id)) ?? null;
+  const selectedOlderResearch = Boolean(pipelineId && historicalMessageLink?.id &&
+    !chronologicalMessages.some((message) => message.id === historicalMessageLink.id));
   const { data: pipeline } = pipelineId
     ? await supabase.from("research_pipeline_runs")
         .select("id,project_id,requested_by,template,requested_accession,retrieval_id,sequence_upload_id,scientific_job_id,status,failure_stage,failure_code,sequence_sha256")
