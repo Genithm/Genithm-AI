@@ -239,9 +239,12 @@ export default async function AiConversationPage({
   // V25: recent chat + V24 deep-history locators must share V23 provenance.
   // The explicit old run is included only AFTER owner/message/project validation
   // has succeeded; the archive URL itself grants no access to evidence.
+  // Put the verified historical selection first. V23 deliberately caps its
+  // dossier at 100 runs; appending an older selection after 100 recent runs
+  // would silently exclude the very result the researcher reopened.
   const evidencePipelines = [
-    ...(linkedPipelines ?? []),
     ...(pipeline && !linkedPipelineById.has(pipeline.id) ? [pipeline] : []),
+    ...(linkedPipelines ?? []),
   ];
   const fixedRetrievalIds = [...new Set(evidencePipelines.map((run) => run.retrieval_id))];
   const fixedSequenceIds = [...new Set(evidencePipelines
