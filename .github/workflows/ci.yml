@@ -183,6 +183,9 @@ jobs:
       - name: Verify conversation science dossier evidence and workflow lineage V19
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/conversation-research-dossier-v19.test.mjs
+      - name: Verify V23 fixed NCBI pipeline cumulative dossier integrity and provenance
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/conversation-fixed-pipeline-dossier-v23.test.mjs
       - name: Verify chat-fixed research protocol owner approval and evidence V20
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-protocol-v20.test.mjs
