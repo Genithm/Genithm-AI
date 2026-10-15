@@ -13,7 +13,10 @@ const types = read("../lib/ai-database.types.ts");
 
 test("V22 migration seals fixed protocol consent to the original user message", () => {
   assert.match(migration, /add column protocol_input_scope text/);
-  assert.match(migration, /add column research_pipeline_run_id uuid references public\.research_pipeline_runs/);
+  assert.match(migration, /add column research_pipeline_run_id uuid/);
+  assert.match(migration, /add constraint ai_messages_scoped_research_run_fk/);
+  assert.match(migration, /references public\.research_pipeline_runs\(id,project_id,organization_id,requested_by\)/);
+  assert.match(migration, /add constraint ai_messages_authorized_research_link_ck/);
   assert.match(migration, /source\.protocol_input_scope is distinct from 'text_only'/);
   assert.match(migration, /cardinality\(source\.attachment_upload_ids\)<>0/);
   assert.match(migration, /source\.plan_request_id is not null/);
