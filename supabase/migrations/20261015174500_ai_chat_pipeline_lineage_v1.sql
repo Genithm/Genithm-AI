@@ -84,12 +84,14 @@ begin
     or position(chr(13) in input_text)>0
     or position(chr(92)||'n' in input_text)>0
     or position(chr(92)||'r' in input_text)>0 then return; end if;
+  -- Match the same action-word boundary as the chat UI: digits and
+  -- underscores are part of an identifier, not a command separator.
   if not (
-    input_text ~* ('^(please[[:space:]]+|kindly[[:space:]]+)?'||direct_action||'([^[:alpha:]]|$)')
-    or input_text ~* ('^(can|could|would|will)[[:space:]]+you[[:space:]]+(please[[:space:]]+)?'||direct_action||'([^[:alpha:]]|$)')
-    or input_text ~* ('^i[[:space:]]+(want|would[[:space:]]+like)[[:space:]]+(you[[:space:]]+)?to[[:space:]]+'||direct_action||'([^[:alpha:]]|$)')
+    input_text ~* ('^(please[[:space:]]+|kindly[[:space:]]+)?'||direct_action||'([^[:alnum:]_]|$)')
+    or input_text ~* ('^(can|could|would|will)[[:space:]]+you[[:space:]]+(please[[:space:]]+)?'||direct_action||'([^[:alnum:]_]|$)')
+    or input_text ~* ('^i[[:space:]]+(want|would[[:space:]]+like)[[:space:]]+(you[[:space:]]+)?to[[:space:]]+'||direct_action||'([^[:alnum:]_]|$)')
   ) then return; end if;
-  if input_text ~* '(don''t|do not|never|without|avoid|instead of|rather than|ignore[[:space:]]+(previous|prior|all)|python|javascript|script|shell|terminal|execute|command)' then
+  if input_text ~* '(don''t|do not|never|without|avoid|instead of|rather than|ignore[[:space:]]+(previous|prior|all)|system[[:space:]]+prompt|developer[[:space:]]+instructions?|python|javascript|script|shell|terminal|execute|command)' then
     return;
   end if;
   select pg_catalog.array_agg(parts[1]) into refs
@@ -103,7 +105,7 @@ begin
   if upper(input_text) !~ ('(^|[^A-Z0-9_])'||replace(acc,'.','\.')||'($|[^A-Z0-9_])')
     or upper(input_text) ~ (replace(acc,'.','\.')||'\.[0-9]') then return; end if;
   if acc ~ '^(NM|NR|XM|XR|NC|NG|NT|NW)_'
-    and input_text ~* '(^|[^[:alpha:]])(orf|orfs|open reading frames?)([^[:alpha:]]|$)'
+    and input_text ~* '(^|[^[:alnum:]_])(orf|orfs|open reading frames?)([^[:alnum:]_]|$)'
     and input_text !~* '(protein properties|protein profiling)' then
     template := 'ncbi_nucleotide_orf_v1'; accession := acc; return next; return;
   end if;
