@@ -23,22 +23,36 @@ V26 closes this release-sequencing gap. It is a **source-code change**, not an a
 - `apps/web/tests/science-release-v26.test.mjs`: server flag defaults, missing RPC-code classification, plain-chat fallback, old message queries, archive unavailability, and refusal of a forged approval.
 - `supabase/tests/v26_science_release_readiness.sql`: read-only checks for new message columns, RPCs, forced RLS, scope FK and consent constraint, plus the intended `authenticated`/service-role execute grants.
 - `.github/workflows/supabase-local-ci.yml`: after migration replay, asserts `SCIENCE_V26_READY` under disposable local Postgres.
-- `.github/workflows/science-staging-readiness.yml`: a **manual** workflow with a protected `science-staging` environment. It refuses to run outside the checked-in `main` branch, requires a different staging/production project reference, requires the direct staging DB hostname to match that exact staging ref, and **only** runs read-only SQL.
+- `scripts/science_staging_readiness.py`: a **manual local operator command**, not a GitHub workflow. The repository security policy prohibits secrets in CI workflows. This script requires separate staging and production project refs and a direct TLS-only staging DB URL, refuses production and malformed IDs, and runs only read-only SQL through `psql`. `scripts/tests/test_science_staging_readiness.py` checks those target protections in secretless CI.
 
 These checks do not claim to validate production scientific worker throughput or actual downloaded bytes.
 
-## Staging configuration (requires repository administrator)
+## Staging configuration (requires a staging project and authorized operator)
 
-1. Provision an **isolated, separate** staging Supabase project. Do not point a test runner or secret at the existing Genithm production project.
-2. Create a protected GitHub Actions environment named `science-staging` with appropriate reviewer permissions and environment secret `GENITHM_SCIENCE_STAGING_DATABASE_URL`, set to the **direct PostgreSQL connection URL** of this separate project. Never commit or share the password.
-3. Set GitHub Actions environment/repository variable `GENITHM_PRODUCTION_SUPABASE_REF` to the live project's **public project reference** (not an access key). The workflow **fails closed** if this value is absent or if it matches the chosen staging ref.
-4. Review and apply V22's migration to the isolated staging database using the normal migration history mechanism. Do not use this read-only workflow to apply migrations.
-5. Run the manual **Science staging readiness** workflow against the staging ref. A clean staging schema must return `SCIENCE_V26_READY`.
-6. Configure the staging **web server environment only** with `GENITHM_SCIENCE_V22_ENABLED=true`. Do not add this variable as `NEXT_PUBLIC_*`; it must not be required in client bundles.
-7. Complete two-user end-to-end staging science execution from explicit approval through real NCBI retrieval, FASTA validation, scientific worker, checksum-backed authenticated download, and an archived conversation older than 250 messages. Use both supported fixed NCBI workflows.
-8. Optionally rerun the manual workflow with a *completed staging* `approved_message_id` and `approved_run_id`. The V25 read-only audit must report a consistent source-to-result chain. It does not check artifact bytes.
-9. After reviewed staging acceptance, schedule a **database-first** production migration. Only turn on the production server flag after the migration, grants, schema cache, worker readiness and download checks have been explicitly verified.
-10. **Rollback:** Disable `GENITHM_SCIENCE_V22_ENABLED` on the web server to hide consent, the archive and new-column projections while leaving normal AI chat functioning. This is safer than rolling back a migration which has already stored research lineage.
+1. Provision an **isolated, separate** staging Supabase project. Never point the staging audit at the existing Genithm production database.
+2. Run the script from an approved operator machine with Python 3 and `psql`; do not paste secrets into ChatGPT, commit them, or expose them as GitHub workflow variables.
+3. Set `GENITHM_STAGING_SUPABASE_REF` to the separate staging project reference, `GENITHM_PRODUCTION_SUPABASE_REF` to the public live project reference, and `GENITHM_SCIENCE_STAGING_DATABASE_URL` to a private direct staging connection URI ending in `/postgres?sslmode=require`. The script refuses missing or identical references, non-direct hosts, insecure TLS settings, and malformed IDs.
+4. Review and apply the V22 migration in the isolated staging database through normal migration history mechanisms. The audit script never applies migrations.
+5. From the repository root, with only those environment variables in the operator's process:
+
+```bash
+python3 scripts/science_staging_readiness.py
+```
+
+   It must report `SCIENCE_V26_READY` before enabling the staging science feature.
+6. Configure only the **staging web server** with `GENITHM_SCIENCE_V22_ENABLED=true`. Never use a `NEXT_PUBLIC_*` prefix.
+7. Complete the two-user end-to-end staging workflow, from explicit approval through real NCBI retrieval, FASTA validation, scientific worker, checksum-backed authenticated download, and a 250+-message archived conversation. Exercise both fixed NCBI workflows.
+8. Optionally rerun the audit for a completed staging run:
+
+```bash
+python3 scripts/science_staging_readiness.py \
+  --message-id "<STAGING_USER_MESSAGE_UUID>" \
+  --run-id "<STAGING_PIPELINE_UUID>"
+```
+
+   This checks the recorded lineage but not stored artifact bytes.
+9. With reviewed staging acceptance, separately approve and schedule a **database-first** production migration. Enable the production server flag only after verifying grants, live schema, workers, and download checks.
+10. **Rollback:** Disable `GENITHM_SCIENCE_V22_ENABLED` on the production web server. Existing chat remains available even if the V22 migration has been applied.
 
 ## Production acceptance checklist
 
