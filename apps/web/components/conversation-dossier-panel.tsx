@@ -1,10 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
+import {
+  createScienceEvidenceBundle,
+  verifyScienceEvidenceBundle,
+} from "@/lib/science-evidence-bundle";
+
 import type { ConversationDossier } from "@/lib/conversation-research-dossier";
 import { conversationDossierMarkdown } from "@/lib/conversation-research-dossier";
 import styles from "./conversation-dossier-panel.module.css";
 
 export function ConversationDossierPanel({ dossier }: { dossier: ConversationDossier }) {
+  const [exporting, setExporting] = useState(false);
+  const [bundleResult, setBundleResult] = useState<string | null>(null);
   if (dossier.status === "empty") return null;
 
   function download(contents: string, mime: string, filename: string) {
@@ -14,6 +23,31 @@ export function ConversationDossierPanel({ dossier }: { dossier: ConversationDos
     link.download = filename;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function exportEvidenceBundle() {
+    if (exporting) return;
+    setExporting(true);
+    setBundleResult(null);
+    try {
+      const bundle = await createScienceEvidenceBundle(dossier);
+      const verified = await verifyScienceEvidenceBundle(bundle);
+      if (!verified.valid) throw new Error("Evidence bundle failed local metadata verification");
+      download(
+        JSON.stringify(bundle, null, 2),
+        "application/json",
+        `genithm-evidence-${dossier.conversation_id}.json`,
+      );
+      setBundleResult(
+        "Evidence bundle exported with a SHA-256 metadata fingerprint. Preserve the separately recorded digest " +
+        bundle.integrity.payload_sha256 +
+        ". The bundle does not include or verify scientific artifact bytes.",
+      );
+    } catch {
+      setBundleResult("The evidence package could not be created or verified. No bundle was downloaded.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -26,9 +60,18 @@ export function ConversationDossierPanel({ dossier }: { dossier: ConversationDos
         </div>
         <div className={styles.actions}>
           <button type="button" onClick={() => download(JSON.stringify(dossier, null, 2), "application/json", "genithm-research-dossier.json")}>Export JSON</button>
+          <button type="button" disabled={exporting} onClick={() => void exportEvidenceBundle()}>
+            {exporting ? "Preparing evidence…" : "Export SHA-256 evidence bundle"}
+          </button>
           <button type="button" onClick={() => download(conversationDossierMarkdown(dossier), "text/markdown", "genithm-research-dossier.md")}>Export report</button>
         </div>
       </header>
+      {bundleResult ? <p className={styles.bundleNote} role="status">{bundleResult}</p> : null}
+      <p className={styles.bundleNote}>
+        Portable evidence bundles contain recorded metadata and output fingerprints only.
+        Compare the SHA-256 digest against a separately saved copy; downloading this bundle does not verify artifact bytes,
+        establish source authenticity, or experimentally validate findings.
+      </p>
       <p className={styles.summary} role="status">
         {dossier.counts.completed} completed · {dossier.counts.running} running · {dossier.counts.awaiting_approval} need approval
         {dossier.counts.inconclusive ? " · " + dossier.counts.inconclusive + " inconclusive" : ""}

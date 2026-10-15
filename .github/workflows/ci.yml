@@ -206,6 +206,9 @@ jobs:
       - name: Verify V29 admin science operations, least privilege and sanitized runtime telemetry
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/science-operations-v29.test.mjs
+      - name: Verify V30 exportable evidence SHA-256 bundles and offline corruption checks
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/science-evidence-bundle-v30.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs
