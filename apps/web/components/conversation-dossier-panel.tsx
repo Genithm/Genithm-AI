@@ -36,7 +36,7 @@ export function ConversationDossierPanel({ dossier }: { dossier: ConversationDos
       </p>
       <div className={styles.findings}>
         {dossier.findings.map((finding) => (
-          <article className={styles.finding} key={finding.plan_id}>
+          <article className={styles.finding} key={finding.plan_id ?? finding.pipeline_id}>
             <div className={styles.row}>
               <strong>{finding.action}</strong>
               <span className={styles.status}>{finding.state.replaceAll("_", " ")}</span>
