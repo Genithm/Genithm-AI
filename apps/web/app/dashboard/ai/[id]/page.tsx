@@ -15,6 +15,7 @@ import { ResearchAvailabilityRefresh } from "@/components/research-availability-
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
 import { buildConversationDossier } from "@/lib/conversation-research-dossier";
 import { selectEvidenceRuns } from "@/lib/integrated-science-history";
+import { latestRecoverableResearchRequest } from "@/lib/recoverable-research-request";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -120,14 +121,7 @@ export default async function AiConversationPage({
   // unverified fixed request as a NEW chat message. Never seal a legacy message
   // after the fact: the original turn may have included unrecorded media.
   const retryableRequest = scienceWorkersAvailable
-    ? [...chronologicalMessages].reverse().find((message) =>
-        message.role === "user" &&
-        message.protocol_input_scope === null &&
-        !message.research_pipeline_run_id &&
-        (message.attachment_upload_ids?.length ?? 0) === 0 &&
-        !message.plan_request_id &&
-        parseChatResearchProtocol(message.content) !== null
-      ) : null;
+    ? latestRecoverableResearchRequest(chronologicalMessages) : null;
 
   // Science V22: the message-to-run link is persisted by the atomic approval
   // RPC. Reopen/refresh resolves only runs bound to the current conversation,
