@@ -46,6 +46,20 @@ test("planner adds bounded project-derived preflight and retains multi-turn hist
   assert.match(context.capability_preflight.basis, /independently revalidate/);
 });
 
+test("database-computed capability flags take precedence over weaker fallback hints", () => {
+  const canonical = {
+    sequences: [{ id: id1, sequence_insights_ready: true, blastn_ready: false }],
+    completed_msa_jobs: [],
+    supported_tasks: [{ task: "sequence_insights", need: "ready DNA" }],
+  };
+  const context = buildAuthorizedResearchContext({
+    capability_preflight: canonical,
+    sequences: [{ id: id1, sequence_type: "dna", sha256: hash, residue_count: 100 }],
+  });
+  assert.strictEqual(context.capability_preflight, canonical);
+  assert.equal(context.capability_preflight.sequences[0].blastn_ready, false);
+});
+
 test("missing or malformed scoped context is never replaced with invented resource IDs", () => {
   assert.throws(() => buildAuthorizedResearchContext(null), /Authorized research context/);
   const ctx = buildAuthorizedResearchContext({ sequences: [{ id: id1, sequence_type: "protein", sha256: "", residue_count: 10 }] });
@@ -105,6 +119,7 @@ test("science requests cannot silently dispatch before explicit in-chat approval
   assert.match(systemPrompt, /conversation_history/);
   assert.match(systemPrompt, /must approve it before authoritative execution/);
   assert.match(conversation, /Approve this analysis/);
+  assert.match(conversation, /plan.status === "ready"/);
   assert.match(actions, /supabase.rpc\("approve_ai_plan"/);
 });
 
