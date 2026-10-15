@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
+import { scienceExecutionReady } from "@/lib/science-execution-readiness";
+import { scienceV22Configured } from "@/lib/science-release";
 import styles from "./chat.module.css";
 
 const starterPrompts = [
@@ -17,6 +19,11 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/login");
+
+  // User-facing availability only. Detailed worker/queue operations telemetry
+  // is reserved for the independently authorized platform admin console.
+  const researchConfigured = scienceV22Configured();
+  const researchAvailable = researchConfigured && await scienceExecutionReady();
 
   const [{ data: projects }, { data: conversations }] = await Promise.all([
     supabase.from("projects").select("id,name,status,created_at").eq("status", "active").order("created_at", { ascending: false }).limit(100),
@@ -70,6 +77,13 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
         </div>
 
         {query.error ? <div className={"error " + styles.feedback}>{query.error}</div> : null}
+        {researchConfigured && !researchAvailable ? (
+          <p role="status" className={styles.feedback}>
+            Fixed NCBI research is temporarily unavailable while the scientific services recover.
+            Your ordinary conversations and previously saved research remain accessible.
+            Direct fixed-protocol requests will be saved without starting an analysis.
+          </p>
+        ) : null}
 
         {activeProjects.length ? (
           <AiChatComposer
