@@ -119,29 +119,29 @@ export async function approveChatResearchProtocol(formData: FormData) {
   }
 
   const { data: source } = await supabase.from("ai_messages")
-    .select("id,role,content,conversation_id,conversation_owner_id,attachment_upload_ids")
+    .select("id,role,content,conversation_id,conversation_owner_id,attachment_upload_ids,protocol_input_scope,research_pipeline_run_id")
     .eq("id", messageId).eq("conversation_id", conversationId)
     .eq("conversation_owner_id", userId).eq("role", "user").maybeSingle();
   // Never dispatch a reference-only NCBI protocol for an original message
   // carrying user sequence files. Consent must refer to the exact same inputs.
-  const protocol = source && Array.isArray(source.attachment_upload_ids) &&
-    source.attachment_upload_ids.length === 0
+  const protocol = source && source.protocol_input_scope === "text_only" &&
+    source.research_pipeline_run_id === null &&
+    Array.isArray(source.attachment_upload_ids) && source.attachment_upload_ids.length === 0
     ? parseChatResearchProtocol(source.content) : null;
   if (!protocol) {
     redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("No eligible fixed research protocol was found in the original chat message.")}`);
   }
 
-  const { data: runId, error } = protocol.template === "ncbi_nucleotide_orf_v1"
-    ? await supabase.rpc("request_research_nucleotide_pipeline", {
-        project_id: conversation.project_id, accession: protocol.accession,
-      })
-    : await supabase.rpc("request_research_protein_pipeline", {
-        project_id: conversation.project_id, accession: protocol.accession,
-      });
+  // Atomic database operation: re-parse the stored message and bind the
+  // authoritative pipeline run to that message under the current user session.
+  // Browser supplies only the message locator, never accession or template.
+  const { data: runId, error } = await supabase.rpc("approve_chat_research_pipeline", {
+    message_id: messageId,
+  });
 
   if (error || !runId || !uuid.test(runId)) {
     redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent(
-      "Research could not start. The authorized pipeline may not be installed, your project access may have changed, or capacity limits may have been reached.",
+      "Research could not start or be linked to this message. The V22 database migration may not be installed, project access may have changed, or capacity limits may have been reached.",
     )}`);
   }
 
