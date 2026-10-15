@@ -105,10 +105,26 @@ export default async function AiConversationPage({
         .in("id", linkedPipelineIds)
     : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string }> };
   const linkedPipelineById = new Map((linkedPipelines ?? []).map((run) => [run.id, run]));
-  const requestedPipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "") &&
-    linkedPipelineById.has(query.pipeline_id ?? "") ? query.pipeline_id : null;
+  // The visible 250-message window is NOT the full research archive.
+  // A link to an older run is accepted only after a separate owner-scoped
+  // lookup proves that it was approved by a user message in this exact chat.
+  const candidatePipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "")
+    ? query.pipeline_id : null;
+  const { data: historicalMessageLink } = candidatePipelineId && !linkedPipelineById.has(candidatePipelineId)
+    ? await supabase.from("ai_messages")
+        .select("id")
+        .eq("conversation_id", conversation.id)
+        .eq("conversation_owner_id", claimsData.claims.sub)
+        .eq("role", "user")
+        .eq("research_pipeline_run_id", candidatePipelineId)
+        .maybeSingle()
+    : { data: null };
+  const requestedPipelineId = candidatePipelineId &&
+    (linkedPipelineById.has(candidatePipelineId) || historicalMessageLink?.id)
+    ? candidatePipelineId : null;
   const pipelineId = requestedPipelineId ?? [...linkedPipelineIds].reverse()
     .find((id) => linkedPipelineById.has(id)) ?? null;
+  const selectedOlderResearch = Boolean(pipelineId && historicalMessageLink?.id);
   const { data: pipeline } = pipelineId
     ? await supabase.from("research_pipeline_runs")
         .select("id,project_id,requested_by,template,requested_accession,retrieval_id,sequence_upload_id,scientific_job_id,status,failure_stage,failure_code,sequence_sha256")
@@ -246,6 +262,7 @@ export default async function AiConversationPage({
           <div className="eyebrow">Project</div>
           <strong>{project?.name ?? "Research project"}</strong>
         </div>
+        <Link href="/dashboard/ai/research">Research history</Link>
         <Link href="/dashboard/tools">Advanced tools</Link>
         <Link href="/dashboard/reports">Reports</Link>
       </aside>
@@ -395,6 +412,12 @@ export default async function AiConversationPage({
           <section className={styles.protocolRun} aria-label="Active chat research protocol">
             <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
             <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Pipeline: <strong>{readable(pipeline.status)}</strong></p>
+            {selectedOlderResearch ? (
+              <p className={styles.muted}>
+                This study was recovered from an older approved message outside the latest 250 chat messages.
+                Its original consent link was verified against this conversation.
+              </p>
+            ) : null}
             <ol className={styles.protocolSteps}>
               {pipelineSteps.map((step) => (
                 <li key={step.name}><strong>{step.name}</strong><span>{readable(step.status)}</span></li>
