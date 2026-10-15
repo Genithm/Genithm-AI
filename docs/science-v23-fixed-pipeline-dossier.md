@@ -29,7 +29,7 @@ Allowlisted scalar values from the already-recorded scientific job summary may b
 - Reopened conversations present one cumulative, mixed dossier covering plan-based science **and** approved fixed NCBI pipelines.
 - Per-run identities are stable and explicit in exported JSON (either a `plan_id` or a `pipeline_id`).
 - The panel no longer says "No scientific activity yet" when fixed research runs are present.
-- The selected-run detail panel now uses the **same evidence decision** as the cumulative dossier. If the engine reports completion but provenance is incomplete, the detail panel shows an unverified status and suppresses both measurements and download links.
+- The selected-run detail panel uses the **same provenance-checked steps and evidence decision** as the cumulative dossier, rather than independently trusting completion flags. If the engine reports completion but provenance is incomplete, the panel shows an unverified status and suppresses both measurements and download links.
 - The previous individual run progress and integrity-checked scientific download links remain available.
 
 ## Verification and rollout
