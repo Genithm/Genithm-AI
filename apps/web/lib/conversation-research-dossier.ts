@@ -142,6 +142,7 @@ export function buildConversationDossier(input: {
       retrieval && retrieval.status === "retrieved" &&
       retrieval.source_database === expectedDatabase &&
       accession && retrieval.requested_accession === accession &&
+      uid(retrieval.sequence_upload_id) === sequenceId &&
       sequence && sequence.status === "ready" && hash &&
       sha(sequence.sha256) === hash && matchingInput &&
       science && science.status === "completed" && science.job_type === expectedJob &&
