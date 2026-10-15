@@ -274,6 +274,11 @@ export default async function AiConversationPage({
     fixedScientificJobs: fixedScientificJobs ?? [],
     fixedJobInputs: fixedJobInputs ?? [],
   });
+  // Use the same independently checked evidence decision in the selected-run
+  // panel and exported dossier. Parent/child status flags alone are not proof.
+  const selectedPipelineEvidence = dossier.findings.find((finding) =>
+    finding.source === "fixed_pipeline" && finding.pipeline_id === pipelineId
+  ) ?? null;
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
@@ -436,26 +441,27 @@ export default async function AiConversationPage({
         {pipeline && protocolTemplate ? (
           <section className={styles.protocolRun} aria-label="Active chat research protocol">
             <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
-            <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Pipeline: <strong>{readable(pipeline.status)}</strong></p>
+            <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Engine status: <strong>{readable(pipeline.status)}</strong> · Evidence status: <strong>{readable(selectedPipelineEvidence?.state)}</strong></p>
             <ol className={styles.protocolSteps}>
               {pipelineSteps.map((step) => (
                 <li key={step.name}><strong>{step.name}</strong><span>{readable(step.status)}</span></li>
               ))}
             </ol>
-            {pipeline.status === "completed" && pipelineScience?.status === "completed" &&
-              /^[a-f0-9]{64}$/i.test(pipelineScience.result_sha256 ?? "") &&
-              pipelineScience.result_object_path ? (
-                <a className={styles.download} href={`/dashboard/scientific-jobs/${pipelineScience.id}/download`}>Download integrity-checked scientific result</a>
-              ) : null}
-            {pipeline.status === "completed" && pipelineScience?.status === "completed" ? (
+            {selectedPipelineEvidence?.state === "completed" && selectedPipelineEvidence.verified_download ? (
+              <a className={styles.download} href={selectedPipelineEvidence.verified_download}>Download integrity-checked scientific result</a>
+            ) : null}
+            {selectedPipelineEvidence?.state === "completed" && selectedPipelineEvidence.metrics.length ? (
               <div className={styles.findings} aria-label="Verified in-chat protocol findings">
-                {recordedEvidenceMetrics("scientific_job", pipelineScience).map((metric) => (
+                {selectedPipelineEvidence.metrics.map((metric) => (
                   <div className={styles.finding} key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>
                 ))}
               </div>
             ) : null}
             {pipeline.status === "error" ? <p className="error">Research stopped safely at {readable(pipeline.failure_stage)}: {readable(pipeline.failure_code)}</p> : null}
-            {pipeline.status === "completed" ? <p>Recorded pipeline completed. Scientific results are preserved by the verified research engine.</p> : null}
+            {pipeline.status === "completed" && selectedPipelineEvidence?.state !== "completed" ? (
+              <p className={styles.muted}>The engine recorded completion, but the original source-to-result evidence could not be fully verified. No scientific measurements or result download are presented as verified.</p>
+            ) : null}
+            {selectedPipelineEvidence?.state === "completed" ? <p>The recorded NCBI source, validated FASTA, scientific input, parameters and result metadata agree. Artifact bytes are checked when downloaded.</p> : null}
           </section>
         ) : null}
 
