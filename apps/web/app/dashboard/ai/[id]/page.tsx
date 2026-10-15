@@ -253,7 +253,7 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
-              {message.role === "user" && parseChatResearchProtocol(message.content) &&
+              {message.role === "user" && (message.attachment_upload_ids?.length ?? 0) === 0 && parseChatResearchProtocol(message.content) &&
                 !(pipeline && parseChatResearchProtocol(message.content)?.accession === pipeline.requested_accession &&
                   parseChatResearchProtocol(message.content)?.template === pipeline.template) ? (
                 <form action={approveChatResearchProtocol} className={styles.protocolApproval}>
