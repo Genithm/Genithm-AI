@@ -121,6 +121,10 @@ type PlatformSupportCaseRow = {
 };
 
 type ReportFunctions = AiPublic["Functions"] & {
+  get_release_readiness: {
+    Args: Record<string, never>;
+    Returns: Json;
+  };
   request_research_nucleotide_pipeline: {
     Args: { project_id: string; accession: string };
     Returns: string;

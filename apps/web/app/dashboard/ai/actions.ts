@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release";
+import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -128,6 +129,14 @@ export async function approveChatResearchProtocol(formData: FormData) {
   if (!scienceSchemaReady(scienceV22Configured(), schemaError)) {
     redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent(
       "Scientific protocol approval is not enabled on this database yet. Ordinary chat remains available.",
+    )}`);
+  }
+
+  // Re-check worker liveness at the moment of human approval, not just
+  // when displaying the form. Never enqueue into an offline science system.
+  if (!await scienceExecutionReady()) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent(
+      "Scientific workers are offline or not yet ready. The request was not approved or queued.",
     )}`);
   }
 

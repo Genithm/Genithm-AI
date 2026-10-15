@@ -8,6 +8,7 @@ import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } f
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { isUuid } from "@/lib/research-archive";
 import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release";
+import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
@@ -75,6 +76,7 @@ export default async function AiConversationPage({
         .select("id,protocol_input_scope,research_pipeline_run_id").limit(0)
     : { error: null };
   const scienceV22Ready = scienceSchemaReady(scienceV22Configured(), scienceSchemaError);
+  const scienceWorkersAvailable = scienceV22Ready && await scienceExecutionReady();
 
 
   const [{ data: project }, { data: messages }, { data: plans }, { data: interpretations }] = await Promise.all([
@@ -336,6 +338,11 @@ export default async function AiConversationPage({
     <main className={styles.shell}>
       <aside className={styles.sidebar}>
         <Link className={styles.back} href="/dashboard/ai">← Chats</Link>
+        {scienceV22Ready && !scienceWorkersAvailable ? (
+          <p role="status" className={styles.muted}>
+            Scientific workers are currently offline or not ready. You can read past research and use chat, but new fixed-protocol approvals are paused.
+          </p>
+        ) : null}
         {!scienceV22Ready ? (
           <p className={styles.muted}>Fixed NCBI research is unavailable until the approved database migration is enabled. Chat remains available.</p>
         ) : null}
@@ -369,7 +376,7 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
-              {scienceV22Ready && message.role === "user" && message.protocol_input_scope === "text_only" &&
+              {scienceWorkersAvailable && message.role === "user" && message.protocol_input_scope === "text_only" &&
                 (message.attachment_upload_ids?.length ?? 0) === 0 && !message.research_pipeline_run_id &&
                 parseChatResearchProtocol(message.content) ? (
                 <form action={approveChatResearchProtocol} className={styles.protocolApproval}>

@@ -2,6 +2,7 @@ import type { Json } from "@/lib/ai-database.types";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
+import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import {
   conversationalPlan,
   POLICY_VERSION,
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
           if (scienceV22Configured()) {
             const { error: schemaError } = await supabase.from("ai_messages")
               .select("id,protocol_input_scope,research_pipeline_run_id").limit(0);
-            if (!schemaError) {
+            if (!schemaError && await scienceExecutionReady(service)) {
               const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
                 user_message_id: row.user_message_id,
                 expected_user_id: userId,
