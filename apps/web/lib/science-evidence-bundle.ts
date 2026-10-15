@@ -164,7 +164,7 @@ export async function createScienceEvidenceBundle(
 ): Promise<ScienceEvidenceBundle> {
   if (!validDossier(dossier)) throw new TypeError("Incomplete or malformed research dossier");
   if (!Number.isFinite(now.getTime())) throw new TypeError("Invalid export timestamp");
-  const payload = {
+  const payload: ScienceEvidenceBundle["payload"] = {
     exported_at: now.toISOString(),
     dossier: projectDossier(dossier),
     limitation: BUNDLE_LIMITATION,
