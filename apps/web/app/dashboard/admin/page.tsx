@@ -107,7 +107,10 @@ export default async function PlatformAdminPage({ searchParams }: { searchParams
             credentials, impersonation, destructive user actions, and raw payment instruments stay outside this surface.
           </p>
         </div>
-        <Link className="button" href="/dashboard">Back to dashboard</Link>
+        <div className="actions">
+          <Link className="button" href="/dashboard/admin/science">Research operations</Link>
+          <Link className="button" href="/dashboard">Back to dashboard</Link>
+        </div>
       </header>
 
       {query.error ? <div className="error">{query.error}</div> : null}
