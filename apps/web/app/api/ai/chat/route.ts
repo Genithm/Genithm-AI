@@ -1,5 +1,6 @@
 import type { Json } from "@/lib/ai-database.types";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
+import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import {
   conversationalPlan,
   POLICY_VERSION,
@@ -125,6 +126,31 @@ export async function POST(request: Request) {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
           }));
+
+          // A fixed protocol with an explicit accession can be proposed
+          // deterministically. No provider tool-call, cost-bearing science,
+          // queue or worker dispatch occurs until the human clicks Approve.
+          // Attachments take the normal model pathway: the fixed NCBI
+          // protocol must never silently ignore user-supplied files.
+          const fixedProtocol = attachmentIds.length === 0 && mediaAttachments.length === 0
+            ? parseChatResearchProtocol(row.user_message) : null;
+          if (fixedProtocol) {
+            const reply = "I can run " + fixedProtocol.title + " for " + fixedProtocol.accession +
+              ". This approved workflow retrieves the NCBI reference, validates the FASTA, and performs the fixed scientific calculation. Please review and approve the protocol below your message. No analysis has started.";
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: reply,
+            });
+            if (finishError) throw new Error(finishError.message);
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              status: "protocol_ready",
+              message: reply,
+              requires_confirmation: true,
+            }));
+            return;
+          }
 
           const providerResult = await startStreamingChat(
             row.user_message,
