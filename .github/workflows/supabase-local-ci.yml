@@ -378,6 +378,8 @@ jobs:
           $heartbeat$;
           rollback;
           SQL
+      - name: Verify V24 research archive keyset paging, deep history and cross-tenant isolation
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v24_research_archive_pagination.sql
       - name: Exercise V22 concurrent approvals and rolled-back request recovery
         run: bash supabase/tests/v22_chat_pipeline_concurrency.sh
       - name: Stop local Supabase
