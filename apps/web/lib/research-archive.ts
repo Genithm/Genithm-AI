@@ -24,7 +24,8 @@ export function parseResearchArchiveSearch(search: ArchiveSearch): {
   cursor: ArchiveCursor | null;
   invalid: boolean;
 } {
-  const rawProject = search.project;
+  // An empty project option in the GET filter means all projects.
+  const rawProject = search.project === "" ? undefined : search.project;
   const rawTime = search.before_time;
   const rawId = search.before_id;
   if (rawProject !== undefined && !isUuid(rawProject)) {
