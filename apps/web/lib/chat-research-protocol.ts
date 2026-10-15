@@ -23,7 +23,7 @@ export function parseChatResearchProtocol(message: string): ChatResearchProtocol
   // A message can describe, quote, or negate a workflow without requesting it.
   // Only a direct single-line command or a direct request addressed to Genithm
   // qualifies for a consent proposal. Neither case grants execution rights.
-  if (/[\r\n]/.test(input)) return null;
+  if (/[\r\n]|\\[nr]/i.test(input)) return null;
   const action = "(?:run|analy[sz]e|scan|find|detect|calculate|compute|profile|perform|retrieve|fetch)";
   const directCommand = new RegExp("^(?:please\\s+|kindly\\s+)?" + action + "\\b", "i").test(input);
   const directQuestion = new RegExp("^(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?" + action + "\\b", "i").test(input);
