@@ -189,6 +189,9 @@ jobs:
       - name: Verify V22 durable chat-pipeline links and input attestation
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-pipeline-lineage-v22.test.mjs
+      - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs
       - name: Verify cross-pipeline studies, exact scientific inputs and sealed report integrity
         run: node --experimental-strip-types --test tests/pipeline-study.test.mjs
       - run: npm run typecheck
