@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import {
-  ARCHIVE_PAGE_SIZE, archiveCursorPredicate, archiveStatus, archiveTemplate,
+  ARCHIVE_PAGE_SIZE, archiveCursorPredicate, archiveEvidenceLabel, archiveStatus, archiveTemplate,
   parseResearchArchiveSearch, researchArchiveHref, type ArchiveSearch,
 } from "@/lib/research-archive";
+import { buildConversationDossier } from "@/lib/conversation-research-dossier";
 import styles from "./research-archive.module.css";
 
 export default async function ResearchArchivePage({
@@ -91,7 +92,7 @@ export default async function ResearchArchivePage({
       : Promise.resolve({ data: [], error: null }),
     runIds.length && projectIds.length
       ? supabase.from("research_pipeline_runs")
-          .select("id,template,status,requested_accession,project_id,requested_by")
+          .select("id,template,status,requested_accession,project_id,requested_by,retrieval_id,sequence_upload_id,scientific_job_id,sequence_sha256")
           .eq("requested_by", userId)
           .in("project_id", projectIds)
           .in("id", runIds)
@@ -128,6 +129,64 @@ export default async function ResearchArchivePage({
       createdAt: message.created_at,
     }];
   });
+  // V25: only runs already joined to an authorized original chat message
+  // enter the evidence verifier. Batch child lookups instead of N+1 requests.
+  const authorizedRuns = [...new Set(entries.map((entry) => entry.pipelineId))]
+    .map((id) => pipelines.get(id)).filter((run): run is NonNullable<typeof run> => Boolean(run));
+  const sourceIds = [...new Set(authorizedRuns.map((run) => run.retrieval_id))];
+  const sequenceIds = [...new Set(authorizedRuns.map((run) => run.sequence_upload_id)
+    .filter((id): id is string => Boolean(id)))];
+  const scienceIds = [...new Set(authorizedRuns.map((run) => run.scientific_job_id)
+    .filter((id): id is string => Boolean(id)))];
+  const [
+    { data: evidenceRetrievals, error: retrievalError },
+    { data: evidenceSequences, error: sequenceError },
+    { data: evidenceScientific, error: scientificError },
+    { data: evidenceInputs, error: inputsError },
+  ] = await Promise.all([
+    sourceIds.length ? supabase.from("sequence_retrievals")
+      .select("id,status,source_database,requested_accession,sequence_upload_id")
+      .eq("requested_by", userId).in("project_id", projectIds).in("id", sourceIds)
+      : Promise.resolve({ data: [], error: null }),
+    sequenceIds.length ? supabase.from("sequence_uploads")
+      .select("id,status,sha256")
+      .eq("created_by", userId).in("project_id", projectIds).in("id", sequenceIds)
+      : Promise.resolve({ data: [], error: null }),
+    scienceIds.length ? supabase.from("scientific_jobs")
+      .select("id,status,job_type,parameters,result_sha256,result_object_path,result_summary")
+      .eq("requested_by", userId).in("project_id", projectIds).in("id", scienceIds)
+      : Promise.resolve({ data: [], error: null }),
+    scienceIds.length ? supabase.from("scientific_job_inputs")
+      .select("job_id,sequence_upload_id,input_sha256,input_position")
+      .in("project_id", projectIds).in("job_id", scienceIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const evidenceLoadError = Boolean(retrievalError || sequenceError || scientificError || inputsError);
+  const evidenceByRunId = new Map<string, {
+    state: string;
+    verifiedDownload: string | null;
+  }>();
+  if (!archiveError && !evidenceLoadError) {
+    for (const run of authorizedRuns) {
+      // Build one evidence dossier per run. The underlying data is not merged
+      // between conversations or unrelated scientific inputs.
+      const dossier = buildConversationDossier({
+        conversationId: entries.find((entry) => entry.pipelineId === run.id)?.conversationId ?? "",
+        plans: [],
+        fixedPipelines: [run],
+        fixedRetrievals: (evidenceRetrievals ?? []).filter((x) => x.id === run.retrieval_id),
+        fixedSequences: (evidenceSequences ?? []).filter((x) => x.id === run.sequence_upload_id),
+        fixedScientificJobs: (evidenceScientific ?? []).filter((x) => x.id === run.scientific_job_id),
+        fixedJobInputs: (evidenceInputs ?? []).filter((x) => x.job_id === run.scientific_job_id),
+      });
+      const finding = dossier.findings.find((value) =>
+        value.source === "fixed_pipeline" && value.pipeline_id === run.id);
+      evidenceByRunId.set(run.id, {
+        state: finding?.state ?? "unknown",
+        verifiedDownload: finding?.state === "completed" ? finding.verified_download : null,
+      });
+    }
+  }
   const last = pageMessages[pageMessages.length - 1];
   const nextCursor = !archiveError && hasNextPage && last ? { time: last.created_at, id: last.id } : null;
 
@@ -175,7 +234,15 @@ export default async function ResearchArchivePage({
                   <div><dt>Project</dt><dd>{item.projectName}</dd></div>
                   <div><dt>Conversation</dt><dd>{item.conversationTitle}</dd></div>
                   <div><dt>Requested (UTC)</dt><dd>{new Date(item.createdAt).toISOString().replace("T", " ").replace("Z", " UTC")}</dd></div>
+                  <div><dt>Scientific evidence</dt><dd>{
+                    archiveEvidenceLabel(evidenceLoadError ? null : evidenceByRunId.get(item.pipelineId)?.state ?? null)
+                  }</dd></div>
                 </dl>
+                {evidenceByRunId.get(item.pipelineId)?.verifiedDownload ? (
+                  <a className={styles.open} href={evidenceByRunId.get(item.pipelineId)?.verifiedDownload ?? undefined}>
+                    Download integrity-checked result
+                  </a>
+                ) : null}
                 <Link className={styles.open} href={`/dashboard/ai/${item.conversationId}?pipeline_id=${item.pipelineId}&source_message_id=${item.id}`}>
                   Reopen original research →
                 </Link>
