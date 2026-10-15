@@ -53,8 +53,8 @@ test("server action re-derives consent from persisted owned chat message", () =>
   assert.match(code, /\.eq\("created_by", userId\)/);
   assert.match(code, /\.eq\("conversation_owner_id", userId\)\.eq\("role", "user"\)/);
   assert.match(code, /parseChatResearchProtocol\(source\.content\)/);
-  assert.match(code, /request_research_nucleotide_pipeline/);
-  assert.match(code, /request_research_protein_pipeline/);
+  assert.match(code, /approve_chat_research_pipeline/);
+  assert.doesNotMatch(code, /supabase\.rpc\("request_research_(nucleotide|protein)_pipeline"/);
   assert.doesNotMatch(code, /formData\.get\("accession"\)/);
   assert.doesNotMatch(code, /formData\.get\("template"\)/);
   assert.doesNotMatch(code, /service_role/);
