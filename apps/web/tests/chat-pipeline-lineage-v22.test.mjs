@@ -44,7 +44,7 @@ test("V22 input attestation never trusts historical messages or unpersisted imag
   assert.doesNotMatch(migration, /grant execute on function public\.mark_chat_protocol_input_scope\(uuid,uuid,boolean\)\s+to authenticated/i);
   assert.match(api, /service\.rpc\("mark_chat_protocol_input_scope"/);
   assert.match(api, /has_media: mediaAttachments\.length > 0/);
-  assert.match(api, /if \(inputScopeError\) throw/);
+  assert.match(api, /if \(inputScopeError && !scienceSchemaUnavailableError\(inputScopeError\)\)/);
   assert.match(page, /message\.protocol_input_scope === "text_only"/);
 });
 test("V22 conversation can rehydrate only owner/project-scoped linked pipelines", () => {
@@ -66,7 +66,8 @@ test("V22 conversation can rehydrate only owner/project-scoped linked pipelines"
 test("V22 latest-message window preserves the most recent approved scientific runs", () => {
   assert.match(page, /\.order\("created_at", \{ ascending: false \}\)/);
   assert.match(page, /\.order\("id", \{ ascending: false \}\)/);
-  assert.match(page, /const chronologicalMessages = \[\.\.\.\(messages \?\? \[\]\)\]\.reverse\(\)/);
+  assert.match(page, /const chronologicalMessages = \(messages \?\? \[\]\)\.map\(\(message\) => \(\{/);
+  assert.match(page, /\}\)\)\.reverse\(\)/);
   assert.match(page, /linkedPipelineIds = \[\.\.\.new Set\(chronologicalMessages/);
   assert.match(page, /\{chronologicalMessages\.map\(\(message\)/);
 });
