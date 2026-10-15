@@ -14,7 +14,7 @@ const run = (status = "completed", overrides = {}) => ({
   retrieval_id: b, sequence_upload_id: c, scientific_job_id: d, sequence_sha256: sha, ...overrides,
 });
 const completeRows = {
-  fixedRetrievals: [{ id: b, status: "retrieved", requested_accession: "NM_000546.6", resolved_accession: "NM_000546.6", source_database: "nucleotide" }],
+  fixedRetrievals: [{ id: b, status: "retrieved", requested_accession: "NM_000546.6", resolved_accession: "NM_000546.6", source_database: "nucleotide", sequence_upload_id: c }],
   fixedSequences: [{ id: c, status: "ready", sha256: sha }],
   fixedJobInputs: [{ job_id: d, input_position: 1, sequence_upload_id: c, input_sha256: sha }],
   fixedScientificJobs: [{
@@ -53,6 +53,8 @@ test("V23 never reports completion without matching FASTA, correct job and verif
     { fixedRetrievals: [{ id:b, status:"retrieving" }] },
     { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NP_000537.3", source_database:"nucleotide" }] },
     { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NM_000546.6", source_database:"protein" }] },
+    { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NM_000546.6", source_database:"nucleotide", sequence_upload_id:e }] },
+    { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NM_000546.6", source_database:"nucleotide" }] },
     { fixedSequences: [] },
     { fixedSequences: [{ id:c, status:"ready", sha256:"a".repeat(64) }] },
     { fixedScientificJobs: [] },
@@ -95,7 +97,7 @@ test("V23 running and failed pipelines do not leak fabricated scientific finding
 test("V23 protein profile uses the appropriate scientific job type", () => {
   const value = make({
     fixedPipelines: [run("completed", { template: "ncbi_protein_profile_v1", requested_accession:"NP_000537.3" })],
-    fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NP_000537.3", source_database:"protein" }],
+    fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NP_000537.3", source_database:"protein", sequence_upload_id:c }],
     fixedScientificJobs: [{ id:d,status:"completed",job_type:"protein_properties",result_sha256:sha,
       result_object_path:"private/hidden",result_summary: { molecular_weight_da: 41862.4, api_secret:"NEVER" } }],
   });
@@ -117,6 +119,16 @@ test("V23 keeps traditional approved-plan findings alongside fixed protocols", (
   assert.equal(value.counts.completed,1);
   assert.equal(value.counts.awaiting_approval,1);
   assert.deepEqual(value.findings.map(x=>x.source),["plan","fixed_pipeline"]);
+});
+
+test("V23 selected-run details cannot claim success that the dossier marks unknown", () => {
+  const missingSourceLink = make({fixedRetrievals: [{
+    id:b, status:"retrieved", source_database:"nucleotide", requested_accession:"NM_000546.6",
+    sequence_upload_id:e,
+  }]});
+  assert.equal(missingSourceLink.findings[0].state,"unknown");
+  assert.equal(missingSourceLink.findings[0].verified_download,null);
+  assert.equal(missingSourceLink.findings[0].metrics.length,0);
 });
 
 test("V23 dossier exports contain allowlisted results and no internal source paths", () => {
@@ -147,6 +159,10 @@ test("V23 conversation fetches all children under RLS and binds them only to cha
   assert.match(module,/parameters\.operation === "orf_scan"/);
   assert.match(module,/retrieval\.source_database === expectedDatabase/);
   assert.match(module,/retrieval\.requested_accession === accession/);
+  assert.match(module,/uid\(retrieval\.sequence_upload_id\) === sequenceId/);
+  assert.match(page,/selectedPipelineEvidence\?\.state === "completed"/);
+  assert.match(page,/href=\{selectedPipelineEvidence\.verified_download\}/);
+  assert.doesNotMatch(page,/pipeline\.status === "completed" && pipelineScience\?\.status === "completed"/);
   assert.match(page,/\.from\("scientific_job_inputs"\)/);
   assert.match(page,/fixedJobInputs: fixedJobInputs \?\? \[\]/);
 });
