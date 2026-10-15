@@ -7,6 +7,7 @@ import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { isUuid } from "@/lib/research-archive";
+import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
@@ -67,11 +68,22 @@ export default async function AiConversationPage({
 
   if (!conversation) notFound();
 
+  // Release guard: the existing Supabase project may still be on the
+  // pre-V22 schema. Probe columns without reading any chat rows.
+  const { error: scienceSchemaError } = scienceV22Configured()
+    ? await supabase.from("ai_messages")
+        .select("id,protocol_input_scope,research_pipeline_run_id").limit(0)
+    : { error: null };
+  const scienceV22Ready = scienceSchemaReady(scienceV22Configured(), scienceSchemaError);
+
+
   const [{ data: project }, { data: messages }, { data: plans }, { data: interpretations }] = await Promise.all([
     supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
-    supabase
-      .from("ai_messages")
-      .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,protocol_input_scope,research_pipeline_run_id,created_at")
+    (scienceV22Ready
+      ? supabase.from("ai_messages")
+          .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,protocol_input_scope,research_pipeline_run_id,created_at")
+      : supabase.from("ai_messages")
+          .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,created_at"))
       .eq("conversation_id", id)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
@@ -91,7 +103,13 @@ export default async function AiConversationPage({
   ]);
 
   // Fetch the newest bounded window, but render the conversation oldest-first.
-  const chronologicalMessages = [...(messages ?? [])].reverse();
+  // Normalize legacy messages without inventing science consent or run IDs.
+  // Pre-migration chats remain viewable, never automatically science-eligible.
+  const chronologicalMessages = (messages ?? []).map((message) => ({
+    ...message,
+    protocol_input_scope: "protocol_input_scope" in message ? message.protocol_input_scope : null,
+    research_pipeline_run_id: "research_pipeline_run_id" in message ? message.research_pipeline_run_id : null,
+  })).reverse();
 
   // Science V22: the message-to-run link is persisted by the atomic approval
   // RPC. Reopen/refresh resolves only runs bound to the current conversation,
@@ -110,7 +128,7 @@ export default async function AiConversationPage({
   // The visible 250-message window is NOT the full research archive.
   // A link to an older run is accepted only after a separate owner-scoped
   // lookup proves that it was approved by a user message in this exact chat.
-  const candidatePipelineId = isUuid(query.pipeline_id) ? query.pipeline_id : null;
+  const candidatePipelineId = scienceV22Ready && isUuid(query.pipeline_id) ? query.pipeline_id : null;
   const exactSourceRequested = query.source_message_id !== undefined;
   const sourceMessageId = isUuid(query.source_message_id) ? query.source_message_id : null;
   // The same scientific run can be reused by several consented messages.
@@ -316,6 +334,9 @@ export default async function AiConversationPage({
     <main className={styles.shell}>
       <aside className={styles.sidebar}>
         <Link className={styles.back} href="/dashboard/ai">← Chats</Link>
+        {!scienceV22Ready ? (
+          <p className={styles.muted}>Fixed NCBI research is unavailable until the approved database migration is enabled. Chat remains available.</p>
+        ) : null}
         <div className={styles.projectBlock}>
           <div className="eyebrow">Project</div>
           <strong>{project?.name ?? "Research project"}</strong>
@@ -346,7 +367,7 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
-              {message.role === "user" && message.protocol_input_scope === "text_only" &&
+              {scienceV22Ready && message.role === "user" && message.protocol_input_scope === "text_only" &&
                 (message.attachment_upload_ids?.length ?? 0) === 0 && !message.research_pipeline_run_id &&
                 parseChatResearchProtocol(message.content) ? (
                 <form action={approveChatResearchProtocol} className={styles.protocolApproval}>
