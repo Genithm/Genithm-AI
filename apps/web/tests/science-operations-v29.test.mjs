@@ -173,7 +173,7 @@ test("V29 dashboard gates privileged data by original end-user DB role", () => {
   assert.match(adminPage,/status\.queues\.map/);
   assert.match(adminPage,/pipelineCounts/);
   assert.match(adminPage,/overview\.acceptance/);
-  assert.match(adminPage,/No.*scientific evidence|not scientific evidence/);
+  assert.match(adminPage,/no status shown here is scientific evidence/);
   assert.doesNotMatch(adminPage,/service_role|SUPABASE_SECRET_KEY|NEXT_PUBLIC_/);
 });
 
