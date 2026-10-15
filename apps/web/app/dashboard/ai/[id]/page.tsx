@@ -11,6 +11,7 @@ import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
 import { buildConversationDossier } from "@/lib/conversation-research-dossier";
+import { selectEvidenceRuns } from "@/lib/integrated-science-history";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -239,13 +240,10 @@ export default async function AiConversationPage({
   // V25: recent chat + V24 deep-history locators must share V23 provenance.
   // The explicit old run is included only AFTER owner/message/project validation
   // has succeeded; the archive URL itself grants no access to evidence.
-  // Put the verified historical selection first. V23 deliberately caps its
-  // dossier at 100 runs; appending an older selection after 100 recent runs
-  // would silently exclude the very result the researcher reopened.
-  const evidencePipelines = [
-    ...(pipeline && !linkedPipelineById.has(pipeline.id) ? [pipeline] : []),
-    ...(linkedPipelines ?? []),
-  ];
+  const evidencePipelines = selectEvidenceRuns(
+    linkedPipelines ?? [],
+    pipeline && !linkedPipelineById.has(pipeline.id) ? pipeline : null,
+  );
   const fixedRetrievalIds = [...new Set(evidencePipelines.map((run) => run.retrieval_id))];
   const fixedSequenceIds = [...new Set(evidencePipelines
     .map((run) => run.sequence_upload_id).filter((id): id is string => Boolean(id)))];
