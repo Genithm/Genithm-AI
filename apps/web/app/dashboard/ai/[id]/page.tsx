@@ -112,7 +112,7 @@ export default async function AiConversationPage({
     ? query.pipeline_id : null;
   const { data: historicalMessageLink } = candidatePipelineId && !linkedPipelineById.has(candidatePipelineId)
     ? await supabase.from("ai_messages")
-        .select("id")
+        .select("id,content,created_at")
         .eq("conversation_id", conversation.id)
         .eq("conversation_owner_id", claimsData.claims.sub)
         .eq("role", "user")
@@ -412,11 +412,15 @@ export default async function AiConversationPage({
           <section className={styles.protocolRun} aria-label="Active chat research protocol">
             <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
             <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Pipeline: <strong>{readable(pipeline.status)}</strong></p>
-            {selectedOlderResearch ? (
-              <p className={styles.muted}>
-                This study was recovered from an older approved message outside the latest 250 chat messages.
-                Its original consent link was verified against this conversation.
-              </p>
+            {selectedOlderResearch && historicalMessageLink ? (
+              <div className={styles.recoveredRequest}>
+                <strong>Recovered original approved request</strong>
+                <p>{historicalMessageLink.content}</p>
+                <small>Submitted: {new Date(historicalMessageLink.created_at).toISOString().replace("T", " ").replace("Z", " UTC")}</small>
+                <p className={styles.muted}>
+                  This original message is older than the latest 250 chat messages. Its saved consent link was verified against your conversation.
+                </p>
+              </div>
             ) : null}
             <ol className={styles.protocolSteps}>
               {pipelineSteps.map((step) => (
