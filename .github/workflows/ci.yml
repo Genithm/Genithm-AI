@@ -72,6 +72,8 @@ jobs:
           persist-credentials: false
       - name: Enforce repository security policy
         run: python scripts/security_policy.py
+      - name: Verify local science staging target refuses production, insecure URLs and forged identifiers
+        run: python -m unittest discover -s scripts/tests -p 'test_science_staging_readiness.py'
       - name: Test CI change classification
         run: python scripts/test_ci_changes.py
       - name: Test V1 release bundle contract
@@ -192,6 +194,9 @@ jobs:
       - name: Verify V22 durable chat-pipeline links and input attestation
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-pipeline-lineage-v22.test.mjs
+      - name: Verify V26 migration-aware release guard and safe legacy chat behavior
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/science-release-v26.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

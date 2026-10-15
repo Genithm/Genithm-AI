@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
+import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -116,6 +117,18 @@ export async function approveChatResearchProtocol(formData: FormData) {
     .eq("created_by", userId).eq("status", "active").maybeSingle();
   if (!conversation) {
     redirect("/dashboard/ai?error=Conversation%20not%20accessible");
+  }
+
+  // Do not touch new columns or approval RPCs until the schema is deployed.
+  // A forged approval form cannot switch on the feature for this account.
+  const { error: schemaError } = scienceV22Configured()
+    ? await supabase.from("ai_messages")
+        .select("id,protocol_input_scope,research_pipeline_run_id").limit(0)
+    : { error: null };
+  if (!scienceSchemaReady(scienceV22Configured(), schemaError)) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent(
+      "Scientific protocol approval is not enabled on this database yet. Ordinary chat remains available.",
+    )}`);
   }
 
   const { data: source } = await supabase.from("ai_messages")

@@ -382,6 +382,15 @@ jobs:
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v24_research_archive_pagination.sql
       - name: Exercise V22 concurrent approvals and rolled-back request recovery
         run: bash supabase/tests/v22_chat_pipeline_concurrency.sh
+      - name: V26 read-only science release readiness must pass on migrated local database
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -X -qAt -v ON_ERROR_STOP=1             -f supabase/tests/v26_science_release_readiness.sql)
+          if ! grep -q '^SCIENCE_V26_READY|' <<< "$output"; then
+            echo 'V26 migrated science schema or grants are not ready' >&2
+            exit 1
+          fi
       - name: V25 read-only provenance audit must flag unexecuted local science as incomplete
         shell: bash
         run: |

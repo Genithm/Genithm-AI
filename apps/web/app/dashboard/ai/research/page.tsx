@@ -7,6 +7,7 @@ import {
   parseResearchArchiveSearch, researchArchiveHref, type ArchiveSearch,
 } from "@/lib/research-archive";
 import { buildConversationDossier } from "@/lib/conversation-research-dossier";
+import { scienceSchemaReady, scienceV22Configured } from "@/lib/science-release";
 import styles from "./research-archive.module.css";
 
 export default async function ResearchArchivePage({
@@ -16,6 +17,20 @@ export default async function ResearchArchivePage({
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
   if (!userId) redirect("/login");
+
+  const { error: scienceSchemaError } = scienceV22Configured()
+    ? await supabase.from("ai_messages")
+        .select("id,protocol_input_scope,research_pipeline_run_id").limit(0)
+    : { error: null };
+  if (!scienceSchemaReady(scienceV22Configured(), scienceSchemaError)) {
+    return (
+      <main className={styles.shell}>
+        <Link href="/dashboard/ai">← Back to Genithm chat</Link>
+        <h1>Approved research history</h1>
+        <p role="status">The research archive will become available once the science database migration is installed and enabled. Your existing conversations remain accessible.</p>
+      </main>
+    );
+  }
 
   const filter = parseResearchArchiveSearch(await searchParams);
   const { data: projectOptions } = await supabase
