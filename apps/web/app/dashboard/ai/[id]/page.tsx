@@ -107,8 +107,10 @@ export default async function AiConversationPage({
   // Pre-migration chats remain viewable, never automatically science-eligible.
   const chronologicalMessages = (messages ?? []).map((message) => ({
     ...message,
-    protocol_input_scope: "protocol_input_scope" in message ? message.protocol_input_scope : null,
-    research_pipeline_run_id: "research_pipeline_run_id" in message ? message.research_pipeline_run_id : null,
+    protocol_input_scope: "protocol_input_scope" in message &&
+      typeof message.protocol_input_scope === "string" ? message.protocol_input_scope : null,
+    research_pipeline_run_id: "research_pipeline_run_id" in message &&
+      typeof message.research_pipeline_run_id === "string" ? message.research_pipeline_run_id : null,
   })).reverse();
 
   // Science V22: the message-to-run link is persisted by the atomic approval
