@@ -45,6 +45,8 @@ jobs:
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_lineage_contract.sql
       - name: Exercise V22 two-user approval, replay, RLS and media attestation against local PostgreSQL
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_integration.sql
+      - name: Exercise V22 concurrent approvals and rolled-back request recovery
+        run: bash supabase/tests/v22_chat_pipeline_concurrency.sh
       - name: Verify V2 sequence intelligence database boundaries
         shell: bash
         run: |
