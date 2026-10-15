@@ -56,6 +56,14 @@ test("V22 conversation can rehydrate only owner/project-scoped linked pipelines"
   assert.match(types, /research_pipeline_run_id: string \| null/);
   assert.match(types, /approve_chat_research_pipeline:/);
 });
+test("V22 latest-message window preserves the most recent approved scientific runs", () => {
+  assert.match(page, /\.order\("created_at", \{ ascending: false \}\)/);
+  assert.match(page, /\.order\("id", \{ ascending: false \}\)/);
+  assert.match(page, /const chronologicalMessages = \[\.\.\.\(messages \?\? \[\]\)\]\.reverse\(\)/);
+  assert.match(page, /linkedPipelineIds = \[\.\.\.new Set\(chronologicalMessages/);
+  assert.match(page, /\{chronologicalMessages\.map\(\(message\)/);
+});
+
 test("V22 classifier remains conservative for explicitly unsupported research", () => {
   assert.equal(parseChatResearchProtocol("Explain an ORF scan of NM_000546.6"), null);
   assert.equal(parseChatResearchProtocol("Run ORF for NM_000546.6 and NP_000537.3"), null);
