@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/ai-database.types";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
+import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
 import {
   conversationalPlan,
   POLICY_VERSION,
@@ -122,14 +123,25 @@ export async function POST(request: Request) {
         const service = createServiceClient();
         let partialVisible = "";
         try {
-          // Seal the caller's actual attachments before the fixed-protocol
-          // branch; failed attestation must enter the standard SSE error path.
-          const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
-            user_message_id: row.user_message_id,
-            expected_user_id: userId,
-            has_media: mediaAttachments.length > 0,
-          });
-          if (inputScopeError) throw new Error("Could not seal chat input scope for research consent.");
+          // V26 migration-aware rollout. Normal chat must remain usable if
+          // web code arrives before V22 columns/functions are installed.
+          // The explicit opt-in is server-side and defaults to disabled.
+          let offerFixedResearch = false;
+          if (scienceV22Configured()) {
+            const { error: schemaError } = await supabase.from("ai_messages")
+              .select("id,protocol_input_scope,research_pipeline_run_id").limit(0);
+            if (!schemaError) {
+              const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
+                user_message_id: row.user_message_id,
+                expected_user_id: userId,
+                has_media: mediaAttachments.length > 0,
+              });
+              if (inputScopeError && !scienceSchemaUnavailableError(inputScopeError)) {
+                throw new Error("Could not seal chat input scope for research consent.");
+              }
+              offerFixedResearch = !inputScopeError;
+            }
+          }
           controller.enqueue(sse("meta", {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
@@ -140,7 +152,8 @@ export async function POST(request: Request) {
           // queue or worker dispatch occurs until the human clicks Approve.
           // Attachments take the normal model pathway: the fixed NCBI
           // protocol must never silently ignore user-supplied files.
-          const fixedProtocol = attachmentIds.length === 0 && mediaAttachments.length === 0
+          const fixedProtocol = offerFixedResearch &&
+            attachmentIds.length === 0 && mediaAttachments.length === 0
             ? parseChatResearchProtocol(row.user_message) : null;
           if (fixedProtocol) {
             const reply = "I can run " + fixedProtocol.title + " for " + fixedProtocol.accession +
