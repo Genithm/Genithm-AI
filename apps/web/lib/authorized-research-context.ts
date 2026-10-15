@@ -87,6 +87,16 @@ export function buildAuthorizedResearchContext(raw: unknown) {
     id: s.id, filename: s.filename, sequence_type: s.sequence_type, residue_count: s.residue_count,
   }));
 
+  // Later Supabase migrations already provide richer, authoritative
+  // SQL-derived per-sequence eligibility flags and completed MSA lineage.
+  // Never overwrite them with weaker in-memory heuristics.
+  const serverPreflight = object(scoped.capability_preflight);
+  if (serverPreflight && Array.isArray(serverPreflight.sequences) &&
+      Array.isArray(serverPreflight.completed_msa_jobs) &&
+      Array.isArray(serverPreflight.supported_tasks)) {
+    return scoped as typeof scoped & { capability_preflight: typeof serverPreflight };
+  }
+
   return {
     ...scoped,
     capability_preflight: {
