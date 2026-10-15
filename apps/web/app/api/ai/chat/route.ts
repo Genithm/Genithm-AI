@@ -121,16 +121,15 @@ export async function POST(request: Request) {
       void (async () => {
         const service = createServiceClient();
         let partialVisible = "";
-        // Seal a new message's true input scope using the trusted chat API
-        // path, before proposing any fixed reference-only protocol.
-        // Historical messages remain unverified and cannot be approved.
-        const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
-          user_message_id: row.user_message_id,
-          expected_user_id: userId,
-          has_media: mediaAttachments.length > 0,
-        });
-        if (inputScopeError) throw new Error("Could not seal chat input scope for research consent.");
         try {
+          // Seal the caller's actual attachments before the fixed-protocol
+          // branch; failed attestation must enter the standard SSE error path.
+          const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
+            user_message_id: row.user_message_id,
+            expected_user_id: userId,
+            has_media: mediaAttachments.length > 0,
+          });
+          if (inputScopeError) throw new Error("Could not seal chat input scope for research consent.");
           controller.enqueue(sse("meta", {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
