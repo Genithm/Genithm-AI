@@ -39,6 +39,8 @@ type AiMessage = {
     message_kind: string;
     plan_request_id: string | null;
     attachment_upload_ids: string[];
+    protocol_input_scope: "text_only" | "with_attachments" | null;
+    research_pipeline_run_id: string | null;
     created_at: string;
   };
   Insert: {
@@ -52,6 +54,8 @@ type AiMessage = {
     message_kind?: string;
     plan_request_id?: string | null;
     attachment_upload_ids?: string[];
+    protocol_input_scope?: "text_only" | "with_attachments" | null;
+    research_pipeline_run_id?: string | null;
     created_at?: string;
   };
   Update: Partial<AiMessage["Insert"]>;
@@ -282,6 +286,14 @@ type AiTables = LivePublic["Tables"] & {
 };
 
 type AiFunctions = LivePublic["Functions"] & {
+  approve_chat_research_pipeline: {
+    Args: { message_id: string };
+    Returns: string;
+  };
+  mark_chat_protocol_input_scope: {
+    Args: { user_message_id: string; expected_user_id: string; has_media: boolean };
+    Returns: undefined;
+  };
   request_ai_plan: {
     Args: { project_id: string; conversation_id: string | null; user_message: string };
     Returns: { conversation_id: string; plan_request_id: string }[];
