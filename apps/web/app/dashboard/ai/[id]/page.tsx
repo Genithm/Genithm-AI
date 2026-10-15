@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
-import { approveAiPlan, requestAiInterpretation } from "../actions";
+import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
+import { parseChatResearchProtocol, pipelineProgress } from "@/lib/chat-research-protocol";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
 import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
@@ -48,7 +49,7 @@ export default async function AiConversationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; pipeline_id?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -85,6 +86,37 @@ export default async function AiConversationPage({
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
+
+  // Explicitly launched, owner-scoped run. The query parameter is a locator
+  // only, never authorization; the database RLS checks membership/ownership.
+  const pipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "")
+    ? query.pipeline_id : null;
+  const { data: pipeline } = pipelineId
+    ? await supabase.from("research_pipeline_runs")
+        .select("id,project_id,requested_by,template,requested_accession,retrieval_id,sequence_upload_id,scientific_job_id,status,failure_stage,failure_code,sequence_sha256")
+        .eq("id", pipelineId).eq("project_id", conversation.project_id)
+        .eq("requested_by", claimsData.claims.sub).maybeSingle()
+    : { data: null };
+  const [{ data: pipelineRetrieval }, { data: pipelineSequence }, { data: pipelineScience }] = await Promise.all([
+    pipeline?.retrieval_id
+      ? supabase.from("sequence_retrievals").select("id,status,resolved_accession")
+          .eq("id", pipeline.retrieval_id).eq("project_id", conversation.project_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    pipeline?.sequence_upload_id
+      ? supabase.from("sequence_uploads").select("id,status")
+          .eq("id", pipeline.sequence_upload_id).eq("project_id", conversation.project_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    pipeline?.scientific_job_id
+      ? supabase.from("scientific_jobs").select("id,status,job_type,result_sha256,result_object_path,result_summary")
+          .eq("id", pipeline.scientific_job_id).eq("project_id", conversation.project_id)
+          .eq("requested_by", claimsData.claims.sub).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const protocolTemplate = pipeline?.template === "ncbi_nucleotide_orf_v1" || pipeline?.template === "ncbi_protein_profile_v1"
+    ? pipeline.template : null;
+  const pipelineSteps = protocolTemplate
+    ? pipelineProgress(protocolTemplate, pipeline?.status ?? "", pipelineRetrieval?.status ?? null, pipelineSequence?.status ?? null, pipelineScience?.status ?? null)
+    : [];
 
   const attachmentIds = [...new Set([...(plans ?? []).flatMap((plan) => plan.attachment_upload_ids ?? []), ...(messages ?? []).flatMap((message) => message.attachment_upload_ids ?? [])])];
   const { data: attachmentRows } = attachmentIds.length
@@ -221,6 +253,17 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
+              {message.role === "user" && (message.attachment_upload_ids?.length ?? 0) === 0 && parseChatResearchProtocol(message.content) &&
+                !(pipeline && parseChatResearchProtocol(message.content)?.accession === pipeline.requested_accession &&
+                  parseChatResearchProtocol(message.content)?.template === pipeline.template) ? (
+                <form action={approveChatResearchProtocol} className={styles.protocolApproval}>
+                  <input type="hidden" name="conversation_id" value={conversation.id} />
+                  <input type="hidden" name="message_id" value={message.id} />
+                  <div className={styles.protocolTitle}>Fixed, two-stage research protocol available</div>
+                  <p>NCBI retrieval → validated FASTA → authorized scientific calculation. Nothing starts without your approval.</p>
+                  <button className="button primary" type="submit">Approve complete research protocol</button>
+                </form>
+              ) : null}
               {(attachmentsByMessage.get(message.id)?.length || (message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length)) ? (
                 <div className={styles.messageAttachments}>
                   {(attachmentsByMessage.get(message.id) ?? (message.plan_request_id ? attachmentsByPlan.get(message.plan_request_id) : undefined) ?? []).map((attachment) => (
@@ -238,7 +281,7 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <ResearchActivityRefresh active={Boolean((plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
+        <ResearchActivityRefresh active={Boolean((pipeline && ["awaiting_source", "awaiting_validation", "running"].includes(pipeline.status)) || (plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
         <section className={styles.activity} aria-label="Scientific research results and execution">
           <h2 className={styles.activityTitle}>Research activity · progress &amp; results</h2>
@@ -324,6 +367,32 @@ export default async function AiConversationPage({
             {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </section>
+
+        {pipeline && protocolTemplate ? (
+          <section className={styles.protocolRun} aria-label="Active chat research protocol">
+            <div className={styles.protocolTitle}>Approved multi-step research · {protocolTemplate === "ncbi_nucleotide_orf_v1" ? "Nucleotide ORF analysis" : "Protein profiling"}</div>
+            <p>NCBI reference: <code>{pipeline.requested_accession}</code> · Pipeline: <strong>{readable(pipeline.status)}</strong></p>
+            <ol className={styles.protocolSteps}>
+              {pipelineSteps.map((step) => (
+                <li key={step.name}><strong>{step.name}</strong><span>{readable(step.status)}</span></li>
+              ))}
+            </ol>
+            {pipeline.status === "completed" && pipelineScience?.status === "completed" &&
+              /^[a-f0-9]{64}$/i.test(pipelineScience.result_sha256 ?? "") &&
+              pipelineScience.result_object_path ? (
+                <a className={styles.download} href={`/dashboard/scientific-jobs/${pipelineScience.id}/download`}>Download integrity-checked scientific result</a>
+              ) : null}
+            {pipeline.status === "completed" && pipelineScience?.status === "completed" ? (
+              <div className={styles.findings} aria-label="Verified in-chat protocol findings">
+                {recordedEvidenceMetrics("scientific_job", pipelineScience).map((metric) => (
+                  <div className={styles.finding} key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>
+                ))}
+              </div>
+            ) : null}
+            {pipeline.status === "error" ? <p className="error">Research stopped safely at {readable(pipeline.failure_stage)}: {readable(pipeline.failure_code)}</p> : null}
+            {pipeline.status === "completed" ? <p>Recorded pipeline completed. Scientific results are preserved by the verified research engine.</p> : null}
+          </section>
+        ) : null}
 
         <ConversationDossierPanel dossier={dossier} />
 

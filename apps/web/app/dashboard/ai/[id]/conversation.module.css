@@ -265,3 +265,12 @@
 /* The artifact is verified by the existing authenticated download route. */
 .download { display:inline-flex; margin-top:10px; font-weight:700; text-decoration:underline; text-underline-offset:3px; color:var(--foreground); font-size:13px; }
 .download:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+
+/* Science V20: consent and fixed research pipeline remain in chat. */
+.protocolApproval,.protocolRun {border:1px solid var(--border);border-radius:14px;padding:14px;margin:12px 0;display:grid;gap:9px;max-width:100%;background:rgba(100,140,210,.05)}
+.protocolApproval p,.protocolRun p {font-size:13px;line-height:1.55;margin:0;color:var(--muted)}
+.protocolTitle {font-size:14px;font-weight:750}
+.protocolSteps {padding:0;list-style:decimal inside;display:grid;gap:7px;margin:0}
+.protocolSteps li {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px}
+.protocolSteps span{text-transform:capitalize;color:var(--muted)}
+.protocolApproval button {justify-self:start}
