@@ -7,6 +7,8 @@ import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
+import { ConversationDossierPanel } from "@/components/conversation-dossier-panel";
+import { buildConversationDossier } from "@/lib/conversation-research-dossier";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -150,6 +152,18 @@ export default async function AiConversationPage({
   for (const row of workflows.data ?? []) execution.set(`ai_workflow:${row.id}`, { status: row.status, error: row.processing_error, updated_at: row.updated_at });
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
+  // Child scientific jobs are inspected under the researcher's RLS session.
+  // The workflow's own "completed" label is never enough for the dossier.
+  const workflowChildIds = [...new Set((workflows.data ?? []).flatMap((workflow) =>
+    [workflow.msa_job_id, workflow.phylogeny_job_id].filter((item): item is string => Boolean(item))
+  ))].slice(0, 200);
+  const { data: workflowChildJobs } = workflowChildIds.length
+    ? await supabase.from("scientific_jobs")
+        .select("id,status,job_type,result_sha256,result_object_path")
+        .eq("project_id", conversation.project_id)
+        .in("id", workflowChildIds)
+    : { data: [] };
+
   const scientificById = new Map((scientific.data ?? []).map((row) => [row.id, row]));
   const annotationById = new Map((annotations.data ?? []).map((row) => [row.id, row]));
   const retrievalById = new Map((retrievals.data ?? []).map((row) => [row.id, row]));
@@ -157,6 +171,17 @@ export default async function AiConversationPage({
   const activityPlans = (plans ?? []).filter((plan) =>
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
   );
+
+  const dossier = buildConversationDossier({
+    conversationId: conversation.id,
+    plans: activityPlans,
+    scientificJobs: scientific.data ?? [],
+    blastJobs: blasts.data ?? [],
+    retrievals: retrievals.data ?? [],
+    annotations: annotations.data ?? [],
+    workflows: workflows.data ?? [],
+    workflowChildJobs: workflowChildJobs ?? [],
+  });
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
   for (const item of interpretations ?? []) {
@@ -299,6 +324,8 @@ export default async function AiConversationPage({
             {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </section>
+
+        <ConversationDossierPanel dossier={dossier} />
 
         <AiChatComposer
           key={`${conversation.id}:${messages?.length ?? 0}`}
