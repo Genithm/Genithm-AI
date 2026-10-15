@@ -41,6 +41,12 @@ jobs:
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v14_research_pipeline_contract.sql
       - name: Verify V16 nucleotide ORF template, grants, and event-driven pipeline transitions
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v16_nucleotide_pipeline_contract.sql
+      - name: Verify V22 chat-to-pipeline lineage, RLS and authorized parser behavior
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_lineage_contract.sql
+      - name: Verify V22 PostgreSQL research intent parity with the shared chat corpus
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_intent_parity.sql
+      - name: Exercise V22 two-user approval, replay, RLS and media attestation against local PostgreSQL
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v22_chat_pipeline_integration.sql
       - name: Verify V2 sequence intelligence database boundaries
         shell: bash
         run: |
@@ -372,6 +378,24 @@ jobs:
           $heartbeat$;
           rollback;
           SQL
+      - name: Verify V24 research archive keyset paging, deep history and cross-tenant isolation
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v24_research_archive_pagination.sql
+      - name: Exercise V22 concurrent approvals and rolled-back request recovery
+        run: bash supabase/tests/v22_chat_pipeline_concurrency.sh
+      - name: V25 read-only provenance audit must flag unexecuted local science as incomplete
+        shell: bash
+        run: |
+          set -euo pipefail
+          db='postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+          message_id='b5000000-0000-4000-8000-000000000001'
+          run_id=$(psql "$db" -X -qAt -v ON_ERROR_STOP=1 -c "select research_pipeline_run_id from public.ai_messages where id='$message_id';")
+          if [[ -z "$run_id" ]]; then echo 'V25 audit fixture lacks an approved run' >&2; exit 1; fi
+          output=$(psql "$db" -X -v ON_ERROR_STOP=1 -v message_id="$message_id" -v run_id="$run_id" -f supabase/tests/v25_staging_evidence_readonly.sql)
+          echo "$output"
+          if ! grep -q 'REVIEW: recorded lineage incomplete' <<< "$output"; then
+            echo 'V25 incomplete local run was incorrectly claimed to have verified evidence' >&2
+            exit 1
+          fi
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup

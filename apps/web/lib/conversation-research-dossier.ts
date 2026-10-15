@@ -1,4 +1,5 @@
 import { recordedEvidenceMetrics, type EvidenceMetric } from "./recorded-chat-evidence.ts";
+import { pipelineProgress } from "./chat-research-protocol.ts";
 
 /** Pure evidence-only dossier. Callers must supply conversation- and RLS-scoped rows. */
 type Row = Record<string, unknown>;
@@ -9,7 +10,8 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-
 const SHA = /^[a-f0-9]{64}$/i;
 export type DossierStep = { label: string; state: State | "not_started"; job_id: string | null; result_sha256: string | null };
 export type DossierFinding = {
-  plan_id: string; action: string; state: State; kind: Kind | null; resource_id: string | null;
+  plan_id: string | null; pipeline_id: string | null; source: "plan" | "fixed_pipeline";
+  action: string; state: State; kind: Kind | null; resource_id: string | null;
   metrics: EvidenceMetric[]; result_sha256: string | null;
   verified_download: string | null; steps: DossierStep[];
 };
@@ -60,6 +62,8 @@ function workflowState(parent: Row, steps: DossierStep[]): State {
 export function buildConversationDossier(input: {
   conversationId: string; plans: unknown; scientificJobs?: unknown; blastJobs?: unknown;
   retrievals?: unknown; annotations?: unknown; workflows?: unknown; workflowChildJobs?: unknown;
+  fixedPipelines?: unknown; fixedRetrievals?: unknown; fixedSequences?: unknown;
+  fixedScientificJobs?: unknown; fixedJobInputs?: unknown;
 }): ConversationDossier {
   const resources: Record<Kind, Map<string, Row>> = {
     scientific_job: keyed(input.scientificJobs), blast_job: keyed(input.blastJobs),
@@ -99,11 +103,89 @@ export function buildConversationDossier(input: {
     const metrics = state === "completed" && kind && kind !== "ai_workflow" && row
       ? recordedEvidenceMetrics(kind, row) : [];
     findings.push({
-      plan_id: planId, action: allowedAction(plan.action_type), state,
+      plan_id: planId, pipeline_id: null, source: "plan", action: allowedAction(plan.action_type), state,
       kind, resource_id: resourceId, metrics,
       result_sha256: resultSha, verified_download: download, steps,
     });
   }
+  // V23: fixed NCBI pipelines are separate from AI plan requests. The caller
+  // supplies only RLS-visible rows for run IDs bound to this conversation.
+  const fixedSource = keyed(input.fixedRetrievals);
+  const fixedSequence = keyed(input.fixedSequences);
+  const fixedScience = keyed(input.fixedScientificJobs);
+  const fixedInputs = list(input.fixedJobInputs);
+  const pipelineSeen = new Set<string>();
+  for (const run of list(input.fixedPipelines).slice(0, 100)) {
+    const pipelineId = uid(run.id);
+    if (!pipelineId || pipelineSeen.has(pipelineId)) continue;
+    pipelineSeen.add(pipelineId);
+    const template = str(run.template);
+    if (template !== "ncbi_nucleotide_orf_v1" && template !== "ncbi_protein_profile_v1") continue;
+    const retrievalId = uid(run.retrieval_id);
+    const sequenceId = uid(run.sequence_upload_id);
+    const jobId = uid(run.scientific_job_id);
+    const retrieval = retrievalId ? fixedSource.get(retrievalId) : undefined;
+    const sequence = sequenceId ? fixedSequence.get(sequenceId) : undefined;
+    const science = jobId ? fixedScience.get(jobId) : undefined;
+    const expectedJob = template === "ncbi_nucleotide_orf_v1" ? "sequence_insights" : "protein_properties";
+    const expectedDatabase = template === "ncbi_nucleotide_orf_v1" ? "nucleotide" : "protein";
+    const accession = str(run.requested_accession);
+    const hash = sha(run.sequence_sha256);
+    const jobInputs = fixedInputs.filter((record) => uid(record.job_id) === jobId);
+    const matchingInput = jobInputs.length === 1 && jobInputs[0].input_position === 1 &&
+      uid(jobInputs[0].sequence_upload_id) === sequenceId &&
+      sha(jobInputs[0].input_sha256) === hash;
+    const parameters = obj(science?.parameters);
+    const operationValid = template !== "ncbi_nucleotide_orf_v1" ||
+      (parameters.operation === "orf_scan" && String(parameters.min_aa) === "30");
+    const provenanceValid = Boolean(
+      retrieval && retrieval.status === "retrieved" &&
+      retrieval.source_database === expectedDatabase &&
+      accession && retrieval.requested_accession === accession &&
+      uid(retrieval.sequence_upload_id) === sequenceId &&
+      sequence && sequence.status === "ready" && hash &&
+      sha(sequence.sha256) === hash && matchingInput &&
+      science && science.status === "completed" && science.job_type === expectedJob &&
+      operationValid && sha(science.result_sha256) && str(science.result_object_path)
+    );
+    const progress = pipelineProgress(
+      template, str(run.status) ?? "",
+      str(retrieval?.status), str(sequence?.status), str(science?.status)
+    );
+    const steps: DossierStep[] = progress.map((step, i) => {
+      const id = [retrievalId, sequenceId, jobId][i];
+      const hasRecord = [Boolean(retrieval), Boolean(sequence), Boolean(science)][i];
+      const stageSha = i === 2 && provenanceValid ? sha(science?.result_sha256) : null;
+      return {
+        label: step.name,
+        state: !hasRecord && id ? "unknown" :
+          step.status === "waiting" ? "not_started" :
+          step.status === "completed" && i === 2 && !provenanceValid ? "unknown" :
+          step.status,
+        job_id: id,
+        result_sha256: stageSha,
+      };
+    });
+    const parentStatus = str(run.status);
+    const state: State =
+      parentStatus === "error" ? "failed" :
+      parentStatus === "completed" ? (provenanceValid ? "completed" : "unknown") :
+      progress.some((step) => step.status === "failed") ? "failed" :
+      ["awaiting_source", "awaiting_validation", "running"].includes(parentStatus ?? "")
+        ? "running" : "unknown";
+    const resultSha = state === "completed" ? sha(science?.result_sha256) : null;
+    const download = resultSha && jobId && str(science?.result_object_path)
+      ? "/dashboard/scientific-jobs/" + jobId + "/download" : null;
+    const metrics = state === "completed" && science
+      ? recordedEvidenceMetrics("scientific_job", science) : [];
+    findings.push({
+      plan_id: null, pipeline_id: pipelineId, source: "fixed_pipeline",
+      action: template === "ncbi_nucleotide_orf_v1" ? "NCBI nucleotide ORF scan" : "NCBI protein profiling",
+      state, kind: "scientific_job", resource_id: jobId, metrics,
+      result_sha256: resultSha, verified_download: download, steps,
+    });
+  }
+
   const counts = {
     total: findings.length,
     completed: findings.filter(x => x.state === "completed").length,
@@ -125,6 +207,7 @@ export function buildConversationDossier(input: {
       "These are recorded computational results, not experimentally verified biological conclusions.",
       "Missing, inaccessible, and pending jobs are never reported as completed.",
       "Multi-step workflow completion requires evidence from every scientific dependency.",
+      "Fixed NCBI pipelines require recorded retrieval, matching FASTA and scientific input hashes, fixed compute parameters, and a valid result fingerprint before completion.",
     ],
   };
 }

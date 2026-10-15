@@ -53,8 +53,8 @@ test("server action re-derives consent from persisted owned chat message", () =>
   assert.match(code, /\.eq\("created_by", userId\)/);
   assert.match(code, /\.eq\("conversation_owner_id", userId\)\.eq\("role", "user"\)/);
   assert.match(code, /parseChatResearchProtocol\(source\.content\)/);
-  assert.match(code, /request_research_nucleotide_pipeline/);
-  assert.match(code, /request_research_protein_pipeline/);
+  assert.match(code, /approve_chat_research_pipeline/);
+  assert.doesNotMatch(code, /supabase\.rpc\("request_research_(nucleotide|protein)_pipeline"/);
   assert.doesNotMatch(code, /formData\.get\("accession"\)/);
   assert.doesNotMatch(code, /formData\.get\("template"\)/);
   assert.doesNotMatch(code, /service_role/);
@@ -64,8 +64,12 @@ test("chat URL locator is not used as authorization and output is scoped", () =>
   assert.match(page, /pipeline_id\?: string/);
   assert.match(page, /\.eq\("requested_by", claimsData\.claims\.sub\)\.maybeSingle\(\)/);
   assert.match(page, /\.eq\("project_id", conversation\.project_id\)/);
-  assert.match(page, /recordedEvidenceMetrics\("scientific_job", pipelineScience\)/);
-  assert.match(page, /pipelineScience\.result_object_path/);
+  // V23: selected-run metrics, downloads and steps are gated by the
+  // same verified evidence decision used by the cumulative dossier.
+  assert.match(page, /selectedPipelineEvidence\?\.state === "completed"/);
+  assert.match(page, /href=\{selectedPipelineEvidence\.verified_download\}/);
+  assert.match(page, /selectedPipelineEvidence\?\.steps/);
+  assert.doesNotMatch(page, /pipelineScience\.result_object_path/);
   assert.match(page, /pipeline\.status === "completed"/);
   assert.match(page, /<form action=\{approveChatResearchProtocol\}/);
   assert.match(page, /ResearchActivityRefresh active/);

@@ -96,6 +96,27 @@
   line-height: 1.6;
 }
 
+.recoveredRequest {
+  display: grid;
+  gap: 7px;
+  margin: 15px 0;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+
+.recoveredRequest p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.recoveredRequest small {
+  color: var(--muted);
+}
+
 .messageAttachments {
   display: flex;
   flex-wrap: wrap;

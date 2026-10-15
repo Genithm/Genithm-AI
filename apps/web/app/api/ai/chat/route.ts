@@ -122,6 +122,14 @@ export async function POST(request: Request) {
         const service = createServiceClient();
         let partialVisible = "";
         try {
+          // Seal the caller's actual attachments before the fixed-protocol
+          // branch; failed attestation must enter the standard SSE error path.
+          const { error: inputScopeError } = await service.rpc("mark_chat_protocol_input_scope", {
+            user_message_id: row.user_message_id,
+            expected_user_id: userId,
+            has_media: mediaAttachments.length > 0,
+          });
+          if (inputScopeError) throw new Error("Could not seal chat input scope for research consent.");
           controller.enqueue(sse("meta", {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
