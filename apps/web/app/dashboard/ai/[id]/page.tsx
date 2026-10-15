@@ -71,7 +71,8 @@ export default async function AiConversationPage({
       .from("ai_messages")
       .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,protocol_input_scope,research_pipeline_run_id,created_at")
       .eq("conversation_id", id)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(250),
     supabase
       .from("ai_plan_requests")
@@ -87,10 +88,13 @@ export default async function AiConversationPage({
       .limit(100),
   ]);
 
+  // Fetch the newest bounded window, but render the conversation oldest-first.
+  const chronologicalMessages = [...(messages ?? [])].reverse();
+
   // Science V22: the message-to-run link is persisted by the atomic approval
   // RPC. Reopen/refresh resolves only runs bound to the current conversation,
   // not other pipeline runs sharing this project or accession.
-  const linkedPipelineIds = [...new Set((messages ?? [])
+  const linkedPipelineIds = [...new Set(chronologicalMessages
     .map((message) => message.research_pipeline_run_id)
     .filter((runId): runId is string => Boolean(runId)))].slice(-100);
   const { data: linkedPipelines } = linkedPipelineIds.length
@@ -258,7 +262,7 @@ export default async function AiConversationPage({
         {query.error ? <div className="error">{query.error}</div> : null}
 
         <div className={styles.thread} aria-live="polite">
-          {(messages ?? []).map((message) => (
+          {chronologicalMessages.map((message) => (
             <article
               className={message.role === "user" ? styles.userMessage : styles.assistantMessage}
               key={message.id}
