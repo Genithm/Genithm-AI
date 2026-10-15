@@ -16,8 +16,9 @@ const run = (status = "completed", overrides = {}) => ({
 const completeRows = {
   fixedRetrievals: [{ id: b, status: "retrieved", resolved_accession: "NM_000546.6", source_database: "nucleotide" }],
   fixedSequences: [{ id: c, status: "ready", sha256: sha }],
+  fixedJobInputs: [{ job_id: d, input_position: 1, sequence_upload_id: c, input_sha256: sha }],
   fixedScientificJobs: [{
-    id: d, status: "completed", job_type: "sequence_insights", result_sha256: sha,
+    id: d, status: "completed", job_type: "sequence_insights", parameters: { operation: "orf_scan", min_aa: 30 }, result_sha256: sha,
     result_object_path: "do-not-show/storage/key",
     result_summary: { operation: "orf_scan", orf_count: 3, raw_sequence: "SECRETATG",
       private_token: "PRIVATE_TOKEN" },
@@ -53,6 +54,11 @@ test("V23 never reports completion without matching FASTA, correct job and verif
     { fixedSequences: [] },
     { fixedSequences: [{ id:c, status:"ready", sha256:"a".repeat(64) }] },
     { fixedScientificJobs: [] },
+    { fixedJobInputs: [] },
+    { fixedJobInputs: [{job_id:d,input_position:1,sequence_upload_id:c,input_sha256:"a".repeat(64)}] },
+    { fixedJobInputs: [{job_id:d,input_position:1,sequence_upload_id:e,input_sha256:sha}] },
+    { fixedScientificJobs: [{ id:d,status:"completed",job_type:"sequence_insights",parameters:{operation:"motif_scan",min_aa:30},result_sha256:sha,result_object_path:"object" }] },
+    { fixedScientificJobs: [{ id:d,status:"completed",job_type:"sequence_insights",parameters:{operation:"orf_scan",min_aa:20},result_sha256:sha,result_object_path:"object" }] },
     { fixedScientificJobs: [{ id:d, status:"completed",job_type:"protein_properties",result_sha256:sha,result_object_path:"object" }] },
     { fixedScientificJobs: [{ id:d, status:"completed",job_type:"sequence_insights",result_sha256:"incorrect",result_object_path:"object" }] },
     { fixedScientificJobs: [{ id:d, status:"completed",job_type:"sequence_insights",result_sha256:sha,result_object_path:null }] },
@@ -134,4 +140,8 @@ test("V23 conversation fetches all children under RLS and binds them only to cha
   assert.match(module,/const provenanceValid = Boolean\(/);
   assert.match(module,/sha\(sequence\.sha256\) === hash/);
   assert.match(module,/science\.job_type === expectedJob/);
+  assert.match(module,/sha\(jobInputs\[0\]\.input_sha256\) === hash/);
+  assert.match(module,/parameters\.operation === "orf_scan"/);
+  assert.match(page,/\.from\("scientific_job_inputs"\)/);
+  assert.match(page,/fixedJobInputs: fixedJobInputs \?\? \[\]/);
 });
