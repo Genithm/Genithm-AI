@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -89,4 +90,57 @@ export async function requestAiEvidenceFollowup(formData: FormData) {
 
   revalidatePath(`/dashboard/ai/${conversationId}`);
   redirect(`/dashboard/ai/${conversationId}`);
+}
+
+/**
+ * Human-authorized, chat-bound fixed research pipeline.
+ * The browser only supplies IDs. The server re-reads the exact persisted user
+ * message and re-derives template/accession before calling the existing
+ * actor-bound, quota-aware Supabase RPC. Never execute on AI text alone.
+ */
+export async function approveChatResearchProtocol(formData: FormData) {
+  const supabase = await requireUser();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) redirect("/login");
+
+  const conversationId = String(formData.get("conversation_id") ?? "").trim();
+  const messageId = String(formData.get("message_id") ?? "").trim();
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+  if (!uuid.test(conversationId) || !uuid.test(messageId)) {
+    redirect("/dashboard/ai?error=Invalid%20research%20approval%20request");
+  }
+
+  const { data: conversation } = await supabase.from("ai_conversations")
+    .select("id,project_id,created_by,status").eq("id", conversationId)
+    .eq("created_by", userId).eq("status", "active").maybeSingle();
+  if (!conversation) {
+    redirect("/dashboard/ai?error=Conversation%20not%20accessible");
+  }
+
+  const { data: source } = await supabase.from("ai_messages")
+    .select("id,role,content,conversation_id,conversation_owner_id")
+    .eq("id", messageId).eq("conversation_id", conversationId)
+    .eq("conversation_owner_id", userId).eq("role", "user").maybeSingle();
+  const protocol = source ? parseChatResearchProtocol(source.content) : null;
+  if (!protocol) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent("No eligible fixed research protocol was found in the original chat message.")}`);
+  }
+
+  const { data: runId, error } = protocol.template === "ncbi_nucleotide_orf_v1"
+    ? await supabase.rpc("request_research_nucleotide_pipeline", {
+        project_id: conversation.project_id, accession: protocol.accession,
+      })
+    : await supabase.rpc("request_research_protein_pipeline", {
+        project_id: conversation.project_id, accession: protocol.accession,
+      });
+
+  if (error || !runId || !uuid.test(runId)) {
+    redirect(`/dashboard/ai/${conversationId}?error=${encodeURIComponent(
+      "Research could not start. The authorized pipeline may not be installed, your project access may have changed, or capacity limits may have been reached.",
+    )}`);
+  }
+
+  revalidatePath(`/dashboard/ai/${conversationId}`);
+  redirect(`/dashboard/ai/${conversationId}?pipeline_id=${runId}`);
 }
