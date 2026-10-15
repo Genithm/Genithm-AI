@@ -56,7 +56,7 @@ test("V22 conversation can rehydrate only owner/project-scoped linked pipelines"
   // most recent chat window, instead of treating a URL locator as authority.
   assert.match(page, /linkedPipelineById\.has\(candidatePipelineId\) \|\| historicalMessageLink\?\.id/);
   assert.match(page, /\.eq\("conversation_owner_id", claimsData\.claims\.sub\)/);
-  assert.match(page, /\.eq\("research_pipeline_run_id", candidatePipelineId\)/);
+  assert.match(page, /\.eq\("research_pipeline_run_id", candidatePipelineId \?\? ""\)/);
   assert.match(page, /View approved research/);
   assert.match(page, /!message\.research_pipeline_run_id/);
   assert.match(types, /protocol_input_scope: "text_only" \| "with_attachments" \| null/);
