@@ -10,8 +10,8 @@ export type ChatResearchProtocol = {
   steps: readonly string[];
 };
 
-const NUCLEOTIDE = /(?:^|[^A-Z0-9_])((?:NM|NR|XM|XR|NC|NG|NT|NW)_[0-9]{4,12}(?:\.[0-9]{1,4})?)(?=$|[^A-Z0-9_])/gi;
-const PROTEIN = /(?:^|[^A-Z0-9_])((?:NP|XP|YP|WP)_[0-9]{4,12}(?:\.[0-9]{1,4})?)(?=$|[^A-Z0-9_])/gi;
+const NUCLEOTIDE = /(?:^|[^A-Z0-9_])((?:NM|NR|XM|XR|NC|NG|NT|NW)_[0-9]{4,12}(?:\.[0-9]{1,4})?)(?!\.[0-9])(?=$|[^A-Z0-9_])/gi;
+const PROTEIN = /(?:^|[^A-Z0-9_])((?:NP|XP|YP|WP)_[0-9]{4,12}(?:\.[0-9]{1,4})?)(?!\.[0-9])(?=$|[^A-Z0-9_])/gi;
 
 export function parseChatResearchProtocol(message: string): ChatResearchProtocol | null {
   if (!message || message.length > 8000) return null;
@@ -20,8 +20,19 @@ export function parseChatResearchProtocol(message: string): ChatResearchProtocol
   const protein = [...input.matchAll(PROTEIN)].map((x) => x[1].toUpperCase());
   // Never guess between multiple accessions or mixed reference types.
   if (nucleotide.length + protein.length !== 1) return null;
-  const requestsAction = /\b(run|analy[sz]e|scan|find|detect|calculate|compute|profile|perform|retrieve|fetch)\b/i.test(input);
-  if (!requestsAction || /\b(don't|do not|never|without|avoid)\s+(?:run|analy[sz]e|scan|perform|calculate|compute|profile|fetch|retrieve)\b/i.test(input)) return null;
+  // A message can describe, quote, or negate a workflow without requesting it.
+  // Only a direct single-line command or a direct request addressed to Genithm
+  // qualifies for a consent proposal. Neither case grants execution rights.
+  if (/[\r\n]/.test(input)) return null;
+  const action = "(?:run|analy[sz]e|scan|find|detect|calculate|compute|profile|perform|retrieve|fetch)";
+  const directCommand = new RegExp("^(?:please\\s+|kindly\\s+)?" + action + "\\b", "i").test(input);
+  const directQuestion = new RegExp("^(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?" + action + "\\b", "i").test(input);
+  const directWish = new RegExp("^i\\s+(?:want|would\\s+like)\\s+(?:you\\s+)?to\\s+" + action + "\\b", "i").test(input);
+  if (!directCommand && !directQuestion && !directWish) return null;
+  // Negated, hypothetical and script-oriented requests belong in normal
+  // conversation, not the narrowly authorized reference-only protocol.
+  if (/\b(don't|do not|never|without|avoid|instead of|rather than)\b/i.test(input) ||
+      /\b(python|javascript|script|shell|terminal|execute|commands?)\b/i.test(input)) return null;
 
   if (nucleotide.length === 1 &&
       /\b(orf|orfs|open reading frames?)\b/i.test(input) &&
@@ -81,9 +92,20 @@ export function pipelineProgress(
   // The parent run reports terminal failure independently of the child status.
   // When metadata is unavailable, mark the earliest unknown stage as failed
   // rather than inventing successful jobs.
-  if (status === "error" && !steps.some((x) => x.status === "failed")) {
-    const pending = steps.find((x) => x.status !== "completed");
-    if (pending) pending.status = "unknown";
+  if (status === "error") {
+    // A terminal failure cannot truthfully show an indefinitely running child.
+    for (const step of steps) if (step.status === "running") step.status = "unknown";
+    if (!steps.some((x) => x.status === "failed")) {
+      const pending = steps.find((x) => x.status !== "completed");
+      if (pending) pending.status = "unknown";
+    }
+  }
+  if (status === "completed") {
+    // Parent completion alone is insufficient to assert success or progress
+    // for children whose records are missing, stale or inconsistent.
+    for (const step of steps) {
+      if (step.status === "waiting" || step.status === "running") step.status = "unknown";
+    }
   }
   return steps;
 }
