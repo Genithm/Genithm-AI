@@ -310,7 +310,49 @@ type AuditCheckpoint = {
   Relationships: [];
 };
 
+type ResearchPipelineRun = {
+  Row: {
+    id: string;
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    template: string;
+    requested_accession: string;
+    retrieval_id: string;
+    sequence_upload_id: string | null;
+    sequence_sha256: string | null;
+    scientific_job_id: string | null;
+    status: string;
+    failure_stage: string | null;
+    failure_code: string | null;
+    created_at: string;
+    updated_at: string;
+    finished_at: string | null;
+  };
+  Insert: {
+    organization_id: string;
+    project_id: string;
+    requested_by: string;
+    requested_accession: string;
+    retrieval_id: string;
+    id?: string;
+    template?: string;
+    sequence_upload_id?: string | null;
+    sequence_sha256?: string | null;
+    scientific_job_id?: string | null;
+    status?: string;
+    failure_stage?: string | null;
+    failure_code?: string | null;
+    created_at?: string;
+    updated_at?: string;
+    finished_at?: string | null;
+  };
+  Update: Partial<ResearchPipelineRun["Insert"]>;
+  Relationships: [];
+};
+
 type LiveTables = BaseTables & {
+  research_pipeline_runs: ResearchPipelineRun;
   audit_checkpoints: AuditCheckpoint;
   audit_events: AuditEvent;
   protein_annotation_jobs: ProteinAnnotationJob;
@@ -332,6 +374,14 @@ type ScientificFinishArgs = {
 };
 
 type LiveFunctions = BaseFunctions & {
+  request_research_protein_pipeline: {
+    Args: { project_id: string; accession: string };
+    Returns: string;
+  };
+  request_research_nucleotide_pipeline: {
+    Args: { project_id: string; accession: string };
+    Returns: string;
+  };
   claim_audit_checkpoint_job: {
     Args: { visibility_seconds?: number };
     Returns: {
