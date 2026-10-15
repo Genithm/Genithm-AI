@@ -99,11 +99,11 @@ export default async function AiConversationPage({
     .filter((runId): runId is string => Boolean(runId)))].slice(-100);
   const { data: linkedPipelines } = linkedPipelineIds.length
     ? await supabase.from("research_pipeline_runs")
-        .select("id,status,template,requested_accession,project_id,requested_by")
+        .select("id,status,template,requested_accession,project_id,requested_by,retrieval_id,sequence_upload_id,scientific_job_id,sequence_sha256")
         .eq("project_id", conversation.project_id)
         .eq("requested_by", claimsData.claims.sub)
         .in("id", linkedPipelineIds)
-    : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string }> };
+    : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string; retrieval_id: string; sequence_upload_id: string | null; scientific_job_id: string | null; sequence_sha256: string | null }> };
   const linkedPipelineById = new Map((linkedPipelines ?? []).map((run) => [run.id, run]));
   const requestedPipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "") &&
     linkedPipelineById.has(query.pipeline_id ?? "") ? query.pipeline_id : null;
@@ -222,6 +222,37 @@ export default async function AiConversationPage({
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
   );
 
+  // V23: batch-read every fixed pipeline dependency through the researcher's
+  // RLS session. A saved chat link is a locator, never proof of completed work.
+  const fixedRetrievalIds = [...new Set((linkedPipelines ?? []).map((run) => run.retrieval_id))];
+  const fixedSequenceIds = [...new Set((linkedPipelines ?? [])
+    .map((run) => run.sequence_upload_id).filter((id): id is string => Boolean(id)))];
+  const fixedScientificIds = [...new Set((linkedPipelines ?? [])
+    .map((run) => run.scientific_job_id).filter((id): id is string => Boolean(id)))];
+  const [{ data: fixedRetrievals }, { data: fixedSequences }, { data: fixedScientificJobs }] = await Promise.all([
+    fixedRetrievalIds.length
+      ? supabase.from("sequence_retrievals")
+          .select("id,status,resolved_accession,source_database,sequence_upload_id")
+          .eq("project_id", conversation.project_id)
+          .eq("requested_by", claimsData.claims.sub)
+          .in("id", fixedRetrievalIds)
+      : Promise.resolve({ data: [] }),
+    fixedSequenceIds.length
+      ? supabase.from("sequence_uploads")
+          .select("id,status,sha256")
+          .eq("project_id", conversation.project_id)
+          .eq("created_by", claimsData.claims.sub)
+          .in("id", fixedSequenceIds)
+      : Promise.resolve({ data: [] }),
+    fixedScientificIds.length
+      ? supabase.from("scientific_jobs")
+          .select("id,status,job_type,result_sha256,result_object_path,result_summary")
+          .eq("project_id", conversation.project_id)
+          .eq("requested_by", claimsData.claims.sub)
+          .in("id", fixedScientificIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
   const dossier = buildConversationDossier({
     conversationId: conversation.id,
     plans: activityPlans,
@@ -231,6 +262,10 @@ export default async function AiConversationPage({
     annotations: annotations.data ?? [],
     workflows: workflows.data ?? [],
     workflowChildJobs: workflowChildJobs ?? [],
+    fixedPipelines: linkedPipelines ?? [],
+    fixedRetrievals: fixedRetrievals ?? [],
+    fixedSequences: fixedSequences ?? [],
+    fixedScientificJobs: fixedScientificJobs ?? [],
   });
 
   const interpretationByPlan = new Map<string, NonNullable<typeof interpretations>[number]>();
@@ -387,7 +422,7 @@ export default async function AiConversationPage({
                 </div>
               );
             })}
-            {!activityPlans.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
+            {!activityPlans.length && !(linkedPipelines ?? []).length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
         </section>
 
