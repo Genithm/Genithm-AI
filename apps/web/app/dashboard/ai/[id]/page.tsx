@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { AiChatComposer } from "@/components/ai-chat-composer";
 import { createClient } from "@/lib/supabase/server";
+import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation } from "../actions";
 import styles from "./conversation.module.css";
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
@@ -125,16 +126,16 @@ export default async function AiConversationPage({
 
   const [scientific, annotations, retrievals, blasts, workflows] = await Promise.all([
     scientificIds.length
-      ? supabase.from("scientific_jobs").select("id,status,job_type,result_summary,result_sha256,processing_error,updated_at").in("id", scientificIds)
+      ? supabase.from("scientific_jobs").select("id,status,job_type,result_summary,result_sha256,result_object_path,processing_error,updated_at").in("id", scientificIds)
       : Promise.resolve({ data: [] }),
     annotationIds.length
-      ? supabase.from("protein_annotation_jobs").select("id,status,processing_error,updated_at").in("id", annotationIds)
+      ? supabase.from("protein_annotation_jobs").select("id,status,refseq_accession,uniprot_accession,protein_name,uniprot_reviewed,processing_error,updated_at").in("id", annotationIds)
       : Promise.resolve({ data: [] }),
     retrievalIds.length
-      ? supabase.from("sequence_retrievals").select("id,status,processing_error,updated_at").in("id", retrievalIds)
+      ? supabase.from("sequence_retrievals").select("id,status,resolved_accession,source_database,sequence_upload_id,processing_error,updated_at").in("id", retrievalIds)
       : Promise.resolve({ data: [] }),
     blastIds.length
-      ? supabase.from("blast_jobs").select("id,status,processing_error,updated_at").in("id", blastIds)
+      ? supabase.from("blast_jobs").select("id,status,result_summary,raw_result_sha256,processing_error,updated_at").in("id", blastIds)
       : Promise.resolve({ data: [] }),
     workflowIds.length
       ? supabase.from("ai_workflow_runs").select("id,status,processing_error,msa_job_id,phylogeny_job_id,updated_at").in("id", workflowIds)
@@ -150,6 +151,9 @@ export default async function AiConversationPage({
   const workflowById = new Map((workflows.data ?? []).map((row) => [row.id, row]));
 
   const scientificById = new Map((scientific.data ?? []).map((row) => [row.id, row]));
+  const annotationById = new Map((annotations.data ?? []).map((row) => [row.id, row]));
+  const retrievalById = new Map((retrievals.data ?? []).map((row) => [row.id, row]));
+  const blastById = new Map((blasts.data ?? []).map((row) => [row.id, row]));
   const activityPlans = (plans ?? []).filter((plan) =>
     ["ready", "dispatched"].includes(plan.status) || (plan.status === "error" && Boolean(plan.action_type)),
   );
@@ -231,12 +235,17 @@ export default async function AiConversationPage({
               const scientificResult = plan.dispatched_resource_type === "scientific_job" && plan.dispatched_resource_id
                 ? scientificById.get(plan.dispatched_resource_id)
                 : null;
-              const findings = scientificResult?.status === "completed" && isRecord(scientificResult.result_summary)
-                ? Object.entries(scientificResult.result_summary).filter(([key, value]) =>
-                    !/sequence|accession|raw|fasta|error|secret|token|password|api.key/i.test(key) &&
-                    (typeof value === "number" || typeof value === "boolean" ||
-                    (typeof value === "string" && value.length <= 120))).slice(0, 10)
-                : [];
+              const evidenceType = plan.dispatched_resource_type;
+              const evidenceRow =
+                evidenceType === "scientific_job" ? scientificResult :
+                evidenceType === "blast_job" ? blastById.get(plan.dispatched_resource_id ?? "") :
+                evidenceType === "sequence_retrieval" ? retrievalById.get(plan.dispatched_resource_id ?? "") :
+                evidenceType === "protein_annotation_job" ? annotationById.get(plan.dispatched_resource_id ?? "") :
+                null;
+              const findings = evidenceType && (
+                evidenceType === "scientific_job" || evidenceType === "blast_job" ||
+                evidenceType === "sequence_retrieval" || evidenceType === "protein_annotation_job"
+              ) ? recordedEvidenceMetrics(evidenceType, evidenceRow) : [];
 
               return (
                 <div className={styles.activityCard} key={plan.id}>
@@ -254,7 +263,7 @@ export default async function AiConversationPage({
                         <form action={approveAiPlan}>
                           <input type="hidden" name="plan_request_id" value={plan.id} />
                           <input type="hidden" name="conversation_id" value={conversation.id} />
-                          <button className="button primary" type="submit">Approve & run</button>
+                          <button className="button primary" type="submit">Approve this analysis</button>
                         </form>
                       ) : null}
                       {href ? <details className={styles.evidenceDetails}><summary>{workflow ? "View workflow evidence" : "View result and evidence"}</summary><p>Scientific evidence is available in the verified results workspace. This link opens the full report and provenance record.</p><Link className="button" href={href}>Open verified evidence</Link></details> : null}
@@ -272,8 +281,9 @@ export default async function AiConversationPage({
                   </div>
 
                   {planSummary(plan.plan) ? <p>{planSummary(plan.plan)}</p> : null}
-                  {findings.length ? <div className={styles.findings} aria-label="Scientific findings">{findings.map(([key, value]) => <div className={styles.finding} key={key}><span>{readable(key)}</span><strong>{String(value)}</strong></div>)}</div> : null}
+                  {findings.length ? <div className={styles.findings} aria-label="Recorded scientific findings">{findings.map((item) => <div className={styles.finding} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div> : null}
                   {scientificResult?.status === "completed" && scientificResult.result_sha256 ? <div className={styles.muted}>Recorded result fingerprint: <code>{scientificResult.result_sha256}</code></div> : null}
+                  {scientificResult?.status === "completed" && scientificResult.result_sha256 && scientificResult.result_object_path ? <a className={styles.download} href={`/dashboard/scientific-jobs/${scientificResult.id}/download`}>Download verified scientific result JSON</a> : null}
                   {state?.error ? <div className="error">{state.error}</div> : null}
                   {plan.processing_error ? <div className="error">{plan.processing_error}</div> : null}
                   {interpretation?.processing_error ? <div className="error">{interpretation.processing_error}</div> : null}
