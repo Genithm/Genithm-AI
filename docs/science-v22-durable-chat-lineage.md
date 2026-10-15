@@ -34,6 +34,7 @@ The service-only `mark_chat_protocol_input_scope` RPC records the state from act
 ## Limits
 
 - The tool-recognition contract remains deliberately narrow: direct, single-accession NCBI nucleotide ORF scanning or protein-property profiling only, never arbitrary AI-generated pipelines.
+- The UI proposes research intent using TypeScript, but PostgreSQL independently decides whether a saved text-only message is approvable. Both implementations are now gated by one versioned 32-case positive/negative intent corpus (including malformed accessions, action-word boundaries, negation and instruction overrides), run in Node and against the migrated local PostgreSQL database. This reduces parser drift but does not substitute for an explicit approval click or database authorization.
 - Older V20 run URLs are **not backfilled or guessed**. Existing links remain useful only under the older code; once V22 is enabled, a fresh explicit approved message creates the durable binding.
 - Conversation message queries are bounded to the existing latest 250 messages; this increment does not implement unlimited archived history search.
 - GitHub CI replays migrations in a disposable local Supabase database and executes a rollback-only two-user integration test of cross-tenant denial, rejected input scopes, genuine approval/replay and service-only media attestation. The test also verifies that even a privileged direct UPDATE cannot create a cross-owner or unverified pipeline link.
