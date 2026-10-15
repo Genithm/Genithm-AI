@@ -13,7 +13,7 @@ The dossier only trusts child records queried through the authenticated research
 For a fixed NCBI pipeline to show `completed`, all these must be recorded:
 
 1. The parent pipeline status is `completed` and the template is one of `ncbi_nucleotide_orf_v1` or `ncbi_protein_profile_v1`.
-2. The linked NCBI retrieval is `retrieved`.
+2. The linked NCBI retrieval is `retrieved`, with the expected source database (`nucleotide` or `protein`) and exactly the recorded requested accession.
 3. The linked FASTA upload is `ready` and its SHA-256 matches the pipeline's recorded `sequence_sha256`.
 4. Exactly one recorded scientific-job input matches the expected upload ID and the same SHA-256 (input position 1).
 5. The scientific job is `completed` with the correct job type: `sequence_insights` for ORF or `protein_properties` for protein profiling.
