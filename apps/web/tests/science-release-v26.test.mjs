@@ -50,7 +50,7 @@ test("V26 only missing schema/functions can fall back to ordinary chat", () => {
 test("V26 chat streams normally without V22 but never proposes unauthorized science", () => {
   assert.match(chat, /if \(scienceV22Configured\(\)\) \{/);
   assert.match(chat, /\.select\("id,protocol_input_scope,research_pipeline_run_id"\)\.limit\(0\)/);
-  assert.match(chat, /if \(!schemaError\) \{/);
+  assert.match(chat, /if \(!schemaError && await scienceExecutionReady\(service\)\) \{/);
   assert.match(chat, /service\.rpc\("mark_chat_protocol_input_scope"/);
   assert.match(chat, /scienceSchemaUnavailableError\(inputScopeError\)/);
   assert.match(chat, /offerFixedResearch = !inputScopeError/);
