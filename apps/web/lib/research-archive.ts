@@ -77,3 +77,17 @@ export function archiveTemplate(template: string | null): string {
     default: return "Other recorded research";
   }
 }
+
+/** Presentation-only result provenance, not a substitute for RLS or byte checks. */
+export function archiveEvidenceLabel(state: string | null): string {
+  switch (state) {
+    case "completed": return "Recorded evidence verified";
+    case "running": return "Evidence still accumulating";
+    case "failed": return "Research failed";
+    case "not_started":
+    case "awaiting_approval": return "Scientific work not started";
+    case "inconclusive":
+    case "unknown": return "Evidence incomplete";
+    default: return "Evidence unavailable";
+  }
+}
