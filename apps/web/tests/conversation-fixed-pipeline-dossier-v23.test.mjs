@@ -14,7 +14,7 @@ const run = (status = "completed", overrides = {}) => ({
   retrieval_id: b, sequence_upload_id: c, scientific_job_id: d, sequence_sha256: sha, ...overrides,
 });
 const completeRows = {
-  fixedRetrievals: [{ id: b, status: "retrieved", resolved_accession: "NM_000546.6", source_database: "nucleotide" }],
+  fixedRetrievals: [{ id: b, status: "retrieved", requested_accession: "NM_000546.6", resolved_accession: "NM_000546.6", source_database: "nucleotide" }],
   fixedSequences: [{ id: c, status: "ready", sha256: sha }],
   fixedJobInputs: [{ job_id: d, input_position: 1, sequence_upload_id: c, input_sha256: sha }],
   fixedScientificJobs: [{
@@ -51,6 +51,8 @@ test("V23 never reports completion without matching FASTA, correct job and verif
   const variants = [
     { fixedRetrievals: [] },
     { fixedRetrievals: [{ id:b, status:"retrieving" }] },
+    { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NP_000537.3", source_database:"nucleotide" }] },
+    { fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NM_000546.6", source_database:"protein" }] },
     { fixedSequences: [] },
     { fixedSequences: [{ id:c, status:"ready", sha256:"a".repeat(64) }] },
     { fixedScientificJobs: [] },
@@ -93,6 +95,7 @@ test("V23 running and failed pipelines do not leak fabricated scientific finding
 test("V23 protein profile uses the appropriate scientific job type", () => {
   const value = make({
     fixedPipelines: [run("completed", { template: "ncbi_protein_profile_v1", requested_accession:"NP_000537.3" })],
+    fixedRetrievals: [{ id:b, status:"retrieved", requested_accession:"NP_000537.3", source_database:"protein" }],
     fixedScientificJobs: [{ id:d,status:"completed",job_type:"protein_properties",result_sha256:sha,
       result_object_path:"private/hidden",result_summary: { molecular_weight_da: 41862.4, api_secret:"NEVER" } }],
   });
@@ -142,6 +145,8 @@ test("V23 conversation fetches all children under RLS and binds them only to cha
   assert.match(module,/science\.job_type === expectedJob/);
   assert.match(module,/sha\(jobInputs\[0\]\.input_sha256\) === hash/);
   assert.match(module,/parameters\.operation === "orf_scan"/);
+  assert.match(module,/retrieval\.source_database === expectedDatabase/);
+  assert.match(module,/retrieval\.requested_accession === accession/);
   assert.match(page,/\.from\("scientific_job_inputs"\)/);
   assert.match(page,/fixedJobInputs: fixedJobInputs \?\? \[\]/);
 });
