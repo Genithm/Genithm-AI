@@ -39,6 +39,7 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
 
         <Link className={styles.newChat} href="/dashboard/ai">+ New chat</Link>
 
+        <Link className={styles.newChat} href="/dashboard/ai/research">↗ Approved research history</Link>
         <div className={styles.historyLabel}>Recent chats</div>
         <div className={styles.history}>
           {(conversations ?? []).map((conversation) => (
@@ -51,6 +52,7 @@ export default async function AiWorkspacePage({ searchParams }: { searchParams: 
         </div>
 
         <div className={styles.sidebarFooter}>
+          <Link href="/dashboard/ai/research">Approved research archive</Link>
           <Link href="/dashboard/research-journey">Research journey</Link>
           <Link href="/dashboard/reports">Reports</Link>
           <Link href="/dashboard/billing">Plan & usage</Link>
