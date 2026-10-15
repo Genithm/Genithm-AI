@@ -203,6 +203,9 @@ jobs:
       - name: Verify V28 unavailable research no-result, safe manual recovery and refresh
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/offline-science-recovery-v28.test.mjs
+      - name: Verify V29 admin science operations, least privilege and sanitized runtime telemetry
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/science-operations-v29.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs
