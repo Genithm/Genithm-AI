@@ -1,4 +1,4 @@
-import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
+import { parseChatResearchProtocol } from "./chat-research-protocol.ts";
 
 export type RecoverableMessage = {
   role: string;
