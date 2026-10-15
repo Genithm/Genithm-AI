@@ -92,7 +92,7 @@ export default async function AiConversationPage({
   // not other pipeline runs sharing this project or accession.
   const linkedPipelineIds = [...new Set((messages ?? [])
     .map((message) => message.research_pipeline_run_id)
-    .filter((runId): runId is string => Boolean(runId)))].slice(0, 100);
+    .filter((runId): runId is string => Boolean(runId)))].slice(-100);
   const { data: linkedPipelines } = linkedPipelineIds.length
     ? await supabase.from("research_pipeline_runs")
         .select("id,status,template,requested_accession,project_id,requested_by")
