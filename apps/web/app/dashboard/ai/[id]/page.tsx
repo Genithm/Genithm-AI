@@ -69,7 +69,7 @@ export default async function AiConversationPage({
     supabase.from("projects").select("id,name,status").eq("id", conversation.project_id).maybeSingle(),
     supabase
       .from("ai_messages")
-      .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,created_at")
+      .select("id,role,content,message_kind,plan_request_id,attachment_upload_ids,protocol_input_scope,research_pipeline_run_id,created_at")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true })
       .limit(250),
@@ -87,10 +87,24 @@ export default async function AiConversationPage({
       .limit(100),
   ]);
 
-  // Explicitly launched, owner-scoped run. The query parameter is a locator
-  // only, never authorization; the database RLS checks membership/ownership.
-  const pipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "")
-    ? query.pipeline_id : null;
+  // Science V22: the message-to-run link is persisted by the atomic approval
+  // RPC. Reopen/refresh resolves only runs bound to the current conversation,
+  // not other pipeline runs sharing this project or accession.
+  const linkedPipelineIds = [...new Set((messages ?? [])
+    .map((message) => message.research_pipeline_run_id)
+    .filter((runId): runId is string => Boolean(runId)))].slice(0, 100);
+  const { data: linkedPipelines } = linkedPipelineIds.length
+    ? await supabase.from("research_pipeline_runs")
+        .select("id,status,template,requested_accession,project_id,requested_by")
+        .eq("project_id", conversation.project_id)
+        .eq("requested_by", claimsData.claims.sub)
+        .in("id", linkedPipelineIds)
+    : { data: [] as Array<{ id: string; status: string; template: string; requested_accession: string; project_id: string; requested_by: string }> };
+  const linkedPipelineById = new Map((linkedPipelines ?? []).map((run) => [run.id, run]));
+  const requestedPipelineId = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(query.pipeline_id ?? "") &&
+    linkedPipelineById.has(query.pipeline_id ?? "") ? query.pipeline_id : null;
+  const pipelineId = requestedPipelineId ?? [...linkedPipelineIds].reverse()
+    .find((id) => linkedPipelineById.has(id)) ?? null;
   const { data: pipeline } = pipelineId
     ? await supabase.from("research_pipeline_runs")
         .select("id,project_id,requested_by,template,requested_accession,retrieval_id,sequence_upload_id,scientific_job_id,status,failure_stage,failure_code,sequence_sha256")
@@ -253,9 +267,9 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
-              {message.role === "user" && (message.attachment_upload_ids?.length ?? 0) === 0 && parseChatResearchProtocol(message.content) &&
-                !(pipeline && parseChatResearchProtocol(message.content)?.accession === pipeline.requested_accession &&
-                  parseChatResearchProtocol(message.content)?.template === pipeline.template) ? (
+              {message.role === "user" && message.protocol_input_scope === "text_only" &&
+                (message.attachment_upload_ids?.length ?? 0) === 0 && !message.research_pipeline_run_id &&
+                parseChatResearchProtocol(message.content) ? (
                 <form action={approveChatResearchProtocol} className={styles.protocolApproval}>
                   <input type="hidden" name="conversation_id" value={conversation.id} />
                   <input type="hidden" name="message_id" value={message.id} />
@@ -263,6 +277,11 @@ export default async function AiConversationPage({
                   <p>NCBI retrieval → validated FASTA → authorized scientific calculation. Nothing starts without your approval.</p>
                   <button className="button primary" type="submit">Approve complete research protocol</button>
                 </form>
+              ) : null}
+              {message.research_pipeline_run_id && linkedPipelineById.has(message.research_pipeline_run_id) ? (
+                <Link className={styles.download} href={`/dashboard/ai/${conversation.id}?pipeline_id=${message.research_pipeline_run_id}`}>
+                  View approved research · {readable(linkedPipelineById.get(message.research_pipeline_run_id)?.status)}
+                </Link>
               ) : null}
               {(attachmentsByMessage.get(message.id)?.length || (message.plan_request_id && attachmentsByPlan.get(message.plan_request_id)?.length)) ? (
                 <div className={styles.messageAttachments}>
@@ -281,7 +300,7 @@ export default async function AiConversationPage({
           ) : null}
         </div>
 
-        <ResearchActivityRefresh active={Boolean((pipeline && ["awaiting_source", "awaiting_validation", "running"].includes(pipeline.status)) || (plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
+        <ResearchActivityRefresh active={Boolean((linkedPipelines ?? []).some((run) => ["awaiting_source", "awaiting_validation", "running"].includes(run.status)) || (pipeline && ["awaiting_source", "awaiting_validation", "running"].includes(pipeline.status)) || (plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
         <section className={styles.activity} aria-label="Scientific research results and execution">
           <h2 className={styles.activityTitle}>Research activity · progress &amp; results</h2>
