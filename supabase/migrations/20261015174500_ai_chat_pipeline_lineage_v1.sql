@@ -1,13 +1,32 @@
 -- Science V22: durable, user-owned chat -> fixed scientific pipeline lineage.
 -- Source-only migration. Do NOT apply to production until reviewed and staged.
 -- Existing ai_messages SELECT RLS remains in force; no user INSERT/UPDATE grants.
+-- A scoped foreign key prevents accidental cross-tenant lineage even by
+-- privileged internal code. Existing run IDs are already unique, so the
+-- additional compound key cannot reject otherwise-valid historical rows.
+alter table public.research_pipeline_runs
+  add constraint research_pipeline_chat_scope_unique
+    unique (id,project_id,organization_id,requested_by);
+
 alter table public.ai_messages
   add column protocol_input_scope text,
-  add column research_pipeline_run_id uuid references public.research_pipeline_runs(id) on delete restrict;
+  add column research_pipeline_run_id uuid;
 
 alter table public.ai_messages
   add constraint ai_messages_protocol_scope_ck
-  check (protocol_input_scope is null or protocol_input_scope in ('text_only','with_attachments'));
+    check (protocol_input_scope is null or protocol_input_scope in ('text_only','with_attachments')),
+  add constraint ai_messages_scoped_research_run_fk
+    foreign key (research_pipeline_run_id,project_id,organization_id,conversation_owner_id)
+    references public.research_pipeline_runs(id,project_id,organization_id,requested_by)
+    on delete restrict,
+  add constraint ai_messages_authorized_research_link_ck
+    check (
+      research_pipeline_run_id is null
+      or (protocol_input_scope is not distinct from 'text_only'
+          and cardinality(attachment_upload_ids)=0
+          and role='user'
+          and plan_request_id is null)
+    );
 
 create index ai_messages_fixed_research_lookup_idx
   on public.ai_messages(conversation_id,created_at desc)
