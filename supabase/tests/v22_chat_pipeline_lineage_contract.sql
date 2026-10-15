@@ -21,6 +21,16 @@ begin
     select 1 from pg_class c where c.oid='public.ai_messages'::regclass
       and c.relrowsecurity and c.relforcerowsecurity
   ) then raise exception 'AI messages must retain forced RLS'; end if;
+  if not exists (
+    select 1 from pg_constraint where conrelid='public.ai_messages'::regclass
+      and conname='ai_messages_scoped_research_run_fk' and contype='f'
+  ) or not exists (
+    select 1 from pg_constraint where conrelid='public.ai_messages'::regclass
+      and conname='ai_messages_authorized_research_link_ck' and contype='c'
+  ) or not exists (
+    select 1 from pg_constraint where conrelid='public.research_pipeline_runs'::regclass
+      and conname='research_pipeline_chat_scope_unique' and contype='u'
+  ) then raise exception 'V22 cross-tenant FK or stored consent invariant missing'; end if;
   if has_table_privilege('authenticated','public.ai_messages','UPDATE')
      or has_table_privilege('authenticated','public.ai_messages','INSERT')
      or has_column_privilege('authenticated','public.ai_messages','protocol_input_scope','UPDATE')
