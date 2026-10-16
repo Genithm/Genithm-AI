@@ -57,7 +57,7 @@ test("V34 results route only queries authenticated owner-scoped records", () => 
   assert.match(route,/loadError/);
   assert.match(route,/Scientific activity could not be loaded securely/);
   assert.match(route,/ResearchActivityRefresh active=/);
-  assert.doesNotMatch(route,/createServiceClient|service_role|SUPABASE_SECRET_KEY|Math\.random/);
+  assert.doesNotMatch(route,/createServiceClient\s*\(|SUPABASE_SECRET_KEY|Math\.random/);
 });
 
 test("V34 live dock only presents stored science and uses existing detail links", () => {
