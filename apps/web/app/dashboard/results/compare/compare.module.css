@@ -75,3 +75,19 @@
   .chartRow { grid-template-columns:43px minmax(0,1fr) 58px; gap:6px; }
   .axisLabels { padding-left:44px; padding-right:60px; }
 }
+
+
+/* V37 verified source-study save form. Only rendered after all artifacts pass SHA-256. */
+.saveStudyForm { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;
+  border:1px solid #397971; background:linear-gradient(120deg,#193f47,#122d38);
+  border-radius:13px; padding:19px; align-items:end; }
+.saveStudyForm > div:first-child { grid-column:1/-1; display:grid; gap:6px; }
+.saveStudyForm > div:first-child strong { color:#c9fff0; font-size:16px; }
+.saveStudyForm p { color:#aacfd1; font-size:11px; }
+.saveStudyForm label { display:grid; gap:7px; color:#c4e4e2; font-size:11px; font-weight:800; }
+.saveStudyForm input,.saveStudyForm textarea { border:1px solid #527d80; border-radius:9px;
+  padding:10px; background:#102a32; color:#f0fbfa; font-size:12px; font:inherit; width:100%; }
+.saveStudyForm button { border:0; border-radius:9px; background:#9ef7dd; color:#09343b; cursor:pointer;
+  padding:12px 16px; font-size:12px; font-weight:800; }
+.saveStudyForm a,.savedLibraryLink { color:#9de3da; font-size:12px; text-decoration:none; }
+@media(max-width:680px){ .saveStudyForm{grid-template-columns:1fr;} }
