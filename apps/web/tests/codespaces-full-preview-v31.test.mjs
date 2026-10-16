@@ -10,6 +10,9 @@ const launcher = read("../../../scripts/codespaces_preview.sh");
 const devStart = read("../../../.devcontainer/start.sh");
 const devSetup = read("../../../.devcontainer/setup.sh");
 const guide = read("../../../docs/deployment/CODESPACES_FULL_PREVIEW.md");
+const proxy = read("../proxy.ts");
+const login = read("../app/login/page.tsx");
+const signup = read("../app/signup/page.tsx");
 
 test("V31 real product homepage always features sign-in and signup, not a sample demo",()=>{
   assert.match(home,/href="\/login">Sign In to Genithm/);
@@ -32,6 +35,19 @@ test("V31 local fixture mode is clearly distinguished from the real Genithm app"
   assert.doesNotMatch(preview,/Use a separate development Supabase project/);
   assert.match(devSetup,/Local SAMPLE workbench/);
   assert.match(devStart,/Basic development web server/);
+});
+
+test("V31 no-Supabase Codespace shows real auth setup, never redirects to optional sample tools",()=>{
+  assert.match(proxy,/pathname === "\/login"/);
+  assert.match(proxy,/pathname === "\/signup"/);
+  assert.match(proxy,/setupUrl\.pathname = "\/login"/);
+  assert.doesNotMatch(proxy,/setupUrl\.pathname = "\/preview"/);
+  for(const page of [login,signup]){
+    assert.match(page,/previewNeedsConfiguration/);
+    assert.match(page,/Full Genithm sign-in is not running yet/);
+    assert.match(page,/bash scripts\/codespaces_preview\.sh/);
+    assert.match(page,/SUPABASE_SECRET_KEY and OPENROUTER_API_KEY/);
+  }
 });
 
 test("V31 full launcher requires secrets, avoids public leakage, and configures server V22 runtime",()=>{
@@ -69,7 +85,7 @@ test("V31 documentation matches the actual OpenRouter launcher and existing proj
   assert.match(guide,/\/login/);
   assert.match(guide,/\/signup/);
   assert.match(guide,/six current worker heartbeats/);
-  assert.match(guide,/existing Genithm Supabase project/);
+  assert.match(guide,/existing Genithm Supabase (Auth|project)/);
   assert.doesNotMatch(guide,/Create a new Supabase project/);
   assert.doesNotMatch(guide,/requires DeepSeek/);
 });
