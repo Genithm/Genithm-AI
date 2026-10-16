@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const primaryLinks = [
   {href:"/dashboard/ai",label:"BioAI chat",exact:false},
   {href:"/dashboard/tools",label:"Scientific tools",exact:false},
+  {href:"/dashboard/variant-qc",label:"Variant QC",exact:false},
   {href:"/dashboard/results",label:"Results",exact:false},
   {href:"/dashboard/results/studies",label:"Saved studies",exact:false},
   {href:"/dashboard/notebook",label:"Notebook",exact:false},
