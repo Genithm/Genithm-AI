@@ -21,6 +21,54 @@ A **Supabase publishable key is not the backend secret key**. The public project
 
 GitHub Codespaces exposes the secrets as environment variables. Rebuild or restart the Codespace after adding/changing repository secrets. If the launcher reports missing secrets, verify the secret **names and Codespaces scope** first; don't reveal values.
 
+## Fix missing Docker after creating a Codespace
+
+The **full** preview requires Docker Engine and Compose v2 to start the API, six workers
+and temporary object storage. The Genithm devcontainer installs the
+`ghcr.io/devcontainers/features/docker-in-docker:4` feature on a **container build**.
+
+If `scripts/codespaces_preview.sh` reports `Required tool is missing: docker`,
+the current Codespace was created before the Docker feature was enabled (or
+its container was not successfully rebuilt). **Running `git pull` does not
+install container features.** From the existing Codespaces terminal:
+
+```bash
+git switch main
+git pull --ff-only
+```
+
+Then open the VS Code Command Palette (**Ctrl/Cmd+Shift+P**), run
+**Codespaces: Rebuild Container**, and wait for installation to finish.
+Rebuilding restarts the development container and applies Docker-in-Docker
+from the updated `.devcontainer/devcontainer.json`. If that command is not
+available or the container build fails, create a **new Codespace from main**
+and let its setup complete. Building multiple scientific worker containers
+may require a Codespaces machine with sufficient memory and compute.
+
+After the rebuild, check Docker from the same terminal:
+
+```bash
+docker --version
+docker compose version
+docker info
+```
+
+All three must succeed. Do **not** copy service credentials into terminal
+messages or commit them to GitHub. Your Codespaces secrets must be configured
+under the repository's Codespaces secrets and may require a restart before
+they become available.
+
+Then launch the full application:
+
+```bash
+bash scripts/codespaces_preview.sh
+```
+
+If you only want the **real authenticated Genithm BioAI chat immediately**,
+and cannot use Docker yet, run `bash scripts/codespaces_bioai.sh`.
+That chat-only mode deliberately disables worker-backed computation and
+is **not** the full integrated scientific preview.
+
 ## Launch the real product
 
 From the **repository root** in a Codespaces terminal:
