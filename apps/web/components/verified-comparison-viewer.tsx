@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { saveScientificComparisonStudy } from "@/app/dashboard/results/studies/actions";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ExplorerResult } from "@/lib/scientific-result-explorer";
@@ -38,7 +39,7 @@ function downloadText(name: string, value: string) {
   URL.revokeObjectURL(url);
 }
 
-export function VerifiedComparisonViewer({ jobs }: { jobs: ComparisonJob[] }) {
+export function VerifiedComparisonViewer({ jobs, allowSave = true }: { jobs: ComparisonJob[]; allowSave?: boolean }) {
   const [status, setStatus] = useState<LoadState>("loading");
   const [comparison, setComparison] = useState<VerifiedComparison | null>(null);
   const [error, setError] = useState("");
@@ -144,6 +145,30 @@ export function VerifiedComparisonViewer({ jobs }: { jobs: ComparisonJob[] }) {
           ↓ Export verified TSV
         </button>
       </div>
+
+      {allowSave ? (
+        <form action={saveScientificComparisonStudy} className={styles.saveStudyForm}
+          aria-label="Save this verified comparison">
+          <div>
+            <strong>Save as a research study</strong>
+            <p>Preserve the selected job IDs, their recorded fingerprints and tool versions. Reopening will verify source artifacts again.</p>
+          </div>
+          <input name="job_ids" type="hidden" value={comparison.runs.map(run=>run.id).join(",")}/>
+          <input name="verified_sha256" type="hidden" value={comparison.runs.map(run=>run.sha256).join(",")}/>
+          <label>Study title
+            <input name="title" minLength={3} maxLength={160} required
+              placeholder="e.g. Comparative protein physicochemistry"/>
+          </label>
+          <label>Research context (optional)
+            <textarea name="description" maxLength={2000} rows={2}
+              placeholder="What question are you investigating?"/>
+          </label>
+          <button type="submit">Save verified source selection →</button>
+          <Link href="/dashboard/results/studies">Your saved studies</Link>
+        </form>
+      ) : <Link className={styles.savedLibraryLink} href="/dashboard/results/studies">
+        ← Back to saved research studies
+      </Link>}
 
       <div className={styles.runGrid} aria-label="Compared scientific runs">
         {comparison.runs.map((run, index) => (
