@@ -225,7 +225,7 @@ jobs:
       - name: Verify V35 integrity-gated cross-run comparisons and viewer TSV exports
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/verified-scientific-comparison-v35.test.mjs
-      - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
+      - name: Verify V36 live Supabase scientific notebook access and lineage\n        working-directory: apps/web\n        run: node --experimental-strip-types --test tests/live-scientific-notebook-v36.test.mjs\n      - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs
       - name: Verify V24 research history pagination, authorization and recovery
