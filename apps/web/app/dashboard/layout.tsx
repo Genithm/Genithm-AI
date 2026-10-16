@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
       <div className="dashboard-shell">
         <div className="dashboard-shell-inner">
           <Link className="dashboard-brand" href="/dashboard" aria-label="Genithm dashboard">
-            <span className="dashboard-brand-mark" aria-hidden="true">G</span>
+            <span className="dashboard-brand-mark" aria-hidden="true"><img src="/genithm-logo.webp" alt="" width="32" height="32" /></span>
             <span>
               <strong>Genithm</strong>
               <small>Research workspace</small>
