@@ -180,3 +180,13 @@
   .tree { min-width: 690px; }
 }
 @media(prefers-reduced-motion: reduce) { .chartBar { transition: none; } }
+
+
+/* V35: artifact-verified snapshot export (current bounded projection only). */
+.exportActions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:9px; }
+.exportButton {
+  cursor:pointer; padding:9px 13px; border-radius:10px; font-size:11px;
+  font-weight:800; color:#072c32; background:#9aefdb; border:1px solid #95e7d4;
+}
+.exportButton:hover,.exportButton:focus-visible { background:#c2fff0; }
+.exportButton:focus-visible { outline:2px solid #9aefdb; outline-offset:3px; }
