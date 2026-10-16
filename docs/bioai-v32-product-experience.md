@@ -33,3 +33,16 @@ V32 does **not** create a new Supabase project, bypass RLS, alter the science-sc
 The Codespaces `/preview` fixture remains only a sample lab, not the Genithm product. For integrated authenticated testing use `bash scripts/codespaces_preview.sh` and open `/login`; API/worker Docker images must be published and all queues/heartbeats must be healthy. The production Cloudflare/Oracle deployment remains separate.
 
 V32 CI includes `apps/web/tests/bioai-conversation-product-v32.test.mjs`, authenticated-entry and science V20–V31 regressions, TypeScript and Cloudflare web contract.
+
+## Reliable Codespaces entry when Docker workers are unavailable
+
+The developer can immediately test the **real authenticated BioAI chat** using their existing repository Codespace without waiting for GHCR images or the six continuous workers:
+
+```bash
+git pull --ff-only
+bash scripts/codespaces_bioai.sh
+```
+
+The launcher requires the Codespaces secrets `SUPABASE_SECRET_KEY` and `OPENROUTER_API_KEY`, uses the existing Genithm Supabase project, writes a protected `apps/web/.env.local`, and starts the real Next.js web app on port 3000. Then open `/login` or `/signup` and start asking biology questions. It does **not** launch the local `/preview` fixture workbench.
+
+This **BioAI chat mode is functional conversation and planning only**. It deliberately sets `GENITHM_SCIENCE_V22_ENABLED=false` and does not start the API gateway, S3-compatible storage or worker fleet; it must never claim that FASTA uploads, NCBI retrieval, BLAST or other computational jobs are ready. For the complete scientific backend, separately run `bash scripts/codespaces_preview.sh` after confirming coordinated Docker images and runtime secrets are available. Both scripts use the same existing Supabase project. Neither constitutes a production release.
