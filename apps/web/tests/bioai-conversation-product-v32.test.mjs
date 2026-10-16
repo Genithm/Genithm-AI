@@ -13,6 +13,7 @@ const sidebar = read("../components/research-chat-sidebar.tsx");
 const sidebarStyle = read("../components/research-chat-sidebar.module.css");
 const navigation = read("../components/dashboard-primary-nav.tsx");
 const onboarding = read("../app/dashboard/ai/onboarding-actions.ts");
+const chatLauncher = read("../../../scripts/codespaces_bioai.sh");
 
 test("V32 main dashboard is an AI-first research conversation, not a demo workbench", () => {
   assert.match(landing,/What can we discover today\?/);
@@ -116,4 +117,19 @@ test("V32 full navigation prioritizes chat without deleting advanced research to
   for (const href of ["/dashboard/pipelines","/dashboard/pipeline-studies","/dashboard/dossiers","/dashboard/billing","/dashboard/operations"]){
     assert.ok(navigation.includes(href),href);
   }
+});
+
+test("V32 real BioAI chat can start without a Docker fleet or sample-only workbench",()=>{
+  assert.match(chatLauncher,/SUPABASE_SECRET_KEY OPENROUTER_API_KEY/);
+  assert.match(chatLauncher,/NEXT_PUBLIC_SUPABASE_URL=https:\/\/vowmjjgkjoxcvlfamukh\.supabase\.co/);
+  assert.match(chatLauncher,/GENITHM_SCIENCE_V22_ENABLED=false/);
+  assert.match(chatLauncher,/OPENROUTER_API_KEY=\$OPENROUTER_API_KEY/);
+  assert.match(chatLauncher,/chmod 600 "\$WEB_DIR\/\.env\.local"/);
+  assert.match(chatLauncher,/npm run dev -- --hostname 0\.0\.0\.0 --port 3000/);
+  assert.match(chatLauncher,/\/api\/health/);
+  assert.match(chatLauncher,/Genithm BioAI chat web is running/);
+  assert.match(chatLauncher,/Sign in: \$ORIGIN\/login/);
+  assert.match(chatLauncher,/Scientific jobs, NCBI retrieval and FASTA uploads are not started/);
+  assert.doesNotMatch(chatLauncher,/docker compose.*up|docker pull|\.devcontainer\/start\.sh/);
+  assert.doesNotMatch(chatLauncher,/NEXT_PUBLIC_SUPABASE_SECRET_KEY|NEXT_PUBLIC_OPENROUTER_API_KEY/);
 });
