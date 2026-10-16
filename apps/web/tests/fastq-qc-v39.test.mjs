@@ -100,7 +100,7 @@ test("V39 TSV exports exact data and honest client-hash provenance",()=>{
 });
 
 test("V39 privacy and authorization: only user-scoped aggregate snapshots in Supabase",()=>{
-  const sql=read("../../../supabase/migrations/20261016190000_fastq_qc_snapshots_v39.sql");
+  const sql=read("../../../supabase/migrations/20261016152302_fastq_qc_snapshots_v39.sql");
   const actions=read("../app/dashboard/fastq-qc/actions.ts");
   const page=read("../app/dashboard/fastq-qc/page.tsx");
   const saved=read("../app/dashboard/fastq-qc/[id]/page.tsx");
