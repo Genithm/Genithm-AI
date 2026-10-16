@@ -381,7 +381,7 @@ export default async function AiConversationPage({
           <div className={styles.engineNotice} role="status">
             <span aria-hidden="true">◌</span>
             <p>{scienceV22Ready
-              ? "Scientific computation is offline. Continue the conversation, review existing evidence or plan a study; new fixed NCBI analyses require healthy workers."
+              ? "Scientific workers are currently offline or not ready. Continue chatting, review existing evidence or plan a study; new fixed NCBI analyses require healthy workers."
               : "Scientific computation is not enabled in this environment. Chat remains available, along with existing research history."}</p>
           </div>
         ) : null}
