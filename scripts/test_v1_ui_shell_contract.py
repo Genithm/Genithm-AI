@@ -30,7 +30,7 @@ def main() -> int:
     assert 'label:"BioAI chat"' in primary_nav
     assert 'label:"Scientific tools"' in primary_nav
     assert 'AiChatComposer' in chat_home
-    assert '/dashboard/tools' in chat_home
+    assert '/dashboard/tools' in primary_nav  # Advanced scientific tools remain accessible
     assert 'AiChatComposer' in chat_conversation
     assert 'action={requestAiPlan}' not in chat_conversation
     assert 'action={approveAiPlan}' in chat_conversation
