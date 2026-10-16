@@ -42,10 +42,25 @@ begin
   if new.summary->>'schema' is distinct from 'genithm-vcf-qc-summary/1'
      or new.summary->>'analyzerVersion' is distinct from new.analyzer_version
      or new.summary->>'totalRecords' is distinct from new.total_records::text
-     or jsonb_typeof(new.summary->'variantCounts') <> 'object'
-     or jsonb_typeof(new.summary->'filterCounts') <> 'object'
-     or jsonb_typeof(new.summary->'qualityBins') <> 'array'
-     or jsonb_array_length(new.summary->'qualityBins') <> 7
+     or (new.summary - array[
+       'schema','analyzerVersion','totalRecords','sampleColumns','variantCounts',
+       'filterCounts','qualityBins','missingQual','transitions','transversions',
+       'chromCounts','distinctChromosomes'
+     ]::text[]) <> '{}'::jsonb
+     or jsonb_typeof(new.summary->'variantCounts') is distinct from 'object'
+     or jsonb_typeof(new.summary->'filterCounts') is distinct from 'object'
+     or jsonb_typeof(new.summary->'qualityBins') is distinct from 'array'
+     or (case when jsonb_typeof(new.summary->'qualityBins')='array'
+       then jsonb_array_length(new.summary->'qualityBins') else -1 end) <> 7
+     or jsonb_typeof(new.summary->'chromCounts') is distinct from 'array'
+     or (case when jsonb_typeof(new.summary->'chromCounts')='array'
+       then jsonb_array_length(new.summary->'chromCounts') else -1 end) not between 1 and 12
+     or (new.summary->'variantCounts' - array[
+       'SNV','MNV','insertion','deletion','complex','multiallelic'
+     ]::text[]) <> '{}'::jsonb
+     or (new.summary->'filterCounts' - array[
+       'pass','filtered','missing'
+     ]::text[]) <> '{}'::jsonb
   then
     raise exception 'VCF QC summary metadata is inconsistent' using errcode='23514';
   end if;
