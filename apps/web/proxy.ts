@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 
 import { updateSession } from "@/lib/supabase/proxy";
 
-// Only the explicitly marked local Codespaces *development* environment may
-// show the public demo without Supabase. Authenticated routes are blocked until
-// real development credentials are configured. Production is unaffected.
+// The optional Codespaces sample workbench is available without Supabase.
+// Even in fixture mode, users must be able to discover the real login/signup
+// routes and see clear full-preview setup instructions. Production is unaffected.
 export async function proxy(request: NextRequest) {
   const codespacesDemo =
     process.env.NODE_ENV === "development" &&
@@ -22,12 +22,16 @@ export async function proxy(request: NextRequest) {
 
   if (codespacesDemo && !hasPublicCredentials) {
     const pathname = request.nextUrl.pathname;
-    if (pathname === "/" || pathname === "/preview" || pathname.startsWith("/legal/")) {
+    if (pathname === "/" || pathname === "/preview" ||
+        pathname === "/login" || pathname === "/signup" ||
+        pathname === "/api/health" || pathname.startsWith("/legal/")) {
       return NextResponse.next();
     }
 
+    // Protected research routes lead to visible, truthful authentication
+    // setup, NEVER to the sample-only research workbench.
     const setupUrl = request.nextUrl.clone();
-    setupUrl.pathname = "/preview";
+    setupUrl.pathname = "/login";
     setupUrl.search = "?setup=1";
     return NextResponse.redirect(setupUrl);
   }
