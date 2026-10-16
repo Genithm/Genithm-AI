@@ -157,11 +157,29 @@ type VariantQcSnapshot = {
   Relationships: [];
 };
 
+type FastqQcSnapshot = {
+  Row: {
+    id:string;organization_id:string;project_id:string;created_by:string;
+    title:string;mode:"single"|"paired";read_count:number;source_hashes:string[];
+    summary:Json;analyzer_version:string;
+    source_verification:"client_computed_unverified";created_at:string;
+  };
+  Insert: {
+    id?:string;organization_id?:string;project_id:string;created_by:string;
+    title:string;mode:"single"|"paired";read_count:number;source_hashes:string[];
+    summary:Json;analyzer_version?:string;
+    source_verification?:"client_computed_unverified";created_at?:string;
+  };
+  Update:never;
+  Relationships:[];
+};
+
 type ReportTables = AiPublic["Tables"] & {
   scientific_reports: ScientificReport;
   scientific_notebook_entries: ScientificNotebookEntry;
   scientific_comparison_studies: ScientificComparisonStudy;
   variant_qc_snapshots: VariantQcSnapshot;
+  fastq_qc_snapshots: FastqQcSnapshot;
   research_pipeline_runs: ResearchPipeline;
 };
 
