@@ -1,8 +1,21 @@
 import Link from "next/link";
 
+import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
+import { activityTitle, classifyActivity, statusLabel } from "@/lib/scientific-activity";
+
+export type RecentScientificRun = {
+  id: string;
+  job_type: string;
+  status: string;
+  created_at: string;
+  result_sha256: string | null;
+};
+
 type Props = {
   projectCount: number;
   scienceReady: boolean;
+  recentRuns: RecentScientificRun[];
+  recentRunsError: boolean;
 };
 
 const tools = [
@@ -17,9 +30,11 @@ const tools = [
 /** Navigation only: every item leads to an existing authenticated route.
  *  Never display example datasets or invented execution statuses as real science.
  */
-export function GenithmToolDock({ projectCount, scienceReady }: Props) {
+export function GenithmToolDock({ projectCount, scienceReady, recentRuns, recentRunsError }: Props) {
+  const active = recentRuns.some((run) => classifyActivity("scientific", run.status) === "active");
   return (
     <aside className="genithm-tool-dock" aria-label="Bioinformatics tools and workspace status">
+      <ResearchActivityRefresh active={active} />
       <div className="genithm-dock-heading">
         <div>
           <span className="genithm-dock-kicker">SCIENTIFIC WORKSPACE</span>
@@ -50,6 +65,25 @@ export function GenithmToolDock({ projectCount, scienceReady }: Props) {
             </Link>
           ))}
         </nav>
+      </div>
+      <div className="genithm-dock-section genithm-dock-recent">
+        <span className="genithm-dock-label">Recent scientific runs</span>
+        {recentRunsError ? (
+          <p className="genithm-recent-warning" role="alert">Recent runs are unavailable. No job status was inferred.</p>
+        ) : recentRuns.length ? (
+          <div className="genithm-recent-list">
+            {recentRuns.map((run) => (
+              <Link href={`/dashboard/scientific-jobs/${run.id}`} key={run.id}
+                className="genithm-recent-item">
+                <span className="genithm-recent-title">{activityTitle("scientific", run.job_type)}</span>
+                <span className="genithm-recent-status">{statusLabel(run.status)}</span>
+                <small>{classifyActivity("scientific", run.status) === "completed" && run.result_sha256
+                  ? "Result fingerprint recorded" : "Open execution details"}</small>
+              </Link>
+            ))}
+          </div>
+        ) : <p className="genithm-recent-empty">No scientific runs recorded yet.</p>}
+        <Link className="genithm-dock-footerlink" href="/dashboard/results">View all results →</Link>
       </div>
       <div className="genithm-dock-section genithm-dock-status">
         <span className="genithm-dock-label">Active environment</span>
