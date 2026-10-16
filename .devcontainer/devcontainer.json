@@ -6,7 +6,7 @@
   ],
   "portsAttributes": {
     "3000": {
-      "label": "Genithm AI preview",
+      "label": "Genithm full AI and bioinformatics preview",
       "onAutoForward": "openBrowser",
       "visibility": "private"
     }
@@ -15,5 +15,11 @@
   "postStartCommand": "bash .devcontainer/start.sh || { echo '[Genithm] Preview unavailable; run bash .devcontainer/setup.sh and then bash .devcontainer/start.sh'; true; }",
   "remoteEnv": {
     "GENITHM_CODESPACES_PREVIEW": "1"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {
+      "moby": true,
+      "dockerDashComposeVersion": "v2"
+    }
   }
 }
