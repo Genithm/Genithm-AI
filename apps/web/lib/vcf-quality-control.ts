@@ -186,6 +186,12 @@ export function parseVcfQc(text: string): VcfQcResult {
 export function validateVcfQcSummary(v: unknown): v is VcfQcSummary {
   if (!v || typeof v !== "object" || Array.isArray(v)) return false;
   const x=v as Record<string,unknown>;
+  const expectedKeys=[
+    "schema","analyzerVersion","totalRecords","sampleColumns","variantCounts",
+    "filterCounts","qualityBins","missingQual","transitions","transversions",
+    "chromCounts","distinctChromosomes",
+  ];
+  if(Object.keys(x).sort().join("|")!==expectedKeys.sort().join("|")) return false;
   if (x.schema!=="genithm-vcf-qc-summary/1" || x.analyzerVersion!==VCF_QC_VERSION ||
     !isInteger(x.totalRecords,1,MAX_VCF_RECORDS)||!isInteger(x.sampleColumns,0,100) ||
     !isInteger(x.missingQual,0,x.totalRecords)||!isInteger(x.transitions,0,x.totalRecords) ||
@@ -213,6 +219,7 @@ export function validateVcfQcSummary(v: unknown): v is VcfQcSummary {
   for(const item of x.chromCounts) {
     if(!item||typeof item!=="object"||Array.isArray(item)) return false;
     let z=item as Record<string,unknown>;
+    if(Object.keys(z).sort().join("|")!=="chrom|count") return false;
     if(typeof z.chrom!=="string"||!CONTIG.test(z.chrom)||seen.has(z.chrom)||
       !isInteger(z.count,1,n))return false;
     seen.add(z.chrom); sum+=(z.count as number);
