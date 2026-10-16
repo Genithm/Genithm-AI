@@ -19,6 +19,7 @@ type Props = {
 };
 
 const tools = [
+  {icon:"≋",name:"FASTQ QC Lab",detail:"Read quality, Q30, GC and paired-end QC",href:"/dashboard/fastq-qc"},
   { icon: "◉", name: "Variant QC Lab", detail: "Private VCF quality metrics and charts", href: "/dashboard/variant-qc" },
   { icon: "⌘", name: "Sequence analysis", detail: "FASTA validation, ORFs and composition", href: "/dashboard/tools" },
   { icon: "⇄", name: "Sequence alignment", detail: "Pairwise alignment and MAFFT", href: "/dashboard/tools" },
