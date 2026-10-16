@@ -121,6 +121,7 @@ export default async function ScientificResultsPage({
         <Link href="/dashboard/ai/research">Approved research archive</Link>
         <Link href="/dashboard/notebook">Scientific notebook</Link>
         <Link href="/dashboard/variant-qc">Variant QC Lab</Link>
+        <Link href="/dashboard/fastq-qc">FASTQ QC Lab</Link>
         <Link href="/dashboard/results/studies">Saved comparisons</Link>
       </nav>
       <header className={styles.intro}>

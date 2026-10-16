@@ -234,6 +234,9 @@ jobs:
       - name: Verify V38 real VCF quality-control math, privacy and scoped persistence
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/variant-qc-lab-v38.test.mjs
+      - name: Verify V39 real paired-end FASTQ read QC, data privacy and RLS
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/fastq-qc-v39.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs
