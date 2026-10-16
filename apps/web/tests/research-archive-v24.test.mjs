@@ -101,7 +101,9 @@ test("V24 deep links into old runs only after proving the original message is in
   assert.match(page,/query\.pipeline_id !== undefined \? requestedPipelineId/);
   assert.match(page,/historicalMessageLink\.content/);
   assert.match(page,/Recovered original approved request/);
-  assert.match(page,/href="\/dashboard\/ai\/research"/);
+  assert.match(page,/ResearchChatSidebar/);
+  const sidebar=read("../components/research-chat-sidebar.tsx");
+  assert.match(sidebar,/href="\/dashboard\/ai\/research"/);
 });
 
 test("V24 researcher-facing navigation makes the archive discoverable", () => {
