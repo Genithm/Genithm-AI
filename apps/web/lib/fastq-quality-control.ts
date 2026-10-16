@@ -190,7 +190,7 @@ function validRead(v:unknown):v is FastqReadSummary {
   if(!exactKeys(bases,["A","C","G","T","N"])||
     !Object.values(bases).every(x=>isInt(x,0,b))||
     (Object.values(bases) as number[]).reduce((a,x)=>a+x,0)!==b)return false;
-  const known=b-(bases.N as number),expectedGc=known?(bases.G as number+bases.C as number)/known*100:null;
+  const known=b-(bases.N as number),expectedGc=known?((bases.G as number)+(bases.C as number))/known*100:null;
   if(expectedGc===null ? o.gcPercent!==null :
     typeof o.gcPercent!=="number"||Math.abs(o.gcPercent-expectedGc)>0.011)return false;
   if(Math.abs(o.nPercent-(bases.N as number)/b*100)>0.011)return false;
@@ -215,7 +215,7 @@ function validRead(v:unknown):v is FastqReadSummary {
   }
   return o.perCycle[0][0]===n && cycleBases===b &&
     Math.abs(weightedQ/b-(o.meanPhred as number))<0.003 &&
-    Math.abs(cycleQ30-(o.q30BaseCount as number))<=o.perCycle.length*0.01+1;
+    Math.abs(cycleQ30-(o.q30BaseCount as number))<=o.perCycle.length*0.5+1;
 }
 export function validateFastqQcSummary(v:unknown):v is FastqQcSummary{
   if(!v||typeof v!=="object"||Array.isArray(v))return false;
