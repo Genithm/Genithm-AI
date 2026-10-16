@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
-const sql = read("../../../supabase/migrations/20261016180000_scientific_notebook_v36.sql");
+const sql = read("../../../supabase/migrations/20261016140004_scientific_notebook_v36.sql");
 const page = read("../app/dashboard/notebook/page.tsx");
 const actions = read("../app/dashboard/notebook/actions.ts");
 const types = read("../lib/report-database.types.ts");
