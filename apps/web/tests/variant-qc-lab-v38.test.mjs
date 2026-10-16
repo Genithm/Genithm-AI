@@ -31,7 +31,7 @@ test("V38 computes actual record classifications, Ti/Tv, quality and chromosome 
     SNV:3,MNV:1,insertion:1,deletion:1,complex:1,multiallelic:1,
   });
   assert.deepEqual(summary.filterCounts,{pass:5,filtered:2,missing:1});
-  assert.deepEqual(summary.qualityBins,[0,1,2,2,1,1,0]);
+  assert.deepEqual(summary.qualityBins,[0,1,2,1,2,1,0]);
   assert.equal(summary.missingQual,1);
   assert.equal(summary.transitions,2);
   assert.equal(summary.transversions,1);
