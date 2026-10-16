@@ -26,13 +26,37 @@ if (( ${#missing[@]} > 0 )); then
   exit 2
 fi
 
-for tool in docker npm curl base64 od head tr grep git; do
+for tool in npm curl base64 od head tr grep git; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required tool is missing: $tool"
-    echo "Rebuild the Codespace container from main, then run this command again."
     exit 3
   fi
 done
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is not installed in this Codespace container."
+  echo "The Genithm full preview needs the Docker-in-Docker devcontainer feature."
+  echo "First update main: git pull --ff-only"
+  echo "Then use VS Code Command Palette > Codespaces: Rebuild Container."
+  echo "If rebuild is unavailable, create a new Codespace from main."
+  echo "For authenticated AI chat without Docker: bash scripts/codespaces_bioai.sh"
+  exit 3
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker CLI is installed but the Docker daemon is not responding."
+  echo "Restart or rebuild the Codespace container and retry:"
+  echo "  docker info"
+  echo "If it remains unavailable, inspect the Docker-in-Docker devcontainer startup log."
+  echo "For authenticated chat without the worker fleet: bash scripts/codespaces_bioai.sh"
+  exit 3
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 is unavailable; the full Genithm preview requires docker compose."
+  echo "Update main and rebuild the Codespace container to install the Docker-in-Docker feature."
+  exit 3
+fi
 
 SUPABASE_URL="https://vowmjjgkjoxcvlfamukh.supabase.co"
 SUPABASE_PUBLISHABLE_KEY="sb_publishable_uuFaIXmkIG2PpCDMD3Jd4w_jXkMc-Qt"
