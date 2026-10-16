@@ -159,11 +159,26 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_GENITHM_API_URL=/genithm-api
 GENITHM_LOCAL_API_PROXY_TARGET=http://127.0.0.1:8000
 GENITHM_APP_URL=$WEB_ORIGIN
+SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
+GENITHM_SCIENCE_V22_ENABLED=true
 EOF
 chmod 600 "$WEB_DIR/.env.local"
 
+# Codespaces autostarts a sample-only Next.js server on port 3000.
+# Replace it before starting the fully configured research application.
 if [[ -f "$WEB_PID" ]] && kill -0 "$(cat "$WEB_PID")" 2>/dev/null; then
   kill "$(cat "$WEB_PID")" || true
+fi
+if curl -fsS --max-time 2 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+  if command -v fuser >/dev/null 2>&1; then
+    echo "Replacing existing Codespaces development server on port 3000..."
+    fuser -k 3000/tcp >/dev/null 2>&1 || true
+    sleep 2
+  fi
+fi
+if curl -fsS --max-time 2 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+  echo "Port 3000 is still busy. Stop the old web preview process and rerun the full-preview launcher."
+  exit 4
 fi
 
 (
@@ -209,8 +224,11 @@ if ! printf '%s' "$READINESS_JSON" | grep -Eq '"status"[[:space:]]*:[[:space:]]*
 fi
 
 echo
-echo "Genithm preview is running and passed readiness checks."
-echo "Open: $WEB_ORIGIN"
+echo "Genithm FULL preview is running and passed readiness checks."
+echo "Open your real sign-in page: $WEB_ORIGIN/login"
+echo "Create an account: $WEB_ORIGIN/signup"
+echo "Open the application: $WEB_ORIGIN"
+echo "The /preview workbench is an OPTIONAL sample-only development route, not the main research app."
 echo "Supabase Auth is reachable, API/web health checks passed, and all six worker heartbeats are current."
 echo "OpenRouter Free is configured as the preview AI provider."
 echo "Runtime images are coordinated from V1 candidate revision: $RUNTIME_SHA"
