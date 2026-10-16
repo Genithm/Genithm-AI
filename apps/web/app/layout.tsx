@@ -16,9 +16,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <nav className="nav">
             <Link className="brand" href="/">GENITHM AI</Link>
             <div className="navlinks">
-              {process.env.NODE_ENV === "development" && process.env.GENITHM_CODESPACES_PREVIEW === "1" ? (
-                <Link href="/preview">Codespaces preview</Link>
-              ) : null}
               <Link href="/legal/privacy">Privacy</Link>
               <Link href="/legal/terms">Terms</Link>
               <Link href="/signup">Create account</Link>
