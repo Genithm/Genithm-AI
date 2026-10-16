@@ -112,7 +112,7 @@ test("V38 safe TSV includes exact counts and honest verification caveat",()=>{
 });
 
 test("V38 aggregate-only saving and report retrieval uses end-user Supabase RLS",()=>{
-  const migration=read("../../../supabase/migrations/20261016180000_variant_qc_snapshots_v38.sql");
+  const migration=read("../../../supabase/migrations/20261016145702_variant_qc_snapshots_v38.sql");
   const save=read("../app/dashboard/variant-qc/actions.ts");
   const page=read("../app/dashboard/variant-qc/page.tsx");
   const saved=read("../app/dashboard/variant-qc/[id]/page.tsx");
