@@ -31,7 +31,7 @@ export default async function SavedScientificStudiesPage({
     .eq("created_by",userId).order("created_at",{ascending:false}).limit(100);
   if (chosenProject) query = query.eq("project_id",chosenProject);
   else if (allowed) query = query.in("project_id",(projects ?? []).map(project=>project.id));
-  if (chosenKind) query = query.eq("job_type",chosenKind);
+  if (!invalid && chosenKind) query = query.eq("job_type", chosenKind as "protein_properties" | "pairwise_alignment");
   const { data: studies, error: studiesError } = allowed
     ? await query : { data: [], error: null };
   const failed = Boolean(projectsError || studiesError || invalid);
