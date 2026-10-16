@@ -119,6 +119,7 @@ export default async function ScientificResultsPage({
         <Link href="/dashboard/ai">← Bioinformatics chat</Link>
         <Link href="/dashboard/tools">Scientific tools</Link>
         <Link href="/dashboard/ai/research">Approved research archive</Link>
+        <Link href="/dashboard/notebook">Scientific notebook</Link>
       </nav>
       <header className={styles.intro}>
         <div><span className={styles.kicker}>GENITHM / SCIENTIFIC WORKSPACE</span>

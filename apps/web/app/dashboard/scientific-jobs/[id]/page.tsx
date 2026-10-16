@@ -98,6 +98,9 @@ export default async function ScientificJobPage({
             </form>
           ) : null}
           {completed && job.result_object_path ? <a className="button" href={`/dashboard/scientific-jobs/${job.id}/download`}>Download raw result</a> : null}
+          <Link className="button" href={`/dashboard/notebook?project=${job.project_id}&job=${job.id}`}>
+            Record research note
+          </Link>
           <Link className="button" href="/dashboard">Back to dashboard</Link>
         </div>
       </section>

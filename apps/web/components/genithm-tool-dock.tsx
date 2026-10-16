@@ -55,6 +55,11 @@ export function GenithmToolDock({ projectCount, scienceReady, recentRuns, recent
         </Link>
       </div>
       <div className="genithm-dock-section">
+        <Link className="genithm-dock-action" href="/dashboard/notebook">
+          <span aria-hidden="true">▤</span><span><strong>Scientific notebook</strong><small>Record observations linked to results</small></span><span aria-hidden="true">↗</span>
+        </Link>
+      </div>
+      <div className="genithm-dock-section">
         <span className="genithm-dock-label">Built-in bioinformatics</span>
         <nav className="genithm-dock-tools" aria-label="Scientific module shortcuts">
           {tools.map((tool) => (

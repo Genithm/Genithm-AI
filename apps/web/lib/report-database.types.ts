@@ -52,8 +52,47 @@ type ResearchPipeline = {
   Relationships: [];
 };
 
+type ScientificNotebookEntry = {
+  Row: {
+    id: string;
+    organization_id: string;
+    project_id: string;
+    created_by: string;
+    scientific_job_id: string | null;
+    source_result_sha256: string | null;
+    note_kind: "observation" | "hypothesis" | "interpretation" | "limitation";
+    title: string;
+    body: string;
+    tags: string[];
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    organization_id?: string;
+    project_id: string;
+    created_by: string;
+    scientific_job_id?: string | null;
+    source_result_sha256?: string | null;
+    note_kind?: "observation" | "hypothesis" | "interpretation" | "limitation";
+    title: string;
+    body: string;
+    tags?: string[];
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    note_kind?: "observation" | "hypothesis" | "interpretation" | "limitation";
+    title?: string;
+    body?: string;
+    tags?: string[];
+  };
+  Relationships: [];
+};
+
 type ReportTables = AiPublic["Tables"] & {
   scientific_reports: ScientificReport;
+  scientific_notebook_entries: ScientificNotebookEntry;
   research_pipeline_runs: ResearchPipeline;
 };
 
