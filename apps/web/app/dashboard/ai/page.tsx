@@ -1,112 +1,156 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AiChatComposer } from "@/components/ai-chat-composer";
+import { AiChatComposer, type ResearchQuickAction } from "@/components/ai-chat-composer";
+import { ResearchChatSidebar } from "@/components/research-chat-sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import { scienceV22Configured } from "@/lib/science-release";
+import { createAiResearchLab, createAiResearchProject } from "./onboarding-actions";
 import styles from "./chat.module.css";
 
-const starterPrompts = [
-  "Fetch an NCBI accession and help me analyze it.",
-  "Run BLAST on one of my sequences and explain the strongest hits.",
-  "Compare my sequences with an alignment and summarize the differences.",
-  "Build a phylogenetic workflow from my available sequences.",
-] as const;
+const researchActions: ResearchQuickAction[] = [
+  {
+    icon: "⌘", label: "DNA & RNA", detail: "Find open reading frames from an NCBI reference",
+    prompt: "Run ORF scan on NM_000546.6", needsWorkers: true,
+  },
+  {
+    icon: "◈", label: "Proteins", detail: "Calculate molecular properties of a protein",
+    prompt: "Calculate protein properties for NP_000537.3", needsWorkers: true,
+  },
+  {
+    icon: "⇄", label: "Sequence alignment", detail: "Compare FASTA sequences and interpret differences",
+    prompt: "Help me align two sequences from my research project and interpret the important differences.",
+  },
+  {
+    icon: "◎", label: "BLAST search", detail: "Find homologs and evaluate sequence similarities",
+    prompt: "I want to run BLAST on a FASTA sequence. Guide me through a scientific search and explain the resulting hits.",
+  },
+  {
+    icon: "♧", label: "Phylogenetics", detail: "From multiple alignment to evolutionary tree",
+    prompt: "Plan a multiple sequence alignment and a phylogenetic tree for my sequences.",
+  },
+  {
+    icon: "✳", label: "Ask Genithm", detail: "Explore methods, workflows, and biological questions",
+    prompt: "Help me design a rigorous, reproducible bioinformatics workflow for my biological research question.",
+  },
+];
 
-export default async function AiWorkspacePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function AiWorkspacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const query = await searchParams;
   const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-  if (!claimsData?.claims?.sub) redirect("/login");
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims?.sub) redirect("/login");
 
-  // User-facing availability only. Detailed worker/queue operations telemetry
-  // is reserved for the independently authorized platform admin console.
-  const researchConfigured = scienceV22Configured();
-  const researchAvailable = researchConfigured && await scienceExecutionReady();
-
-  const [{ data: projects }, { data: conversations }] = await Promise.all([
-    supabase.from("projects").select("id,name,status,created_at").eq("status", "active").order("created_at", { ascending: false }).limit(100),
-    supabase.from("ai_conversations").select("id,project_id,title,status,created_at,updated_at").order("updated_at", { ascending: false }).limit(50),
+  // Authenticated, RLS-scoped queries: never fetch another researcher's chats.
+  const [{data: projects}, {data: conversations}, {data: organizations}] = await Promise.all([
+    supabase.from("projects").select("id,name,status,created_at")
+      .eq("status", "active").order("created_at",{ascending:false}).limit(100),
+    supabase.from("ai_conversations")
+      .select("id,project_id,title,status,created_at,updated_at")
+      .order("updated_at",{ascending:false}).limit(50),
+    supabase.from("organizations").select("id,name").order("created_at",{ascending:true}).limit(50),
   ]);
 
   const activeProjects = projects ?? [];
-  const projectName = new Map(activeProjects.map((project) => [project.id, project.name]));
+  const labs = organizations ?? [];
+  const projectNames = Object.fromEntries(activeProjects.map((project) => [project.id, project.name]));
+
+  const configured = scienceV22Configured();
+  const fixedScienceReady = configured && await scienceExecutionReady();
 
   return (
-    <main className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brandRow}>
-          <div>
-            <div className="eyebrow">Genithm</div>
-            <strong>Bioinformatics AI</strong>
-          </div>
-          <Link className="button" href="/dashboard/tools">Advanced tools</Link>
-        </div>
-
-        <Link className={styles.newChat} href="/dashboard/ai">+ New chat</Link>
-
-        <Link className={styles.newChat} href="/dashboard/ai/research">↗ Approved research history</Link>
-        <div className={styles.historyLabel}>Recent chats</div>
-        <div className={styles.history}>
-          {(conversations ?? []).map((conversation) => (
-            <Link className={styles.historyItem} href={"/dashboard/ai/" + conversation.id} key={conversation.id}>
-              <strong>{conversation.title}</strong>
-              <span>{projectName.get(conversation.project_id) ?? "Project"}</span>
-            </Link>
-          ))}
-          {!conversations?.length ? <div className={styles.emptyHistory}>Your research conversations will appear here.</div> : null}
-        </div>
-
-        <div className={styles.sidebarFooter}>
-          <Link href="/dashboard/ai/research">Approved research archive</Link>
-          <Link href="/dashboard/research-journey">Research journey</Link>
-          <Link href="/dashboard/reports">Reports</Link>
-          <Link href="/dashboard/billing">Plan & usage</Link>
-        </div>
-      </aside>
+    <main className={styles.shell} aria-label="Genithm AI research chat">
+      <ResearchChatSidebar
+        conversations={conversations ?? []}
+        projectNames={projectNames}
+        projectCount={activeProjects.length}
+      />
 
       <section className={styles.main}>
-        <div className={styles.hero}>
-          <div className="eyebrow">AI-native bioinformatics workspace</div>
-          <h1>What do you want to do with your biological data?</h1>
-          <p>
-            Ask Genithm in normal language. It can plan scientific work using your authorized project data,
-            dispatch supported bioinformatics tools, track execution, and explain recorded results.
-          </p>
+        <div className={styles.topBar}>
+          <div className={styles.workspaceIdentity}>
+            <span className={styles.workspaceSymbol} aria-hidden="true">✳</span>
+            <span>Genithm <strong>BioAI</strong></span>
+            <span className={styles.beta}>Research workspace</span>
+          </div>
+          <Link href="/dashboard/ai/research" className={styles.topLink}>View research history <span aria-hidden="true">↗</span></Link>
         </div>
 
-        {query.error ? <div className={"error " + styles.feedback}>{query.error}</div> : null}
-        {researchConfigured && !researchAvailable ? (
-          <p role="status" className={styles.feedback}>
-            Fixed NCBI research is temporarily unavailable while the scientific services recover.
-            Your ordinary conversations and previously saved research remain accessible.
-            Direct fixed-protocol requests will be saved without starting an analysis.
-          </p>
-        ) : null}
-
-        {activeProjects.length ? (
-          <AiChatComposer
-            projects={activeProjects.map((project) => ({ id: project.id, name: project.name }))}
-            defaultProjectId={activeProjects[0]?.id}
-            placeholder="Message Genithm… paste an NCBI accession or attach FASTA files."
-            suggestions={[...starterPrompts]}
-          />
-        ) : (
-          <div className={styles.noProject}>
-            <h2>Create a project once, then work by chatting.</h2>
-            <p>Projects provide the secure container for your sequences, analyses, provenance, and conversations.</p>
-            <Link className="button primary" href="/dashboard/tools">Create project in Advanced tools</Link>
+        <div className={styles.content}>
+          <div className={styles.hero}>
+            <div className={styles.heroSymbol} aria-hidden="true">✳</div>
+            <div className={styles.heroEyebrow}>YOUR BIOINFORMATICS RESEARCH ASSISTANT</div>
+            <h1>What can we discover today?</h1>
+            <p>Ask questions, bring your sequences, and explore biological data.
+              Genithm connects scientific reasoning with reproducible computational tools.</p>
           </div>
-        )}
 
+          {query.error ? <div className={"error " + styles.feedback} role="alert">{query.error}</div> : null}
 
+          {activeProjects.length ? (
+            <>
+              <AiChatComposer
+                projects={activeProjects.map((project) => ({id:project.id,name:project.name}))}
+                defaultProjectId={activeProjects[0]?.id}
+                placeholder="Ask about biology, paste an NCBI accession, or describe your analysis…"
+                quickActions={researchActions}
+                scienceReady={fixedScienceReady}
+              />
+              {!fixedScienceReady ? (
+                <div className={styles.availability} role="status">
+                  <span className={styles.availabilityDot} aria-hidden="true" />
+                  <div><strong>Scientific execution is currently unavailable</strong>
+                    <span>You can still chat and plan. New fixed NCBI computations need healthy background workers and explicit approval.</span></div>
+                </div>
+              ) : (
+                <div className={styles.availability} role="status">
+                  <span className={styles.readyDot} aria-hidden="true" />
+                  <div><strong>Scientific workers available</strong>
+                    <span>Fixed NCBI workflows require your approval before retrieval or calculation begins.</span></div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className={styles.onboarding}>
+              <div className={styles.onboardingIntro}>
+                <span className={styles.stepPill}>ONE-TIME SETUP</span>
+                <h2>Start a research workspace</h2>
+                <p>Like starting a new AI chat—your project keeps sequences, calculations and evidence together.
+                   You can create your first lab and project here without visiting a separate admin dashboard.</p>
+              </div>
+              {!labs.length ? (
+                <form action={createAiResearchLab} className={styles.setupForm}>
+                  <label htmlFor="genithm-lab">Lab or research team name</label>
+                  <div className={styles.setupRow}>
+                    <input id="genithm-lab" name="name" minLength={2} maxLength={100}
+                      placeholder="My research lab" autoComplete="organization" required />
+                    <button className="button primary" type="submit">Create lab →</button>
+                  </div>
+                </form>
+              ) : (
+                <form action={createAiResearchProject} className={styles.setupForm}>
+                  <label htmlFor="genithm-org">Research team</label>
+                  <select id="genithm-org" name="organization_id" required>
+                    {labs.map((lab) => <option key={lab.id} value={lab.id}>{lab.name}</option>)}
+                  </select>
+                  <label htmlFor="genithm-project">Project name</label>
+                  <div className={styles.setupRow}>
+                    <input id="genithm-project" name="name" minLength={2} maxLength={160}
+                      placeholder="My first bioinformatics study" required />
+                    <button className="button primary" type="submit">Create project →</button>
+                  </div>
+                </form>
+              )}
+              <p className={styles.setupFoot}>You control which research actions are approved. Your project data remains access-scoped.</p>
+            </div>
+          )}
 
-        <div className={styles.capabilityNote}>
-          <strong>Fast chat, controlled scientific execution</strong>
-          <span>
-            Normal conversation and planning respond directly. Only real scientific computations such as BLAST, alignments, and tree building use background workers.
-          </span>
+          <div className={styles.bottomCaption}>Genithm can make mistakes. Review AI explanations and check recorded scientific evidence before drawing conclusions.</div>
         </div>
       </section>
     </main>
