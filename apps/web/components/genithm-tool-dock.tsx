@@ -89,6 +89,7 @@ export function GenithmToolDock({ projectCount, scienceReady, recentRuns, recent
           </div>
         ) : <p className="genithm-recent-empty">No scientific runs recorded yet.</p>}
         <Link className="genithm-dock-footerlink" href="/dashboard/results">View all results →</Link>
+        <Link className="genithm-dock-footerlink" href="/dashboard/results/studies">Saved comparisons →</Link>
       </div>
       <div className="genithm-dock-section genithm-dock-status">
         <span className="genithm-dock-label">Active environment</span>

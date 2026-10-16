@@ -228,6 +228,9 @@ jobs:
       - name: Verify V36 live Supabase scientific notebook access and lineage
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/live-scientific-notebook-v36.test.mjs
+      - name: Verify V37 persistent verified comparison studies and RLS
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/saved-scientific-studies-v37.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

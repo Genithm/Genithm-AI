@@ -90,9 +90,46 @@ type ScientificNotebookEntry = {
   Relationships: [];
 };
 
+type ScientificComparisonStudy = {
+  Row: {
+    id: string;
+    project_id: string;
+    organization_id: string;
+    created_by: string;
+    title: string;
+    description: string;
+    job_type: "protein_properties" | "pairwise_alignment";
+    job_ids: string[];
+    source_sha256: string[];
+    tool_versions: string[];
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    project_id: string;
+    organization_id?: string;
+    created_by: string;
+    title: string;
+    description?: string;
+    job_type: "protein_properties" | "pairwise_alignment";
+    job_ids: string[];
+    source_sha256?: string[];
+    tool_versions?: string[];
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    title?: string;
+    description?: string;
+  };
+  Relationships: [];
+};
+
 type ReportTables = AiPublic["Tables"] & {
   scientific_reports: ScientificReport;
   scientific_notebook_entries: ScientificNotebookEntry;
+  scientific_comparison_studies: ScientificComparisonStudy;
   research_pipeline_runs: ResearchPipeline;
 };
 
