@@ -222,6 +222,9 @@ jobs:
       - name: Verify V33 brand and V34 authenticated scientific results
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/genithm-brand-workspace-v33.test.mjs tests/scientific-results-v34.test.mjs
+      - name: Verify V35 integrity-gated cross-run comparisons and viewer TSV exports
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/verified-scientific-comparison-v35.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

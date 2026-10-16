@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ExplorerResult } from "@/lib/scientific-result-explorer";
+import { verifiedExplorerTsv } from "@/lib/verified-explorer-export";
 import styles from "./scientific-explorer.module.css";
 
 type ExplorerResponse = { verification: string; sha256: string; jobType: string; view: ExplorerResult };
@@ -168,6 +169,7 @@ export function ScientificResultExplorerPanel({ jobId }: { jobId: string }) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -199,6 +201,25 @@ export function ScientificResultExplorerPanel({ jobId }: { jobId: string }) {
     return () => controller.abort();
   }, [jobId, offset, rowOffset, retry]);
 
+  function exportVerifiedViewport() {
+    if (state !== "ready" || !payload) return;
+    try {
+      const tsv = verifiedExplorerTsv(payload);
+      const blob = new Blob([tsv], { type: "text/tab-separated-values;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "genithm-verified-view-" + jobId.slice(0, 8) + ".tsv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setExportError("");
+    } catch {
+      setExportError("This verified view could not be exported.");
+    }
+  }
+
   return (
     <section className={styles.panel} aria-label="Interactive scientific results">
       <div className={styles.heading}>
@@ -207,8 +228,16 @@ export function ScientificResultExplorerPanel({ jobId }: { jobId: string }) {
           <h2>Explore your analysis</h2>
           <p>Inspect underlying results, alignment columns and phylogenetic relationships without leaving the research workspace.</p>
         </div>
-        {state === "ready" ? <div className={styles.verified}>✓ SHA-256 verified</div> : null}
+        {state === "ready" ? (
+          <div className={styles.exportActions}>
+            <div className={styles.verified}>✓ SHA-256 verified</div>
+            <button className={styles.exportButton} type="button" onClick={exportVerifiedViewport}>
+              ↓ Export visible data (TSV)
+            </button>
+          </div>
+        ) : null}
       </div>
+      {exportError ? <p className={styles.message} role="alert">{exportError}</p> : null}
       {state === "loading" ? <div className={styles.message} role="status">Retrieving and verifying the private scientific artifact…</div> : null}
       {state === "error" ? <div className={styles.message} role="alert">
         <strong>Result explorer unavailable</strong><p>{error}</p>
@@ -270,7 +299,7 @@ export function ScientificResultExplorerPanel({ jobId }: { jobId: string }) {
               <p className={styles.small}>Charges, pI and hydropathy are model-based estimates; post-translational modifications and experimental conditions are not modeled.</p>
             </>
           ) : null}
-          <div className={styles.provenance}>Verified against stored SHA-256 <code>{payload.sha256}</code></div>
+          <div className={styles.provenance}>Verified against stored SHA-256 <code>{payload.sha256}</code><p>The TSV contains only this bounded explorer projection. For the complete scientific artifact, use the authenticated raw result download above.</p></div>
         </div>
       ) : null}
     </section>

@@ -83,3 +83,36 @@
   .entry { padding: 15px; }
   .filters { padding: 14px; }
 }
+
+
+/* V35 cross-run comparison selector: actual completed records only. */
+.comparePicker {
+  display:grid; gap:16px; padding:23px; border:1px solid #346a73;
+  border-radius:16px; background:linear-gradient(130deg,#143e4c,#0f2b37 65%);
+}
+.compareHeading { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; }
+.compareHeading h2 { color:#effcff; font-size:21px; margin:8px 0; }
+.compareHeading p { max-width:760px; margin:0; color:#a8ccd2; font-size:12px; }
+.compareKicker { letter-spacing:.13em; font-size:10px; font-weight:800; color:#7bedd4; }
+.compareCount { border:1px solid #49767d; background:#174954; border-radius:90px; padding:7px 10px; white-space:nowrap; color:#adffed; font-size:11px; font-weight:800; }
+.compareControls { display:flex; align-items:end; gap:12px; flex-wrap:wrap; }
+.compareControls label { flex:1 1 270px; display:grid; gap:6px; color:#bddbdf; font-size:11px; font-weight:800; }
+.compareControls select { width:100%; min-width:0; min-height:42px; border:1px solid #55747f; border-radius:9px; padding:8px 10px; background:#102933; color:#e8fbfc; font-size:12px; }
+.compareControls button,.compareLaunch {
+  display:inline-flex; align-items:center; justify-content:center; min-height:42px;
+  border-radius:9px; padding:0 14px; font-size:12px; font-weight:800;
+  background:#a4f2df; color:#0c3841; border:0; cursor:pointer; text-decoration:none;
+}
+.compareControls button:disabled { opacity:.48; cursor:not-allowed; }
+.compareLaunch { background:#3aaed2; color:#fff; }
+.compareLaunch:hover { background:#0f97c6; }
+.compareHint,.compareEmpty { color:#a2bdc8; font-size:11px; line-height:1.7; }
+.compareChips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.compareChip { display:inline-flex; align-items:center; gap:9px; border:1px solid #4a6979; background:#133440; color:#cff5e9; font-size:11px; border-radius:50px; padding:5px 9px; }
+.compareChip button { width:20px; height:20px; border:0; color:#d8fcf0; background:#255a66; border-radius:50%; cursor:pointer; font-size:15px; }
+.compareClear { background:transparent; border:0; cursor:pointer; color:#c6d8df; font-size:11px; text-decoration:underline; }
+@media(max-width:600px){
+ .comparePicker { padding:16px; }
+ .compareHeading { flex-direction:column; gap:9px; }
+ .compareControls button,.compareLaunch { flex:1; }
+}

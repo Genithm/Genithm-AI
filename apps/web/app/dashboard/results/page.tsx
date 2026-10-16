@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
+import { ScientificComparisonPicker } from "@/components/scientific-comparison-picker";
 import { createClient } from "@/lib/supabase/server";
 import {
   activityFilter, activityScope, activityTitle, classifyActivity,
@@ -96,6 +97,17 @@ export default async function ScientificResultsPage({
     })),
   ]).slice(0, 40);
 
+  const comparableChoices = loadError ? [] : (scientificResult.data ?? [])
+    .filter((job) => job.status === "completed" &&
+      (job.job_type === "protein_properties" || job.job_type === "pairwise_alignment") &&
+      typeof job.result_sha256 === "string" && /^[0-9a-f]{64}$/.test(job.result_sha256))
+    .map((job) => ({
+      id: job.id,
+      jobType: job.job_type as "protein_properties" | "pairwise_alignment",
+      projectName: projectNames.get(job.project_id) ?? "Research project",
+      createdAt: job.created_at,
+    }));
+
   const active = rows.filter((row) => classifyActivity(row.kind, row.status) === "active").length;
   const completed = rows.filter((row) => classifyActivity(row.kind, row.status) === "completed").length;
   const stopped = rows.filter((row) => classifyActivity(row.kind, row.status) === "stopped").length;
@@ -153,6 +165,7 @@ export default async function ScientificResultsPage({
       {loadError ? <div role="alert" className={styles.alert}>
         Scientific activity could not be loaded securely. Refresh and try again; no results were inferred.
       </div> : null}
+      <ScientificComparisonPicker choices={comparableChoices} />
       <section className={styles.entries} aria-label="Latest research execution records">
         {rows.map((row) => {
           const category = classifyActivity(row.kind, row.status);
