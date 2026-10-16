@@ -4,7 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Genithm AI",
+  title: "Genithm",
   description: "Evidence-backed AI bioinformatics research workspace",
 };
 
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <div className="container">
           <nav className="nav">
-            <Link className="brand" href="/">GENITHM AI</Link>
+            <Link className="brand" href="/">GENITHM</Link>
             <div className="navlinks">
               <Link href="/legal/privacy">Privacy</Link>
               <Link href="/legal/terms">Terms</Link>
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         </div>
         {children}
         <div className="container footer">
-          <span>© Genithm AI</span>
+          <span>© Genithm</span>
           <Link href="/legal/privacy">Privacy Policy</Link>
           <Link href="/legal/terms">Terms of Service</Link>
           <span>Security & Trust Center: coming soon</span>

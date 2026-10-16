@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 
 import { AiChatComposer, type ResearchQuickAction } from "@/components/ai-chat-composer";
 import { ResearchChatSidebar } from "@/components/research-chat-sidebar";
+import { GenithmToolDock } from "@/components/genithm-tool-dock";
+import "@/components/genithm-research-theme.css";
+import "@/components/genithm-research-fields.css";
 import { createClient } from "@/lib/supabase/server";
 import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import { scienceV22Configured } from "@/lib/science-release";
@@ -74,8 +77,8 @@ export default async function AiWorkspacePage({
       <section className={styles.main}>
         <div className={styles.topBar}>
           <div className={styles.workspaceIdentity}>
-            <span className={styles.workspaceSymbol} aria-hidden="true">✳</span>
-            <span>Genithm <strong>BioAI</strong></span>
+            <span className={styles.workspaceSymbol} aria-hidden="true">⌘</span>
+            <span><strong>Genithm</strong> <span> / Bioinformatics workspace</span></span>
             <span className={styles.beta}>Research workspace</span>
           </div>
           <Link href="/dashboard/ai/research" className={styles.topLink}>View research history <span aria-hidden="true">↗</span></Link>
@@ -83,10 +86,10 @@ export default async function AiWorkspacePage({
 
         <div className={styles.content}>
           <div className={styles.hero}>
-            <div className={styles.heroSymbol} aria-hidden="true">✳</div>
+            <div className={styles.heroSymbol} aria-hidden="true">⌘</div>
             <div className={styles.heroEyebrow}>YOUR BIOINFORMATICS RESEARCH ASSISTANT</div>
-            <h1>What can we discover today?</h1>
-            <p>Ask questions, bring your sequences, and explore biological data.
+            <h1>What would you like to analyze?</h1>
+            <p>Describe a research task, upload your sequences, or explore biological data.
               Genithm connects scientific reasoning with reproducible computational tools.</p>
           </div>
 
@@ -153,6 +156,7 @@ export default async function AiWorkspacePage({
           <div className={styles.bottomCaption}>Genithm can make mistakes. Review AI explanations and check recorded scientific evidence before drawing conclusions.</div>
         </div>
       </section>
+      <GenithmToolDock projectCount={activeProjects.length} scienceReady={fixedScienceReady} />
     </main>
   );
 }

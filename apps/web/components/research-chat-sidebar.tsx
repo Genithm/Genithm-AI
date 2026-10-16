@@ -33,7 +33,7 @@ export function ResearchChatSidebar({ conversations, projectNames, projectCount 
   return (
     <aside className={styles.sidebar} aria-label="Research conversations">
       <div className={styles.brand}>
-        <span className={styles.brandMark} aria-hidden="true">G</span>
+        <span className={styles.brandMark} aria-hidden="true"><img src="/genithm-logo.webp" alt="" width="37" height="37" /></span>
         <div><strong>Genithm</strong><span>Bioinformatics AI</span></div>
       </div>
 
