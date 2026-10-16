@@ -117,3 +117,24 @@ body:has(.genithm-tool-dock) .genithm-tool-dock {
  body:has(.genithm-tool-dock) main[class*="chat_shell"] { border-radius:0; margin:0; }
  body:has(.genithm-tool-dock) .genithm-tool-dock { padding:16px; }
 }
+
+
+/* V34 — only persisted scientific activity appears in the right dock. */
+.genithm-dock-recent { gap:8px; border-top:1px solid #e5edf4; padding-top:15px; }
+.genithm-recent-list { display:grid; gap:7px; }
+.genithm-recent-item {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 8px;
+  padding:10px; background:#fff; border:1px solid #dce7f2; border-radius:10px;
+  text-decoration:none; color:#183e65;
+}
+.genithm-recent-item:hover { background:#f0f8ff; border-color:#92c6df; }
+.genithm-recent-title {
+  font-size:10.5px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.genithm-recent-status {
+  color:#1576a8; font-size:9px; font-weight:800; background:#e6f4fa;
+  border-radius:20px; padding:3px 7px; white-space:nowrap;
+}
+.genithm-recent-item small { grid-column:1/-1; color:#7b93aa; font-size:9px; line-height:1.5; }
+.genithm-recent-warning,.genithm-recent-empty { margin:0; font-size:10px; line-height:1.6; color:#718ba1; }
+.genithm-recent-warning { color:#9a4e33; }

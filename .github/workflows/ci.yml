@@ -219,6 +219,9 @@ jobs:
         run: |
           bash -n ../../scripts/codespaces_bioai.sh
           node --experimental-strip-types --test tests/bioai-conversation-product-v32.test.mjs
+      - name: Verify V33 brand and V34 authenticated scientific results
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/genithm-brand-workspace-v33.test.mjs tests/scientific-results-v34.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

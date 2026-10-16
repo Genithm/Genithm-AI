@@ -50,7 +50,7 @@ export default async function AiWorkspacePage({
   if (!claims?.claims?.sub) redirect("/login");
 
   // Authenticated, RLS-scoped queries: never fetch another researcher's chats.
-  const [{data: projects}, {data: conversations}, {data: organizations}] = await Promise.all([
+  const [{data: projects, error: projectsError}, {data: conversations}, {data: organizations}] = await Promise.all([
     supabase.from("projects").select("id,name,status,created_at")
       .eq("status", "active").order("created_at",{ascending:false}).limit(100),
     supabase.from("ai_conversations")
@@ -62,6 +62,15 @@ export default async function AiWorkspacePage({
   const activeProjects = projects ?? [];
   const labs = organizations ?? [];
   const projectNames = Object.fromEntries(activeProjects.map((project) => [project.id, project.name]));
+
+  // A bounded, RLS-scoped feed; never fetch or display another owner's results.
+  const { data: recentRuns, error: recentRunsError } = !projectsError && activeProjects.length
+    ? await supabase.from("scientific_jobs")
+        .select("id,job_type,status,created_at,result_sha256")
+        .eq("requested_by", claims.claims.sub)
+        .in("project_id", activeProjects.map((project) => project.id))
+        .order("created_at", { ascending: false }).limit(4)
+    : { data: [], error: null };
 
   const configured = scienceV22Configured();
   const fixedScienceReady = configured && await scienceExecutionReady();
@@ -156,7 +165,12 @@ export default async function AiWorkspacePage({
           <div className={styles.bottomCaption}>Genithm can make mistakes. Review AI explanations and check recorded scientific evidence before drawing conclusions.</div>
         </div>
       </section>
-      <GenithmToolDock projectCount={activeProjects.length} scienceReady={fixedScienceReady} />
+      <GenithmToolDock
+        projectCount={activeProjects.length}
+        scienceReady={fixedScienceReady}
+        recentRuns={recentRuns ?? []}
+        recentRunsError={Boolean(projectsError || recentRunsError)}
+      />
     </main>
   );
 }
