@@ -29,17 +29,39 @@ Foundation and Phase 1 authentication/workspace:
 
 Genithm includes worker-backed scientific workflows, AI planning, sequence intelligence and provenance. Actual processing requires an appropriately configured development backend and running workers.
 
-## Codespaces: no Oracle deployment required
+## Open the real BioAI assistant in Codespaces
 
-Open **Code → Codespaces** from GitHub, start a Codespace, then select
-**Ports → Genithm AI preview (3000) → Open in Browser**.
+Genithm's **main product** is an authenticated, ChatGPT-style research conversation at
+`/dashboard/ai`, with research-specific scientific actions, FASTA ingestion, provenance and
+explicit approval before background compute. The `/preview` route is **only a local sample
+workbench**, not the Genithm AI product.
 
-The Codespace automatically installs the locked Next.js dependencies, starts
-the UI and a private local scientific engine, and runs four actual scientific algorithm smoke tests. Visit
-`/preview` to explore the research workbench and **run real DNA/RNA analysis locally** without Supabase keys.
-Real authenticated features need a **separate development Supabase project**.
+Create a GitHub Codespace from `main`. In repository
+**Settings → Secrets and variables → Codespaces**, add backend-only
+`SUPABASE_SECRET_KEY` (for the existing Genithm Supabase project) and
+`OPENROUTER_API_KEY`. Restart the Codespace if the secrets were just added.
 
-Full instructions: [GitHub Codespaces development](docs/development/CODESPACES.md).
+**Fastest way to run real AI chat even while the six scientific workers are offline:**
+
+```bash
+bash scripts/codespaces_bioai.sh
+```
+
+It prints the actual `/login` URL. This starts **authenticated OpenRouter chat
+and project creation**, not the separate scientific API, storage or worker fleet.
+New scientific computations are honestly marked unavailable in that mode.
+
+**Full bioinformatics preview with API, temporary storage and six workers:**
+
+```bash
+bash scripts/codespaces_preview.sh
+```
+
+It must pass its worker/queue readiness checks before its scientific analyses
+are considered available. Neither preview is a production deployment.
+See [BioAI V32 product journey](docs/bioai-v32-product-experience.md) and
+[full Codespaces deployment](docs/deployment/CODESPACES_FULL_PREVIEW.md).
+Use your **existing** Supabase project—do not create an extra one as a workaround.
 
 ## Local setup
 

@@ -16,12 +16,12 @@ test("approved analysis remains in chat; never forces separate results navigatio
 });
 
 test("research progress and verified metrics are in the same chat before composer", () => {
-  assert.match(thread, /Research activity · progress &amp; results/);
+  assert.match(thread, /Research activity &amp; results/);
   assert.match(thread, /scientific_jobs"\)\.select\("id,status,job_type,result_summary,result_sha256/);
   assert.match(thread, /recordedEvidenceMetrics\(evidenceType, evidenceRow\)/);
   assert.match(thread, /Recorded result fingerprint/);
   assert.match(thread, /Approve this analysis/);
-  assert.ok(thread.indexOf('<section className={styles.activity}') < thread.lastIndexOf('<AiChatComposer'));
+  assert.ok(thread.indexOf('<details className={styles.activity}') < thread.lastIndexOf('<AiChatComposer'));
 });
 
 test("chat refresh is bounded and only runs for active jobs in visible tabs", () => {
@@ -32,8 +32,8 @@ test("chat refresh is bounded and only runs for active jobs in visible tabs", ()
 });
 
 test("examples populate the real chat composer instead of decorative boxes", () => {
-  assert.match(home, /suggestions=\{\[\.\.\.starterPrompts\]\}/);
-  assert.match(composer, /setMessage\(suggestion\)/);
+  assert.match(home, /quickActions=\{researchActions\}/);
+  assert.match(composer, /setMessage\(action\.prompt\)/);
   assert.match(composer, /textareaRef\.current\?\.focus\(\)/);
 });
 

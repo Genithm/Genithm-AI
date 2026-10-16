@@ -214,3 +214,51 @@
 .suggestions { display:flex; gap:8px; flex-wrap:wrap; margin: 0 0 16px; }
 .suggestion { color:var(--foreground); background:rgba(255,255,255,.035); border:1px solid var(--border); border-radius:999px; padding:9px 12px; cursor:pointer; text-align:left; font:inherit; font-size:13px; }
 .suggestion:hover, .suggestion:focus-visible { background:rgba(255,255,255,.1); outline-offset:2px; }
+
+/* V32: Science-first, ChatGPT-style composer and real interactive workflow starters. */
+.wrapper { width:100%; max-width:850px; }
+.quickStart { margin:0 0 24px; }
+.quickHeading { display:flex; align-items:center; justify-content:space-between; color:#81a6ad; letter-spacing:.12em; font-size:10px; font-weight:800; padding:0 4px 12px; }
+.quickHeading span:last-child { font-size:10px; font-weight:500; letter-spacing:0; text-transform:none; }
+.quickGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; }
+.quickCard {
+  position:relative; display:grid; align-content:start; gap:11px;
+  text-align:left; min-height:134px; padding:16px;
+  color:#e6f1f2; background:#172831;
+  border:1px solid #2c4751; border-radius:14px;
+  cursor:pointer; transition:transform .15s ease,border-color .15s ease,background .15s ease;
+}
+.quickCard:hover:not(:disabled),.quickCard:focus-visible:not(:disabled) {
+  transform:translateY(-2px); background:#213741; border-color:#5fbbb0; outline-offset:2px;
+}
+.quickIcon { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; font-size:20px; color:#93ecd6; background:#243f43; }
+.quickText { display:grid; gap:5px; }
+.quickText strong { font-size:12px; line-height:1.35; }
+.quickText small { color:#91adb4; font-size:10.5px; line-height:1.45; }
+.quickArrow { position:absolute; right:13px; top:13px; font-size:14px; color:#85aea9; }
+.quickCard:disabled { cursor:not-allowed; opacity:.56; }
+.quickOffline { position:absolute; right:9px; top:14px; color:#f0be8c; font-size:9px; border:1px solid #735942; border-radius:6px; padding:3px 5px; }
+.composer {
+  border:1px solid #49616b; border-radius:20px; padding:15px 17px 12px;
+  background:#1a2b34; box-shadow:0 22px 65px rgba(0,0,0,.26);
+}
+.composer:focus-within { border-color:#76cdbb; box-shadow:0 0 0 3px rgba(98,218,182,.07),0 20px 60px rgba(0,0,0,.25); }
+.composer textarea { width:100%; min-height:69px; padding:7px 2px; color:#f2ffff; background:transparent; font-size:14px; line-height:1.6; }
+.composer textarea::placeholder { color:#859fa9; }
+.projectRow { color:#a9c2c7; border-bottom:1px solid #34505a; margin-bottom:9px; padding-bottom:13px; font-size:11px; }
+.projectRow strong { color:#e3f7ef; }
+.projectIndicator { color:#87e7c9; font-size:13px; }
+.footer { border-top:1px solid #344a52; padding-top:13px; }
+.attachButton { color:#bfd8da; font-size:11px; border:1px solid #47616a; border-radius:9px; padding:8px 11px; }
+.attachButton:hover { background:#294149; }
+.footer :global(.button.primary) { border-radius:10px; min-height:35px; padding:0 16px; font-size:12px; }
+.liveAssistant { background:#1a3036; }
+@media(max-width:700px) {
+  .quickGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .quickCard { min-height:126px; padding:12px; }
+  .quickHeading { align-items:flex-start; gap:5px; flex-direction:column; }
+}
+@media(max-width:430px) {
+  .quickGrid { grid-template-columns:1fr 1fr; gap:8px; }
+  .quickCard { min-height:135px; }
+}

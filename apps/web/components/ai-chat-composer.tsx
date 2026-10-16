@@ -11,12 +11,22 @@ type ProjectOption = {
   name: string;
 };
 
+export type ResearchQuickAction = {
+  icon: string;
+  label: string;
+  detail: string;
+  prompt: string;
+  needsWorkers?: boolean;
+};
+
 type Props = {
   projects: ProjectOption[];
   conversationId?: string | null;
   defaultProjectId?: string;
   placeholder?: string;
   suggestions?: string[];
+  quickActions?: ResearchQuickAction[];
+  scienceReady?: boolean;
 };
 
 type ReservationResponse = {
@@ -111,6 +121,8 @@ export function AiChatComposer({
   defaultProjectId,
   placeholder = "Message Genithm…",
   suggestions = [],
+  quickActions = [],
+  scienceReady = false,
 }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -418,6 +430,30 @@ export function AiChatComposer({
 
   return (
     <div className={styles.wrapper}>
+      {quickActions.length ? (
+        <section className={styles.quickStart} aria-label="Explore bioinformatics capabilities">
+          <div className={styles.quickHeading}><span>EXPLORE SCIENTIFIC WORKFLOWS</span><span>Choose a starting point ↓</span></div>
+          <div className={styles.quickGrid}>
+            {quickActions.map((action) => {
+              const unavailable = Boolean(action.needsWorkers && !scienceReady);
+              return (
+                <button
+                  className={styles.quickCard}
+                  type="button"
+                  key={action.label}
+                  disabled={unavailable || sending}
+                  title={unavailable ? "This computation requires healthy scientific workers" : action.detail}
+                  onClick={() => { setMessage(action.prompt); textareaRef.current?.focus(); }}
+                >
+                  <span className={styles.quickIcon} aria-hidden="true">{action.icon}</span>
+                  <span className={styles.quickText}><strong>{action.label}</strong><small>{action.detail}</small></span>
+                  {unavailable ? <span className={styles.quickOffline}>Offline</span> : <span className={styles.quickArrow} aria-hidden="true">↗</span>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
       {suggestions.length ? <div className={styles.suggestions} aria-label="Example bioinformatics requests">{suggestions.map((suggestion) => <button key={suggestion} type="button" className={styles.suggestion} onClick={() => { setMessage(suggestion); textareaRef.current?.focus(); }}>{suggestion}</button>)}</div> : null}
       {liveUserMessage ? (
         <div className={styles.liveTurn}>
@@ -459,6 +495,12 @@ export function AiChatComposer({
           if (event.dataTransfer.files?.length) void addFiles(event.dataTransfer.files);
         }}
       >
+        {projects.length === 1 ? (
+          <div className={styles.projectRow}>
+            <span className={styles.projectIndicator} aria-hidden="true">◉</span>
+            <span>Research project: <strong>{projects[0].name}</strong></span>
+          </div>
+        ) : null}
         {projects.length > 1 ? (
           <div className={styles.projectRow}>
             <span>Project</span>
@@ -551,7 +593,7 @@ export function AiChatComposer({
               <span aria-hidden="true">＋</span>
               Attach
             </button>
-            <span className={styles.hint}>FASTA/text or images · drag & drop supported</span>
+            <span className={styles.hint}>FASTA, DNA, protein, images · drag &amp; drop</span>
           </div>
           <button
             className="button primary"
@@ -559,7 +601,7 @@ export function AiChatComposer({
             onClick={() => sending ? stopGeneration() : void send()}
             disabled={!sending && busyUploading}
           >
-            {sending ? "Stop" : "Send"}
+            <span aria-hidden="true">{sending ? "■" : "↑"}</span> {sending ? "Stop" : "Send"}
           </button>
         </div>
       </div>

@@ -214,6 +214,11 @@ jobs:
         run: |
           bash -n ../../scripts/codespaces_preview.sh ../../.devcontainer/start.sh ../../.devcontainer/setup.sh
           node --experimental-strip-types --test tests/codespaces-full-preview-v31.test.mjs
+      - name: Verify V32 BioAI conversation product, safe scientific workflows and onboarding
+        working-directory: apps/web
+        run: |
+          bash -n ../../scripts/codespaces_bioai.sh
+          node --experimental-strip-types --test tests/bioai-conversation-product-v32.test.mjs
       - name: Verify V22 UI research intent parity with PostgreSQL fixture corpus
         working-directory: apps/web
         run: node --experimental-strip-types --test tests/chat-fixed-research-intent-v22.test.mjs

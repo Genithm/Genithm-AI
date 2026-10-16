@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AiChatComposer } from "@/components/ai-chat-composer";
+import { ResearchChatSidebar } from "@/components/research-chat-sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
 import { approveAiPlan, requestAiInterpretation, approveChatResearchProtocol } from "../actions";
@@ -70,6 +71,16 @@ export default async function AiConversationPage({
     .maybeSingle();
 
   if (!conversation) notFound();
+
+  // Only user-scoped conversation/project rows; a consistent, searchable
+  // history stays visible while the scientist works inside any thread.
+  const [{ data: navConversations }, { data: navProjects }] = await Promise.all([
+    supabase.from("ai_conversations")
+      .select("id,project_id,title,updated_at")
+      .order("updated_at", { ascending: false }).limit(50),
+    supabase.from("projects").select("id,name").eq("status", "active").limit(100),
+  ]);
+  const projectNames = Object.fromEntries((navProjects ?? []).map((entry) => [entry.id, entry.name]));
 
   // Release guard: the existing Supabase project may still be on the
   // pre-V22 schema. Probe columns without reading any chat rows.
@@ -344,45 +355,49 @@ export default async function AiConversationPage({
 
   return (
     <main className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Link className={styles.back} href="/dashboard/ai">← Chats</Link>
-        <ResearchAvailabilityRefresh watching={scienceV22Ready && !scienceWorkersAvailable} />
-        {scienceV22Ready && !scienceWorkersAvailable ? (
-          <p role="status" className={styles.muted}>
-            Scientific workers are currently offline or not ready. You can read past research and use chat, but new fixed-protocol approvals are paused.
-          </p>
-        ) : null}
-        {!scienceV22Ready ? (
-          <p className={styles.muted}>Fixed NCBI research is unavailable until the approved database migration is enabled. Chat remains available.</p>
-        ) : null}
-        <div className={styles.projectBlock}>
-          <div className="eyebrow">Project</div>
-          <strong>{project?.name ?? "Research project"}</strong>
-        </div>
-        <Link href="/dashboard/ai/research">Research history</Link>
-        <Link href="/dashboard/tools">Advanced tools</Link>
-        <Link href="/dashboard/reports">Reports</Link>
-      </aside>
+      <ResearchChatSidebar
+        conversations={navConversations ?? []}
+        projectNames={projectNames}
+        projectCount={navProjects?.length ?? 0}
+      />
 
       <section className={styles.main}>
+        <ResearchAvailabilityRefresh watching={scienceV22Ready && !scienceWorkersAvailable} />
         <header className={styles.header}>
           <div>
-            <div className="eyebrow">Genithm chat</div>
+            <div className={styles.eyebrow}>GENITHM BIOAI <span> / Research conversation</span></div>
             <h1>{conversation.title}</h1>
+            <div className={styles.contextLabel}>
+              <span aria-hidden="true">◉</span> {project?.name ?? "Research project"}
+            </div>
           </div>
-          <Link className="button" href={`/dashboard/ai/${conversation.id}`}>Refresh</Link>
+          <div className={styles.threadActions}>
+            <Link className={styles.newThread} href="/dashboard/ai">＋ New chat</Link>
+            <Link className={styles.refresh} href={`/dashboard/ai/${conversation.id}`} aria-label="Refresh conversation">↻</Link>
+          </div>
         </header>
+
+        {!scienceWorkersAvailable ? (
+          <div className={styles.engineNotice} role="status">
+            <span aria-hidden="true">◌</span>
+            <p>{scienceV22Ready
+              ? "Scientific workers are currently offline or not ready. Continue chatting, review existing evidence or plan a study; new fixed NCBI analyses require healthy workers."
+              : "Scientific computation is not enabled in this environment. Chat remains available, along with existing research history."}</p>
+          </div>
+        ) : null}
 
         {query.error ? <div className="error">{query.error}</div> : null}
 
-        <div className={styles.thread} aria-live="polite">
+        <div className={styles.thread} aria-live="polite" aria-label="Research conversation messages">
           {chronologicalMessages.map((message) => (
             <article
               className={message.role === "user" ? styles.userMessage : styles.assistantMessage}
               key={message.id}
             >
               <div className={styles.messageMeta}>
-                {message.role === "user" ? "You" : "Genithm"}
+                <span className={message.role === "user" ? styles.userAvatar : styles.aiAvatar}
+                  aria-hidden="true">{message.role === "user" ? "Y" : "✳"}</span>
+                {message.role === "user" ? "You" : "Genithm BioAI"}
               </div>
               <div className={styles.messageBody}>{message.content}</div>
               {scienceWorkersAvailable && message.role === "user" && message.protocol_input_scope === "text_only" &&
@@ -420,9 +435,12 @@ export default async function AiConversationPage({
 
         <ResearchActivityRefresh active={Boolean((linkedPipelines ?? []).some((run) => ["awaiting_source", "awaiting_validation", "running"].includes(run.status)) || (pipeline && ["awaiting_source", "awaiting_validation", "running"].includes(pipeline.status)) || (plans ?? []).some((plan) => ["queued", "planning", "processing"].includes(plan.status)) || (interpretations ?? []).some((item) => ["queued", "running", "processing"].includes(item.status)) || [...execution.values()].some((entry) => ["queued", "running", "processing", "pending"].includes(entry.status)))} />
 
-        <section className={styles.activity} aria-label="Scientific research results and execution">
-          <h2 className={styles.activityTitle}>Research activity · progress &amp; results</h2>
-          <p className={styles.activityDescription}>Your analyses run in the background. Approve, track and review their results here without leaving this conversation.</p>
+        <details className={styles.activity} open={activityPlans.length > 0 || evidencePipelines.length > 0}>
+          <summary className={styles.activityToggle}>
+            <span><span aria-hidden="true">◈</span> Research activity &amp; results</span>
+            <small>{activityPlans.length + evidencePipelines.length} recorded workflows · Expand / collapse</small>
+          </summary>
+          <p className={styles.activityDescription}>Approve scientific actions, track execution, review recorded results and provenance without leaving this conversation.</p>
           <div className={styles.activityList}>
             {activityPlans.map((plan) => {
               const resourceKey =
@@ -503,7 +521,7 @@ export default async function AiConversationPage({
             })}
             {!activityPlans.length && !evidencePipelines.length ? <div className={styles.empty}>No scientific activity yet.</div> : null}
           </div>
-        </section>
+        </details>
 
         {pipeline && protocolTemplate ? (
           <section className={styles.protocolRun} aria-label="Active chat research protocol">
@@ -555,6 +573,7 @@ export default async function AiConversationPage({
           </p>
         ) : null}
 
+        <div className={styles.stickyComposer}>
         <AiChatComposer
           key={`${conversation.id}:${messages?.length ?? 0}`}
           projects={[{ id: conversation.project_id, name: project?.name ?? "Research project" }]}
@@ -565,6 +584,8 @@ export default async function AiConversationPage({
             ? [retryableRequest.content]
             : []}
         />
+        <p className={styles.composerDisclaimer}>Genithm's AI can make mistakes. Scientific results are verified against recorded data and remain subject to your approval.</p>
+        </div>
       </section>
     </main>
   );

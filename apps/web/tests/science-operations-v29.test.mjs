@@ -199,8 +199,8 @@ test("V29 refresh is periodic but makes no privileged browser RPCs or mutations"
 });
 
 test("V29 researcher homepage displays only a generic readiness notice", () => {
-  assert.match(homepage,/if \(!claimsData\?\.claims\?\.sub\) redirect\("\/login"\)/);
-  assert.match(homepage,/researchConfigured && !researchAvailable/);
-  assert.match(homepage,/scientific services recover/);
+  assert.match(homepage,/if \(!claims\?\.claims\?\.sub\) redirect\("\/login"\)/);
+  assert.match(homepage,/!fixedScienceReady/);
+  assert.match(homepage,/Scientific execution is currently unavailable/);
   assert.doesNotMatch(homepage,/stale_workers|missing_workers|SUPABASE_SECRET_KEY|get_release_readiness/);
 });

@@ -248,3 +248,38 @@
     transition: none;
   }
 }
+
+/* V32 AI-first product navigation: chat and scientific work front and center. */
+.dashboard-shell { background:#101b23; border-bottom:1px solid #31434b; }
+.dashboard-shell-inner { width:min(1680px,calc(100% - 42px)); min-height:59px; gap:20px; }
+.dashboard-brand strong { font-size:14px; }
+.dashboard-brand small { font-size:10px; }
+.bioai-top-nav { gap:5px; align-items:center; }
+.bioai-top-nav .dashboard-nav-link { padding:9px 13px; font-size:11px; border-radius:9px; }
+.bioai-more { position:relative; font-size:11px; }
+.bioai-more > summary {
+  display:flex; align-items:center; gap:7px; padding:9px 13px; color:#a9c2c8;
+  cursor:pointer; border-radius:9px; list-style:none;
+}
+.bioai-more > summary::-webkit-details-marker { display:none; }
+.bioai-more > summary:hover { color:#ecfffb; background:#213741; }
+.bioai-more-menu {
+  position:absolute; top:calc(100% + 11px); right:0; width:210px;
+  display:grid; gap:2px; z-index:90; padding:9px;
+  border:1px solid #34535a; border-radius:12px; background:#132630;
+  box-shadow:0 22px 70px rgba(0,0,0,.42);
+}
+.bioai-more-menu a { padding:11px 12px; border-radius:7px; font-size:11px; color:#cadfe0; text-decoration:none; }
+.bioai-more-menu a:hover { background:#27434b; }
+@media(max-width:1050px) {
+  .dashboard-shell-inner { gap:10px; }
+  .bioai-top-nav { overflow:visible; }
+  .bioai-top-nav .dashboard-nav-link { font-size:10px; padding:8px 9px; }
+}
+@media(max-width:750px) {
+  .dashboard-shell-inner { display:flex; flex-wrap:wrap; padding:10px 0; min-height:auto; }
+  .dashboard-brand { flex:1; }
+  .dashboard-account { margin-left:auto; }
+  .bioai-top-nav { order:3; display:flex; width:100%; justify-content:space-between; }
+  .bioai-more-menu { right:0; }
+}

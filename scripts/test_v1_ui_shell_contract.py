@@ -18,7 +18,7 @@ def main() -> int:
     assert "DashboardPrimaryNav" in layout
     assert 'aria-label="Workspace navigation"' in primary_nav
     assert "usePathname" in primary_nav
-    assert 'aria-current={active ? "page" : undefined}' in primary_nav
+    assert 'aria-current={active?"page":undefined}' in primary_nav
     assert "IntersectionObserver" in section_nav
     assert 'aria-current={active ? "step" : undefined}' in section_nav
     assert "dashboard-section-link is-active" in section_nav
@@ -27,10 +27,10 @@ def main() -> int:
     assert "prefers-reduced-motion" in section_css
 
     assert 'redirect("/dashboard/ai")' in dashboard_home
-    assert 'label: "Chat"' in primary_nav
-    assert 'label: "Advanced tools"' in primary_nav
+    assert 'label:"BioAI chat"' in primary_nav
+    assert 'label:"Scientific tools"' in primary_nav
     assert 'AiChatComposer' in chat_home
-    assert '/dashboard/tools' in chat_home
+    assert '/dashboard/tools' in primary_nav  # Advanced scientific tools remain accessible
     assert 'AiChatComposer' in chat_conversation
     assert 'action={requestAiPlan}' not in chat_conversation
     assert 'action={approveAiPlan}' in chat_conversation
