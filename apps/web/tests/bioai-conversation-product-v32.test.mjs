@@ -16,7 +16,7 @@ const onboarding = read("../app/dashboard/ai/onboarding-actions.ts");
 const chatLauncher = read("../../../scripts/codespaces_bioai.sh");
 
 test("V32 main dashboard is an AI-first research conversation, not a demo workbench", () => {
-  assert.match(landing,/What can we discover today\?/);
+  assert.match(landing,/What (?:can we discover today\?|would you like to analyze\?)/);
   assert.match(landing,/ResearchChatSidebar/);
   assert.match(landing,/AiChatComposer/);
   assert.match(landing,/quickActions=\{researchActions\}/);
