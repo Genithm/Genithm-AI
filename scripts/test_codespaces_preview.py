@@ -27,12 +27,15 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertEqual(self.config["remoteEnv"]["GENITHM_CODESPACES_PREVIEW"], "1")
         self.assertNotIn("9000", self.config["portsAttributes"])
 
-    def test_codespaces_uses_preinstalled_node22_not_fragile_feature_install(self):
+    def test_codespaces_installs_docker_engine_and_compose_for_full_preview(self):
         self.assertEqual(
             self.config["image"],
             "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
         )
-        self.assertNotIn("features", self.config)
+        docker = self.config["features"]["ghcr.io/devcontainers/features/docker-in-docker:4"]
+        self.assertTrue(docker["moby"])
+        self.assertEqual(docker["dockerDashComposeVersion"], "v2")
+        self.assertEqual(self.config["portsAttributes"]["3000"]["visibility"], "private")
         self.assertIn("setup.sh", self.config["postCreateCommand"])
         self.assertIn("start.sh", self.config["postStartCommand"])
 
@@ -42,6 +45,14 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertNotIn("DEEPSEEK_API_KEY", document)
         self.assertNotIn("sb_secret_", document)
         self.assertNotIn("service_role", document)
+
+    def test_full_preview_launcher_requires_working_docker_and_gives_rebuild_help(self):
+        launcher = (ROOT / "scripts/codespaces_preview.sh").read_text(encoding="utf-8")
+        self.assertIn("command -v docker", launcher)
+        self.assertIn("docker info", launcher)
+        self.assertIn("docker compose version", launcher)
+        self.assertIn("Codespaces: Rebuild Container", launcher)
+        self.assertIn("scripts/codespaces_bioai.sh", launcher)
 
     def test_authenticated_routes_blocked_without_public_configuration(self):
         self.assertIn('process.env.NODE_ENV === "development"', self.proxy)
