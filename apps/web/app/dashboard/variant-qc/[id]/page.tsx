@@ -23,9 +23,11 @@ export default async function SavedVariantQcPage({params}:{
     .select("id,title,project_id,source_sha256,source_verification,summary,total_records,created_at")
     .eq("id",id).eq("created_by",userId).maybeSingle();
   if(error||!record)notFound();
-  const valid=validateVcfQcSummary(record.summary)&&
-    record.summary.totalRecords===record.total_records &&
-    record.source_verification==="client_computed_unverified";
+  const summary=record.summary;
+  const verifiedSummary=validateVcfQcSummary(summary)&&
+    summary.totalRecords===record.total_records &&
+    record.source_verification==="client_computed_unverified"
+      ? summary : null;
   return (
     <main className={styles.shell}>
       <nav className={styles.crumbs}>
@@ -40,9 +42,9 @@ export default async function SavedVariantQcPage({params}:{
             These values were computed in the researcher's browser; no server-side VCF source verification is claimed.</p>
         </div>
       </header>
-      {valid?(
+      {verifiedSummary?(
         <>
-          <VariantQcSummary summary={record.summary} sourceSha256={record.source_sha256} saved/>
+          <VariantQcSummary summary={verifiedSummary} sourceSha256={record.source_sha256} saved/>
           <a className={styles.primary} style={{justifySelf:"start",textDecoration:"none"}}
             href={"/dashboard/variant-qc/"+id+"/export"}>↓ Download saved aggregate TSV</a>
         </>
