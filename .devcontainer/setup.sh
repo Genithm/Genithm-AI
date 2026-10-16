@@ -69,4 +69,5 @@ fi
 
 echo "[Genithm] Codespaces web dependencies installed."
 echo "[Genithm] Start: bash .devcontainer/start.sh"
-echo "[Genithm] Open port 3000 and visit /preview (no Supabase keys needed)."
+echo "[Genithm] Local SAMPLE workbench: port 3000 → /preview (no credentials; not full Genithm)."
+echo "[Genithm] FULL Genithm login/AI/NCBI/API/worker preview: bash scripts/codespaces_preview.sh (requires SUPABASE_SECRET_KEY and OPENROUTER_API_KEY Codespaces secrets)."

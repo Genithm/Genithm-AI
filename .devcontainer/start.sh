@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WEB_PID="$ROOT/.codespaces-web.pid"
 cd "$ROOT"
 
 # This script is only for local Codespaces development, never production.
@@ -14,7 +15,8 @@ if ! curl -fsS --max-time 2 http://127.0.0.1:8769/health > /dev/null 2>&1; then
 fi
 
 if curl -fsS --max-time 2 http://127.0.0.1:3000/ > /dev/null 2>&1; then
-  echo "[Genithm] Web preview is already running on port 3000."
+  echo "[Genithm] Basic development web server is already running on port 3000."
+  echo "[Genithm] To test real authenticated Genithm and all six workers, run from repository root: bash scripts/codespaces_preview.sh"
   exit 0
 fi
 
@@ -27,7 +29,9 @@ echo "[Genithm] Starting web preview on port 3000..."
 (
   cd apps/web
   nohup npm run dev -- --hostname 0.0.0.0 --port 3000 > /tmp/genithm-codespaces-web.log 2>&1 < /dev/null &
+  echo $! > "$WEB_PID"
 )
-echo "[Genithm] Use Codespaces PORTS tab → Genithm AI preview → Open in Browser."
+echo "[Genithm] Basic workbench running. Open port 3000 → /preview for sample-only tools."
+echo "[Genithm] To test the REAL Genithm app with sign-in, Supabase and six workers: bash scripts/codespaces_preview.sh"
 echo "[Genithm] Development logs: tail -f /tmp/genithm-codespaces-web.log"
 echo "[Genithm] Scientific lab logs: tail -f /tmp/genithm-codespaces-science.log"

@@ -114,16 +114,20 @@ jobs:
             tail -n 100 "$RUNNER_TEMP/preview.log" || true
             exit 1
           fi
-          grep -q "CODESPACES DEV PREVIEW" "$RUNNER_TEMP/preview.html"
+          grep -q "SAMPLE-ONLY DEVELOPMENT WORKBENCH" "$RUNNER_TEMP/preview.html"
           grep -q "FIXTURE: ATGAAATAA" "$RUNNER_TEMP/preview.html"
           grep -q "Discover conservation and evolutionary patterns" "$RUNNER_TEMP/preview.html"
           grep -q "OFFLINE DEMO" "$RUNNER_TEMP/preview.html"
           curl -fsS --max-time 10 http://127.0.0.1:3000/ -o "$RUNNER_TEMP/home.html"
-          grep -q "Open Development Preview" "$RUNNER_TEMP/home.html"
+          grep -q "Sign In to Genithm" "$RUNNER_TEMP/home.html"
+          curl -fsS --max-time 10 http://127.0.0.1:3000/login -o "$RUNNER_TEMP/login.html"
+          grep -q "Full Genithm sign-in is not running yet" "$RUNNER_TEMP/login.html"
+          curl -fsS --max-time 10 http://127.0.0.1:3000/signup -o "$RUNNER_TEMP/signup.html"
+          grep -q "Full Genithm sign-in is not running yet" "$RUNNER_TEMP/signup.html"
           status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dashboard/ai)"
           test "$status" = "307"
           curl -sSI --max-time 10 http://127.0.0.1:3000/dashboard/ai > "$RUNNER_TEMP/auth-redirect.txt"
-          grep -q '/preview?setup=1' "$RUNNER_TEMP/auth-redirect.txt"
+          grep -q '/login?setup=1' "$RUNNER_TEMP/auth-redirect.txt"
           cat > "$RUNNER_TEMP/analysis.json" <<'JSON'
           {"sequence":"ATGAAATAA","sequence_type":"dna","operation":"orf_scan","motif":null,"min_aa":2}
           JSON

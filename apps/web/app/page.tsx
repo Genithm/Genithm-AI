@@ -11,16 +11,12 @@ export default function HomePage() {
           trusted computational tools, evidence tracking, and provenance-first research execution.
         </p>
         <div className="actions">
-          {process.env.NODE_ENV === "development" && process.env.GENITHM_CODESPACES_PREVIEW === "1" ? (
-            <Link className="button primary glow" href="/preview">Open Development Preview</Link>
-          ) : (
-            <Link className="button primary glow" href="/signup">Create Research Account</Link>
-          )}
-          <Link className="button" href="/login">Sign In</Link>
+          <Link className="button primary glow" href="/login">Sign In to Genithm</Link>
+          <Link className="button" href="/signup">Create Research Account</Link>
           <a className="button" href="#capabilities">Explore Platform</a>
         </div>
         <div className="status-orb">
-          <span /> Live scientific orchestration layer
+          <span /> Evidence-linked computational research
         </div>
       </section>
 

@@ -1,52 +1,84 @@
-# Codespaces Full Preview
+# Genithm AI — Full Codespaces preview (real login, API and scientific workers)
 
-This is a preview-only runtime for exercising the real Genithm application without provisioning Oracle, Render, or Cloudflare infrastructure.
+**The main Genithm application is NOT the sample workbench at `/preview`.**
 
-## What runs
+## Choose the right mode
 
-- Next.js web application on port 3000
-- production API image on port 8000
-- all six production worker images
-- real Supabase project for auth, queues, and application data
-- isolated temporary S3-compatible object storage inside the Codespace for FASTA uploads
-- real NCBI and BLAST integrations
-- DeepSeek as the preview AI provider
+- `bash .devcontainer/setup.sh` and `bash .devcontainer/start.sh` launch a simple sample-only developer environment. `/preview` shows local scientific fixtures; it does not prove database, login, API, NCBI or six-worker execution.
+- `bash scripts/codespaces_preview.sh` launches the **integrated Codespaces runtime**: real Next.js login/signup, API on 8000, six released worker containers, existing Genithm Supabase Auth/queues, synthetic-data object storage, and OpenRouter AI. Only this path can qualify as the fully integrated preview.
+- The homepage at `/` always prioritizes **Sign in to Genithm** and **Create Research Account**; the optional `/preview` page remains accessible directly to developers but is deliberately not promoted as the product.
 
-The production Oracle + Cloudflare deployment files are not changed by this preview runtime.
+## Codespaces prerequisites
 
-## Required Codespaces secrets
+In repository **Settings → Secrets and variables → Codespaces**, store exactly these **Codespaces** secret names:
 
-Create these repository Codespaces secrets before launching:
+- `SUPABASE_SECRET_KEY`: the backend-only Supabase secret key for the existing project (`vowmjjgkjoxcvlfamukh`).
+- `OPENROUTER_API_KEY`: the OpenRouter provider key for your account.
 
-- `SUPABASE_SECRET_KEY`
-- `DEEPSEEK_API_KEY`
+Optional: `DEEPSEEK_API_KEY` (backup only), `NCBI_API_KEY`, `NCBI_EMAIL`, and `GENITHM_AI_PRIMARY_MODEL` (default `openrouter/free`).
 
-Qwen is not required for the Codespaces preview.
+A **Supabase publishable key is not the backend secret key**. The public project URL and publishable key are configured automatically by the launcher; you must supply the named backend key. Never commit these credentials or paste them into chat, PRs, logs, or your browser.
 
-Optional:
+GitHub Codespaces exposes the secrets as environment variables. Rebuild or restart the Codespace after adding/changing repository secrets. If the launcher reports missing secrets, verify the secret **names and Codespaces scope** first; don't reveal values.
 
-- `NCBI_API_KEY` for higher NCBI request limits
-- `NCBI_EMAIL` to override the repository contact email
-- `GENITHM_AI_PRIMARY_ENDPOINT` to override the DeepSeek API endpoint
-- `GENITHM_AI_PRIMARY_MODEL` to override the DeepSeek model; the preview default is `deepseek-flash`
+## Launch the real product
 
-Never commit these values to the repository.
-
-## Launch
-
-Create a Codespace from `main`, then run from the repository root:
+From the **repository root** in a Codespaces terminal:
 
 ```bash
+git pull --ff-only
 bash scripts/codespaces_preview.sh
 ```
 
-The launcher resolves the latest coordinated V1 candidate revision from `release/v1/candidate.json`, requires the API and all six worker images for that same revision to exist in GHCR, and only then starts the preview. It prints the Genithm web preview URL only after Supabase Auth confirms email login/signup are enabled, web/API health checks pass, and the authoritative Supabase release-readiness RPC reports all six worker heartbeats current.
+The launcher replaces an automatically started sample server on port 3000, writes protected `apps/web/.env.local` with the public Supabase client settings, backend-only `SUPABASE_SECRET_KEY`, `GENITHM_SCIENCE_V22_ENABLED=true`, the API proxy, and the Codespaces web origin, and starts the actual API/worker stack from a coordinated V1 candidate release.
 
-## Notes
+It verifies Supabase email/password signup availability, OpenRouter key/model availability, backend release images, API and web health, plus **six current worker heartbeats and nine existing queues**. If any check fails, the launcher exits nonzero. Do **not** interpret a mere port-3000 page as a complete scientific preview.
 
-- The preview object-storage credentials and audit-signing key are generated automatically for the Codespace session.
-- The local Next.js web source may be newer than the coordinated backend candidate, but API and all six workers are always pinned to one same release revision. The launcher prints both revisions when they differ.
-- The preview object storage is temporary and is not production R2.
-- The web app proxies API requests through its own origin so the browser only needs the port-3000 preview URL.\n- Signup confirmation redirects use the server-side `GENITHM_APP_URL`; the browser cannot override the confirmation origin.\n- If any worker fails to heartbeat or a required queue is missing, the launcher exits non-zero and prints the readiness result instead of reporting a healthy preview.
-- Stopping/deleting the Codespace stops the API and workers. This is not a 24/7 production deployment.
-- Payment-provider flows still require their own Stripe/PayPal/Wise sandbox credentials if those screens are being tested.
+A successful launcher prints a private forwarded HTTPS URL:
+
+```text
+Genithm FULL preview is running and passed readiness checks.
+Open your real sign-in page: https://<codespace>-3000.<forwarding-domain>/login
+Create an account: https://<codespace>-3000.<forwarding-domain>/signup
+```
+
+Keep your Codespace application port **private**. A temporary port-9000 object-storage endpoint may be marked public to permit short-lived signed browser uploads. Never upload real/private customer research to preview storage. Stop the Codespace when done.
+
+### Account creation / email confirmation
+
+If the existing Supabase project requires email confirmation, the application's callback uses `GENITHM_APP_URL` for the full Codespaces origin. Configure that **exact forwarded origin plus `/auth/confirm`** in the existing Supabase project's Auth URL allowlist, using the project's dashboard. Use a dedicated test user and confirm their email. Avoid opening wildcard redirects to arbitrary domains.
+
+## Test after boot
+
+1. Open `/login` or `/signup` to authenticate to the **real app**, not `/preview`.
+2. Create a development organization and project; open `/dashboard/ai`.
+3. Ask ordinary AI questions and check OpenRouter responses.
+4. Test a supported single-accession NCBI workflow with explicit human approval: `Calculate protein properties for NP_000537.3` or `Run ORF scan on NM_000546.6`.
+5. Validate persisted job state, real NCBI retrieval, FASTA integrity, scientific result fingerprint and evidence dossier/download. Recorded computational output is not experimentally verified biology.
+6. Test the authenticated research archive, integrity-checked evidence export and denial of cross-account access.
+
+For a basic deterministic local science smoke, run:
+
+```bash
+python3 scripts/codespaces-science-smoke.py
+```
+
+For live local API/web readiness, run from repository root:
+
+```bash
+python3 scripts/production_smoke.py \
+  --api-base-url http://127.0.0.1:8000 \
+  --web-base-url http://127.0.0.1:3000 --allow-http
+```
+
+A Codespaces preview is not proof that the separate Oracle or Cloudflare **production** deployment is working. Payments still need separate provider sandbox credentials.
+
+## Troubleshooting
+
+- **Only sample DNA tools, no login:** You are at `/preview` or ran only `.devcontainer/start.sh`. Open `/login` from the actual forwarded application origin, and run `bash scripts/codespaces_preview.sh` for complete backend services.
+- **Login fails / missing environment:** Use the full launcher, check your secret name and whether `apps/web/.env.local` exists. Never print secret values for debugging.
+- **Port 3000 busy:** The launcher attempts to stop the previous sample process. If it cannot free the port, stop the old Next.js dev process and rerun it. Check the `PORTS` tab.
+- **Missing GHCR image:** The candidate API and six-worker release images must exist at the same exact source revision; do not substitute floating `latest` tags.
+- **Worker readiness not ready:** Inspect `docker compose --env-file .env.codespaces-preview -f deploy/codespaces/docker-compose.preview.yml ps` and the worker logs. All six must heartbeat before the launcher claims successful activation.
+- **OpenRouter rejected:** Check the selected model exists for that key and the key has the required provider permissions.
+- **Web error:** Inspect `tail -n 60 .codespaces-web.log` and the Codespaces terminal output, redact credentials before sharing.

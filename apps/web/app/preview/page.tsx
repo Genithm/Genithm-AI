@@ -10,7 +10,7 @@ import styles from "./preview.module.css";
 
 export const metadata = {
   title: "Genithm | Development Workbench",
-  description: "Local Codespaces UI preview using non-sensitive scientific sample data",
+  description: "Sample-only local scientific workbench, distinct from authenticated Genithm research",
 };
 
 export default async function PreviewPage({
@@ -32,7 +32,7 @@ export default async function PreviewPage({
     <main className={styles.shell}>
       <div className={styles.utilityBar}>
         <span className={styles.eyebrow}>GENITHM / RESEARCH WORKBENCH</span>
-        <span className={styles.devBadge}>CODESPACES DEV PREVIEW</span>
+        <span className={styles.devBadge}>SAMPLE-ONLY DEVELOPMENT WORKBENCH — NOT THE FULL GENITHM APP</span>
       </div>
 
       <section className={styles.hero}>
@@ -45,10 +45,11 @@ export default async function PreviewPage({
           </p>
           <div className={styles.heroActions}>
             {configured ? (
-              <Link className="button primary" href="/dashboard/ai">Open authenticated workspace</Link>
+              <Link className="button primary" href="/login">Sign in to the full Genithm app</Link>
             ) : (
-              <a className="button primary" href="#research-workbench">Explore sample analyses</a>
+              <a className="button primary" href="#research-workbench">Explore local sample analyses</a>
             )}
+            <Link className="button" href="/signup">Create research account</Link>
             <Link className="button" href="/">Back to Genithm home</Link>
           </div>
         </div>
@@ -72,7 +73,10 @@ export default async function PreviewPage({
               <code> NEXT_PUBLIC_SUPABASE_URL </code> and
               <code> NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY </code>
               using your Codespace&apos;s environment/secrets, then restart the web server.
-              Use a separate development Supabase project rather than production research data.
+              To launch the integrated application using your existing Genithm Supabase project,
+              configure the required Codespaces secrets, then run
+              <code> bash scripts/codespaces_preview.sh </code>
+              from the repository root. This page is only the optional local sample workbench.
             </p>
           </div>
           <span className={styles.setupState}>OFFLINE DEMO</span>
@@ -81,7 +85,7 @@ export default async function PreviewPage({
         <section className={styles.setupNotice}>
           <div>
             <strong>Supabase public environment configured</strong>
-            <p>Public browser configuration is present. Authenticated workflows still require a migrated development database and compatible workers.</p>
+            <p>Public browser configuration is present, not verified. Full authenticated research also needs the Codespaces full-preview launcher, the backend services, and healthy worker heartbeats.</p>
           </div>
           <span className={styles.connectedState}>CONFIGURED</span>
         </section>

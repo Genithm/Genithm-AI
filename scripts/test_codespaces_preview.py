@@ -47,7 +47,9 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertIn('process.env.NODE_ENV === "development"', self.proxy)
         self.assertIn('process.env.GENITHM_CODESPACES_PREVIEW === "1"', self.proxy)
         self.assertIn('pathname === "/preview"', self.proxy)
-        self.assertIn('setupUrl.pathname = "/preview"', self.proxy)
+        self.assertIn('pathname === "/login"', self.proxy)
+        self.assertIn('pathname === "/signup"', self.proxy)
+        self.assertIn('setupUrl.pathname = "/login"', self.proxy)
         self.assertIn("return NextResponse.redirect(setupUrl)", self.proxy)
         self.assertIn("return updateSession(request)", self.proxy)
 
