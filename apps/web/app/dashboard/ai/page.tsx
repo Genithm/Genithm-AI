@@ -5,6 +5,7 @@ import { AiChatComposer, type ResearchQuickAction } from "@/components/ai-chat-c
 import { ResearchChatSidebar } from "@/components/research-chat-sidebar";
 import { GenithmToolDock } from "@/components/genithm-tool-dock";
 import "@/components/genithm-research-theme.css";
+import "@/components/genithm-research-fields.css";
 import { createClient } from "@/lib/supabase/server";
 import { scienceExecutionReady } from "@/lib/science-execution-readiness";
 import { scienceV22Configured } from "@/lib/science-release";
