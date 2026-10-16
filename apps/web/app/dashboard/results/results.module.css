@@ -1,0 +1,85 @@
+.shell {
+  --ink: #153657; --muted: #637f98; --line: #dce7f2;
+  display: grid; gap: 22px; width: min(1240px, calc(100% - 32px));
+  margin: 24px auto 72px; color: var(--ink);
+}
+.crumbs { display: flex; flex-wrap: wrap; gap: 20px; font-size: 12px; }
+.crumbs a, .back { color: #6dbedb; text-decoration: none; }
+.crumbs a:hover, .back:hover { text-decoration: underline; }
+.intro {
+  display: flex; justify-content: space-between; align-items: center; gap: 22px;
+  padding: 30px; border: 1px solid var(--line); border-radius: 18px;
+  background: linear-gradient(120deg, #0d2752 0%, #075db2 58%, #008f9e 100%);
+  box-shadow: 0 18px 48px #021e3e22;
+}
+.intro h1 { color: white; margin: 11px 0 9px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.045em; }
+.intro p { max-width: 720px; color: #e1eff8; margin: 0; font-size: 13px; line-height: 1.7; }
+.kicker { color: #b7ffec; letter-spacing: .15em; font-size: 10px; font-weight: 800; }
+.primary {
+  white-space: nowrap; padding: 12px 18px; background: #baffeb; color: #0c4162;
+  border-radius: 10px; font-size: 12px; font-weight: 850; text-decoration: none;
+}
+.primary:hover { background: white; }
+.filters {
+  display: flex; align-items: end; gap: 13px; flex-wrap: wrap;
+  border-radius: 15px; padding: 18px; background: #101f2a;
+  border: 1px solid #314957;
+}
+.filters label { display: grid; flex: 1 1 180px; gap: 8px; font-size: 11px; font-weight: 800; color: #c6dce9; }
+.filters label:first-child { flex-grow: 2; }
+.filters select {
+  min-width: 0; width: 100%; padding: 11px; background: #0b1820; color: #f1f9fc;
+  border: 1px solid #3a5360; border-radius: 9px; font-size: 12px;
+}
+.filters button { padding: 12px 18px; border: 0; border-radius: 9px; cursor: pointer; background: #88e8d5; color: #0b2a31; font-size: 12px; font-weight: 800; }
+.filters a { color: #b3ccda; font-size: 12px; padding: 10px 4px; }
+.stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.stats > div {
+  display: grid; gap: 8px; padding: 16px 18px; background: #10212d;
+  border: 1px solid #304c5c; border-radius: 13px;
+}
+.stats span { color: #a2c0d0; font-size: 11px; }
+.stats strong { font-size: 29px; color: #edfaff; }
+.note { margin: -8px 0 0; color: #a0b4c1; font-size: 11px; line-height: 1.6; }
+.entries { display: grid; gap: 11px; }
+.entry {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 20px; padding: 20px; border: 1px solid #334f5a; border-radius: 15px;
+  background: #132732; color: #edf9fb;
+}
+.entry:hover { border-color: #45939f; }
+.entryBody { min-width: 0; display: grid; gap: 7px; }
+.entryTop { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.kind { color: #89c8d3; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; }
+.state { display: inline-flex; padding: 4px 9px; border-radius: 99px; font-size: 10px; color: #cbdce7; background: #324856; }
+.state.complete { background: #154b3d; color: #a2efc7; }
+.state.active { background: #153c5d; color: #a4dafa; }
+.state.stopped { background: #593b34; color: #ffcab1; }
+.entry h2 { font-size: 17px; margin: 3px 0 0; color: #f0f9ff; }
+.entry p { margin: 0; color: #a0b9c7; font-size: 11px; }
+.entry .provenance { color: #a1d5c9; }
+.open {
+  display: inline-flex; justify-content: center; text-decoration: none;
+  border: 1px solid #5d9ba6; color: #a7eadc; background: #173941;
+  border-radius: 9px; padding: 11px 15px; flex-shrink: 0;
+  font-size: 12px; font-weight: 750;
+}
+.open:hover { background: #1b5151; }
+.alert { border: 1px solid #aa635b; border-radius: 11px; padding: 16px; color: #ffe0db; background: #4a2b2c; }
+.empty { padding: 28px; border: 1px dashed #49616b; border-radius: 14px; color: #a9c5d0; font-size: 13px; }
+.footer { display: flex; justify-content: space-between; gap: 16px; color: #90a5b5; font-size: 11px; }
+.footer a { color: #9cddd3; }
+@media(max-width:800px) {
+  .intro { flex-direction: column; align-items: start; }
+  .stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .entry { flex-direction: column; align-items: start; }
+  .footer { flex-direction: column; }
+}
+@media(max-width:480px) {
+  .shell { width: calc(100% - 22px); gap: 15px; }
+  .intro { padding: 22px; }
+  .stats { gap: 8px; }
+  .stats > div { padding: 12px; }
+  .entry { padding: 15px; }
+  .filters { padding: 14px; }
+}
