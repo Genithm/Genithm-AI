@@ -13,7 +13,8 @@ const TERMINAL_STOPPED = ["error", "failed", "cancelled", "canceled"] as const;
 export function classifyActivity(kind: ActivityKind, status: string): ActivityState {
   if (status === "completed") return "completed";
   if ((TERMINAL_STOPPED as readonly string[]).includes(status)) return "stopped";
-  if ((kind === "scientific" ? SCIENTIFIC_ACTIVE : PIPELINE_ACTIVE as readonly string[]).includes(status)) return "active";
+  const activeStates: readonly string[] = kind === "scientific" ? SCIENTIFIC_ACTIVE : PIPELINE_ACTIVE;
+  if (activeStates.includes(status)) return "active";
   return "unknown";
 }
 
