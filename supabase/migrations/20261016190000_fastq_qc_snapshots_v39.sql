@@ -28,7 +28,7 @@ declare
   org uuid;
   expected_count integer;
   item jsonb;
-  hash text;
+  cycle jsonb;
 begin
   if actor is null or new.created_by is distinct from actor then
     raise exception 'Invalid FASTQ QC snapshot owner' using errcode='42501';
@@ -72,6 +72,208 @@ begin
           then jsonb_array_length(item->'perCycle') else -1 end) not between 1 and 400
     then raise exception 'Unexpected FASTQ per-read or raw payload data'
       using errcode='23514'; end if;
+    if exists(select 1 from jsonb_each(item->'baseCounts') as bc(k,v)
+      where jsonb_typeof(bc.v) is distinct from 'number'
+         or bc.v::text !~ '^[0-9]{1,10}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+)
+       or exists(select 1 from jsonb_array_elements(item->'lengthBands') as lb(v)
+         where jsonb_typeof(lb.v) is distinct from 'number'
+           or lb.v::text !~ '^[0-9]{1,10}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+)
+       or exists(select 1 from jsonb_array_elements(item->'qualityBands') as qb(v)
+         where jsonb_typeof(qb.v) is distinct from 'number'
+           or qb.v::text !~ '^[0-9]{1,10}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+)
+       or coalesce((item->>'baseCount') ~ '^[1-9][0-9]{0,7}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+,false)=false
+       or coalesce((item->>'meanPhred') ~ '^[0-9]{1,2}(\\.[0-9]{1,3})?
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+,false)=false
+       or coalesce((item->>'readCount') ~ '^[1-9][0-9]{0,5}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+,false)=false
+       or coalesce((item->>'minLength') ~ '^[1-9][0-9]{0,2}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+,false)=false
+       or coalesce((item->>'maxLength') ~ '^[1-9][0-9]{0,2}
+  new.source_verification:='client_computed_unverified';
+  new.created_at:=now();
+  return new;
+end $$;
+revoke all on function app_private.guard_fastq_qc_snapshot()
+  from public,anon,authenticated,service_role;
+create trigger fastq_qc_snapshot_guard
+  before insert on public.fastq_qc_snapshots
+  for each row execute function app_private.guard_fastq_qc_snapshot();
+
+alter table public.fastq_qc_snapshots enable row level security;
+create policy fastq_qc_select_owner on public.fastq_qc_snapshots for select to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_insert_owner on public.fastq_qc_snapshots for insert to authenticated
+  with check(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+create policy fastq_qc_delete_owner on public.fastq_qc_snapshots for delete to authenticated
+  using(created_by=(select auth.uid()) and (select app_private.is_org_member(organization_id)));
+revoke all on public.fastq_qc_snapshots from public,anon;
+grant select,insert,delete on public.fastq_qc_snapshots to authenticated;
+comment on table public.fastq_qc_snapshots is
+  'Aggregate-only FASTQ QC (single or paired). Local client hashes are unverified, raw reads and identifiers never stored.';
+,false)=false
+    then raise exception 'FASTQ QC summary requires bounded numerical aggregates'
+      using errcode='23514'; end if;
+    for cycle in select value from jsonb_array_elements(item->'perCycle') loop
+      if jsonb_typeof(cycle) is distinct from 'array' or
+         (case when jsonb_typeof(cycle)='array'
+            then jsonb_array_length(cycle) else -1 end)<>3 or
+         exists(select 1 from jsonb_array_elements(cycle) as v(value)
+           where jsonb_typeof(v.value) is distinct from 'number'
+             or length(v.value::text)>12)
+      then raise exception 'FASTQ cycle payload is not numerical QC data'
+        using errcode='23514'; end if;
+    end loop;
   end loop;
   new.source_verification:='client_computed_unverified';
   new.created_at:=now();
