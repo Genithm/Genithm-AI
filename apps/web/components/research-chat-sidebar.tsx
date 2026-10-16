@@ -75,6 +75,7 @@ export function ResearchChatSidebar({ conversations, projectNames, projectCount 
         <Link href="/dashboard/ai/research"><span aria-hidden="true">▤</span> Research history</Link>
         <Link href="/dashboard/results"><span aria-hidden="true">◈</span> Scientific results</Link>
         <Link href="/dashboard/notebook"><span aria-hidden="true">▤</span> Scientific notebook</Link>
+        <Link href="/dashboard/variant-qc"><span aria-hidden="true">◉</span> Variant QC Lab</Link>
         <Link href="/dashboard/results/studies"><span aria-hidden="true">⇄</span> Saved comparisons</Link>
         <Link href="/dashboard/tools"><span aria-hidden="true">⚙</span> Scientific tools</Link>
         <Link href="/dashboard/dossiers"><span aria-hidden="true">◈</span> Evidence dossiers</Link>
