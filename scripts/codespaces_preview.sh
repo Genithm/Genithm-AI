@@ -169,14 +169,14 @@ chmod 600 "$WEB_DIR/.env.local"
 if [[ -f "$WEB_PID" ]] && kill -0 "$(cat "$WEB_PID")" 2>/dev/null; then
   kill "$(cat "$WEB_PID")" || true
 fi
-if curl -fsS --max-time 2 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
   if command -v fuser >/dev/null 2>&1; then
     echo "Replacing existing Codespaces development server on port 3000..."
     fuser -k 3000/tcp >/dev/null 2>&1 || true
     sleep 2
   fi
 fi
-if curl -fsS --max-time 2 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
   echo "Port 3000 is still busy. Stop the old web preview process and rerun the full-preview launcher."
   exit 4
 fi
