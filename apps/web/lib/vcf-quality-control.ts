@@ -104,7 +104,7 @@ export function parseVcfQc(text: string): VcfQcResult {
       requireValid(fileformat && line.startsWith("#CHROM"),
         "VCF requires a v4 fileformat declaration followed by a #CHROM header.");
       const columns = line.split("\t");
-      requireValid(columns.length >= 8 && columns.length <= 110 &&
+      requireValid(columns.length >= 8 && columns.length <= 109 &&
         HEADER.every((part, i) => columns[i] === part),
         "Invalid VCF column header; the eight required fields must use tabs.");
       requireValid(columns.length === 8 ||
