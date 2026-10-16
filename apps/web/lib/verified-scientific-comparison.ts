@@ -139,12 +139,12 @@ export function verifiedComparisonTsv(comparison: VerifiedComparison): string {
   // Only call this after buildVerifiedComparison has accepted the projected runs.
   const headers = ["Metric", "Unit", ...comparison.runs.map((_, i) => "Run " + (i + 1))];
   const record = (cells: string[]) => cells.map(cell => {
-    const safe = cell.replaceAll(/[\\r\\n\\t]/g, " ");
+    const safe = cell.replaceAll(/[\r\n\t]/g, " ");
     // Spreadsheet tools may evaluate leading formula operators in metadata.
     // Keep real numeric negative values numeric; escape nonnumeric formulas.
-    return /^[=+@]|^-(?!\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?$)/i.test(safe)
+    return /^[=+@]|^-(?!\d+(?:\.\d+)?(?:e[+-]?\d+)?$)/i.test(safe)
       ? "'" + safe : safe;
-  }).join("\\t");
+  }).join("\t");
   return [
     record(["Genithm verified scientific comparison"]),
     record(["Job type", comparison.kind]),
