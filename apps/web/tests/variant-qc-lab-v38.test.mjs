@@ -92,6 +92,9 @@ test("V38 persists only valid nonfabricated aggregate shapes",()=>{
     {...source,chromCounts:[{chrom:"chr1",count:1}]},
     {...source,sampleColumns:101},
     {...source,analyzerVersion:"unknown"},
+    {...source,rawVcf:"PRIVATE_VCF_PAYLOAD"},
+    {...source,sampleNames:["private-sample"]},
+    {...source,chromCounts:source.chromCounts.map(x=>({...x,genotypes:"0/1"}))},
   ];
   for(const mutant of mutations)assert.equal(validateVcfQcSummary(mutant),false);
   assert.equal(validateVcfQcSummary(source),true);
@@ -121,6 +124,8 @@ test("V38 aggregate-only saving and report retrieval uses end-user Supabase RLS"
   assert.match(migration,/create policy variant_qc_snapshots_delete_owner/);
   assert.match(migration,/revoke all on public\.variant_qc_snapshots from public, anon/);
   assert.match(migration,/client_computed_unverified/);
+  assert.match(migration,/new\.summary - array\[/);
+  assert.match(migration,/jsonb_typeof\(new\.summary->\x27chromCounts\x27\) is distinct from \x27array\x27/);
   assert.doesNotMatch(migration,/raw_vcf|genotype_records|sample_names|variant_rows/);
   assert.match(save,/getClaims\(\)/);
   assert.match(save,/validateVcfQcSummary\(summary\)/);
