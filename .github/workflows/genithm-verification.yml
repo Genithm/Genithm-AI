@@ -1,0 +1,50 @@
+name: Genithm verification
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-verification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/package-lock.json'
+      - '.github/workflows/genithm-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: genithm-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  dependency-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - name: Capture tracked source for independent review
+        run: |
+          mkdir -p artifacts/verification
+          git archive --format=zip HEAD > artifacts/verification/source.zip
+          git rev-parse HEAD > artifacts/verification/revision.txt
+      - name: Upload review snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-review-source
+          path: artifacts/verification/
+          retention-days: 3
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Audit locked dependencies including development tooling
+        run: |
+          cd apps/web
+          npm audit --json > ../../artifacts/verification/npm-audit.json
+      - name: Upload dependency evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-dependency-verification
+          path: artifacts/verification/npm-audit.json
+          retention-days: 7
