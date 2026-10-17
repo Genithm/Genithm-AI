@@ -15,11 +15,11 @@ const navigation = read("../components/dashboard-primary-nav.tsx");
 const onboarding = read("../app/dashboard/ai/onboarding-actions.ts");
 const chatLauncher = read("../../../scripts/codespaces_bioai.sh");
 
-test("V32 main dashboard is an AI-first research conversation, not a demo workbench", () => {
+test("V32 main dashboard remains an AI-first research conversation under the V40 simplification", () => {
   assert.match(landing,/What (?:can we discover today\?|would you like to analyze\?)/);
   assert.match(landing,/ResearchChatSidebar/);
   assert.match(landing,/AiChatComposer/);
-  assert.match(landing,/quickActions=\{researchActions\}/);
+  assert.match(landing,/quickActions=\{\[researchActions\[5\],researchActions\[2\],researchActions\[3\]\]\}/);
   assert.match(landing,/scienceReady=\{fixedScienceReady\}/);
   assert.match(landing,/from\("ai_conversations"\)/);
   assert.match(landing,/from\("projects"\)/);
@@ -30,9 +30,9 @@ test("V32 main dashboard is an AI-first research conversation, not a demo workbe
   assert.doesNotMatch(landing,/Open Development Preview/);
 });
 
-test("V32 offers six bioinformatics actions with real composer prefill, never fake results",()=>{
-  for(const label of ["DNA & RNA","Proteins","Sequence alignment","BLAST search","Phylogenetics","Ask Genithm"]){
-    assert.ok(landing.includes("label: \""+label+"\""),label);
+test("V32 bioinformatics prompts remain real composer actions with three focused starters in V40",()=>{
+  for(const label of ["DNA & RNA","Proteins","Compare sequences","Find similar sequences","Phylogenetics","Plan my research"]){
+    assert.ok(landing.includes('label:"'+label+'"'),label);
   }
   assert.match(landing,/Run ORF scan on NM_000546\.6/);
   assert.match(landing,/Calculate protein properties for NP_000537\.3/);
@@ -64,15 +64,16 @@ test("V32 new researcher can create their lab and project without leaving AI cha
   assert.doesNotMatch(onboarding,/createServiceClient|SUPABASE_SECRET_KEY|service_role/);
 });
 
-test("V32 consistent, searchable, RLS-scoped chat history appears on both chat routes",()=>{
+test("V32 searchable RLS-scoped chat history and shared navigation appear on both chat routes",()=>{
   assert.match(sidebar,/useState\(""\)/);
   assert.match(sidebar,/type="search"/);
   assert.match(sidebar,/conversations\.filter/);
   assert.match(sidebar,/usePathname/);
-  assert.match(sidebar,/aria-current=\{active \? "page" : undefined\}/);
+  assert.match(sidebar,/aria-current=\{pathname===href\?"page":undefined\}/);
   assert.match(sidebar,/Start a new conversation/);
-  assert.match(sidebar,/href="\/dashboard\/tools"/);
-  assert.match(sidebar,/href="\/dashboard\/dossiers"/);
+  assert.match(sidebar,/<DashboardPrimaryNav/);
+  assert.ok(navigation.includes('/dashboard/tools'));
+  assert.ok(navigation.includes('/dashboard/dossiers'));
   assert.match(conversation,/navConversations/);
   assert.match(conversation,/from\("ai_conversations"\)/);
   assert.match(conversation,/from\("projects"\)/);
@@ -101,22 +102,21 @@ test("V32 design remains keyboard-, mobile-, and status-accessible",()=>{
   assert.match(composer,/event\.key === "Enter" && !event\.shiftKey/);
   assert.match(composer,/aria-label="Attach sequence files or images"/);
   assert.match(sidebar,/aria-label="Search conversations"/);
+  assert.match(sidebar,/aria-expanded=\{mobileOpen\}/);
   assert.match(landing,/role="status"/);
   assert.match(landing,/role="alert"/);
-  assert.match(landingStyle,/@media\(max-width:940px\)/);
-  assert.match(conversationStyle,/@media\(max-width:940px\)/);
-  assert.match(sidebarStyle,/@media\(max-width:940px\)/);
-  assert.match(composerStyle,/@media\(max-width:700px\)/);
+  for(const css of [landingStyle,conversationStyle,sidebarStyle,composerStyle]){
+    assert.match(css,/@media\s*\(max-width:\s*\d+px\)/);
+    assert.match(css,/var\(--g-/);
+  }
 });
 
 test("V32 full navigation prioritizes chat without deleting advanced research tools",()=>{
-  assert.match(navigation,/BioAI chat/);
-  assert.match(navigation,/Scientific tools/);
+  assert.match(navigation,/label:"AI Chat"/);
+  assert.match(navigation,/label:"Tools"/);
   assert.match(navigation,/Research history/);
-  assert.match(navigation,/className="bioai-more"/);
-  for (const href of ["/dashboard/pipelines","/dashboard/pipeline-studies","/dashboard/dossiers","/dashboard/billing","/dashboard/operations"]){
-    assert.ok(navigation.includes(href),href);
-  }
+  assert.match(navigation,/<details className="genithm-more-nav"/);
+  for(const href of ["/dashboard/pipelines","/dashboard/pipeline-studies","/dashboard/dossiers","/dashboard/billing","/dashboard/operations"]){assert.ok(navigation.includes(href),href);}
 });
 
 test("V32 real BioAI chat can start without a Docker fleet or sample-only workbench",()=>{

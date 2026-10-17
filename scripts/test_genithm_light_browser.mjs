@@ -1,11 +1,11 @@
-/* UI-only ephemeral harness; uses actual shared components, no Supabase calls. */
+/* UI-only temporary route, importing actual product components; no Supabase credentials or research data. */
 import assert from 'node:assert/strict';
 import {mkdir,writeFile,rm} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-const {chromium}=await import(pathToFileURL(resolve('apps/web/node_modules/playwright/index.mjs')).href);
-// Underscore-prefixed app folders are private in Next.js and cannot be test routes.
+assert.ok(process.env.GENITHM_PLAYWRIGHT_ROOT,'Use an isolated Playwright installation, not the app dependency tree.');
+const {chromium}=await import(pathToFileURL(resolve(process.env.GENITHM_PLAYWRIGHT_ROOT,'node_modules/playwright/index.mjs')).href);
 const pathname='/genithm-ui-contract-check';
 const route=resolve('apps/web/app'+pathname);
 const output=resolve('artifacts/genithm-light');
@@ -23,10 +23,12 @@ export default function UiContract(){
   <GenithmToolDock projectCount={0} scienceReady={false} recentRuns={[]} recentRunsError={false}/></main>
  </GenithmWorkspaceFrame>;
 }`);
-const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3099'],{cwd:resolve('apps/web'),env:{...process.env,GENITHM_UI_CONTRACT:'1',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit',detached:true});
+// Dummy public configuration only: with no cookies, getClaims has no session.
+// These are deliberately non-routable placeholders, not user credentials.
+const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3099'],{cwd:resolve('apps/web'),env:{...process.env,GENITHM_UI_CONTRACT:'1',GENITHM_CODESPACES_PREVIEW:'0',NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_SUPABASE_URL:'https://example.invalid',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'ui-test-placeholder'},stdio:'inherit',detached:true});
 let browser;
 try{
- let ready=false;for(let i=0;i<60;i++){try{const r=await fetch('http://127.0.0.1:3099'+pathname,{signal:AbortSignal.timeout(10000)});if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}
+ let ready=false;for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:3099'+pathname,{signal:AbortSignal.timeout(10000)});if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}
  assert.ok(ready,'UI harness started');
  browser=await chromium.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});

@@ -24,7 +24,8 @@ export default async function AiWorkspacePage({searchParams}:{searchParams:Promi
   const query=await searchParams;
   const supabase=await createClient();
   const {data:claims,error:authError}=await supabase.auth.getClaims();
-  if(authError||!claims?.claims?.sub)redirect("/login");
+  if (!claims?.claims?.sub) redirect("/login");
+  if (authError) redirect("/login");
   const [{data:projects,error:projectsError},{data:conversations,error:conversationsError},{data:organizations,error:labsError}]=await Promise.all([
     supabase.from("projects").select("id,name,status,created_at").eq("status","active").order("created_at",{ascending:false}).limit(100),
     supabase.from("ai_conversations").select("id,project_id,title,status,created_at,updated_at").eq("created_by",claims.claims.sub).order("updated_at",{ascending:false}).limit(50),
@@ -41,6 +42,7 @@ export default async function AiWorkspacePage({searchParams}:{searchParams:Promi
       .order("created_at",{ascending:false}).limit(4)
     :{data:[],error:null};
   const fixedScienceReady=scienceV22Configured()&&await scienceExecutionReady();
+  const scienceUnavailable = !fixedScienceReady;
   return <main className={styles.shell} aria-label="Genithm AI research chat">
     <ResearchChatSidebar conversations={conversations??[]} projectNames={projectNames} projectCount={activeProjects.length}/>
     <section className={styles.main}>
@@ -51,7 +53,7 @@ export default async function AiWorkspacePage({searchParams}:{searchParams:Promi
         {conversationsError?<p role="alert" className="error">Recent conversations could not be loaded.</p>:null}
         {projectsError||labsError?<p role="alert" className="error">Workspace access could not be loaded. Refresh before creating a project or starting an analysis.</p>:invalidProject?<p role="alert" className="error">That project is not available. <Link href="/dashboard/projects">Choose an accessible project.</Link></p>:activeProjects.length?<>
           <AiChatComposer projects={activeProjects.map(project=>({id:project.id,name:project.name}))} defaultProjectId={selectedProject?.id} placeholder="Ask Genithm about your data, or describe an analysis..." quickActions={[researchActions[5],researchActions[2],researchActions[3]]} scienceReady={fixedScienceReady}/>
-          <div className={styles.availability} role="status"><span className={fixedScienceReady?styles.readyDot:styles.availabilityDot} aria-hidden="true"/><div><strong>{fixedScienceReady?"Scientific workers available":"Scientific execution is currently unavailable"}</strong><span>{fixedScienceReady?"You approve scientific work before it runs.":"You can still chat and plan. Worker-backed analyses need the scientific services to be running."}</span></div></div>
+          <div className={styles.availability} role="status"><span className={scienceUnavailable?styles.availabilityDot:styles.readyDot} aria-hidden="true"/><div><strong>{scienceUnavailable?"Scientific execution is currently unavailable":"Scientific workers available"}</strong><span>{scienceUnavailable?"You can still chat and plan. Worker-backed analyses need the scientific services to be running.":"You approve scientific work before it runs."}</span></div></div>
         </>:<div className={styles.onboarding}>
           <div className={styles.onboardingIntro}><span className={styles.stepPill}>LET'S GET STARTED</span><h2>Create your research space</h2><p>Keep your questions, data, and results together in a project.</p></div>
           {!labs.length?<form action={createAiResearchLab} className={styles.setupForm}><label htmlFor="genithm-lab">Lab or team name</label><div className={styles.setupRow}><input id="genithm-lab" name="name" minLength={2} maxLength={100} placeholder="My research lab" autoComplete="organization" required/><button className="button primary" type="submit">Create lab</button></div></form>:<form action={createAiResearchProject} className={styles.setupForm}><label htmlFor="genithm-org">Research team</label><select id="genithm-org" name="organization_id" required>{labs.map(lab=><option key={lab.id} value={lab.id}>{lab.name}</option>)}</select><label htmlFor="genithm-project">Project name</label><div className={styles.setupRow}><input id="genithm-project" name="name" minLength={2} maxLength={160} placeholder="My first study" required/><button className="button primary" type="submit">Create project</button></div></form>}
