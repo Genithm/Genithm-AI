@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import time
+from contextlib import closing
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Protocol
@@ -16,8 +17,10 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .statistics import calculate_sequence_statistics
-from .validator import FastaValidationError, validate_fasta_bytes
+from .streaming import (
+    FastaStreamValidationError, FastaTransferError, analyze_fasta_chunks, analyze_fasta_stream,
+)
+from .validator import FastaValidationError, MAX_FILE_BYTES
 
 LOGGER = logging.getLogger("genithm.sequence-worker")
 DEFAULT_VISIBILITY_SECONDS = 300
@@ -123,7 +126,7 @@ class SupabaseRuntimeClient:
         headers = {
             "apikey": self.config.supabase_secret_key,
             "Authorization": f"Bearer {self.config.supabase_secret_key}",
-            "User-Agent": "genithm-sequence-worker/0.2",
+            "User-Agent": "genithm-sequence-worker/0.3.0",
         }
         if json_body:
             headers["Content-Type"] = "application/json"
@@ -223,6 +226,38 @@ class SupabaseRuntimeClient:
             )
         return data
 
+    def inspect_input(self, job: ValidationJob) -> tuple[Any, Any]:
+        """Production path: one bounded network stream, no full-object download."""
+        if type(job.file_size_bytes) is not int or not 1 <= job.file_size_bytes <= MAX_FILE_BYTES:
+            raise FastaTransferError("Declared sequence size is outside the 1..50 MiB limit")
+        if job.storage_bucket != "sequence-inputs":
+            raise FastaTransferError("Unsupported logical sequence bucket")
+        if job.storage_provider == "supabase":
+            encoded = quote(job.object_path, safe="/")
+            request = Request(
+                f"{self.config.supabase_url}/storage/v1/object/authenticated/sequence-inputs/{encoded}",
+                headers=self._headers(), method="GET",
+            )
+            try:
+                with urlopen(request, timeout=60) as response:
+                    return analyze_fasta_stream(response, expected_size=job.file_size_bytes)
+            except HTTPError as exc:
+                raise FastaTransferError(f"Private sequence download failed with HTTP {exc.code}") from exc
+            except URLError as exc:
+                raise FastaTransferError("Private sequence download connection failed") from exc
+        if job.storage_provider == "r2":
+            if not self.config.r2_sequence_bucket:
+                raise FastaTransferError("R2 sequence bucket is not configured")
+            try:
+                response = self._r2_client().get_object(
+                    Bucket=self.config.r2_sequence_bucket, Key=job.object_path,
+                )
+                with closing(response["Body"]) as body:
+                    return analyze_fasta_stream(body, expected_size=job.file_size_bytes)
+            except (BotoCoreError, ClientError, KeyError) as exc:
+                raise FastaTransferError("Private R2 sequence download failed") from exc
+        raise FastaTransferError("Unsupported sequence storage provider")
+
     def finish_success(self, job: ValidationJob, result: Any, statistics: Any) -> None:
         self._rpc(
             "finish_sequence_validation_success_v2",
@@ -281,13 +316,20 @@ def process_one(client: RuntimeClient) -> bool:
     )
     data: bytes | None = None
     try:
-        data = client.download(job)
-        result = validate_fasta_bytes(data)
-        statistics = calculate_sequence_statistics(data)
+        inspect_input = getattr(client, "inspect_input", None)
+        if callable(inspect_input):
+            result, statistics = inspect_input(job)
+        else:
+            # Preserve the existing byte-client adapter protocol for integrations.
+            # The production Supabase/R2 client always uses inspect_input above.
+            data = client.download(job)
+            result, statistics = analyze_fasta_chunks([data])
         client.finish_success(job, result, statistics)
         LOGGER.info("validation ready upload_id=%s statistics_version=%s", job.upload_id, statistics.statistics_version)
     except FastaValidationError as exc:
-        digest = sha256(data).hexdigest() if data is not None else None
+        digest = exc.sha256 if isinstance(exc, FastaStreamValidationError) else (
+            sha256(data).hexdigest() if data is not None else None
+        )
         client.finish_rejected(job, str(exc), digest)
         LOGGER.info("validation rejected upload_id=%s", job.upload_id)
     except Exception as exc:
