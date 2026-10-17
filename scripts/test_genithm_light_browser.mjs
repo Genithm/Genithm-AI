@@ -1,10 +1,10 @@
-/* UI-only temporary route, importing actual product components; no Supabase credentials or research data. */
+/* UI-only temporary route, actual product components, no research credentials. */
 import assert from 'node:assert/strict';
 import {mkdir,writeFile,rm} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-assert.ok(process.env.GENITHM_PLAYWRIGHT_ROOT,'Use an isolated Playwright installation, not the app dependency tree.');
+assert.ok(process.env.GENITHM_PLAYWRIGHT_ROOT,'Use an isolated Playwright installation.');
 const {chromium}=await import(pathToFileURL(resolve(process.env.GENITHM_PLAYWRIGHT_ROOT,'node_modules/playwright/index.mjs')).href);
 const pathname='/genithm-ui-contract-check';
 const route=resolve('apps/web/app'+pathname);
@@ -23,17 +23,16 @@ export default function UiContract(){
   <GenithmToolDock projectCount={0} scienceReady={false} recentRuns={[]} recentRunsError={false}/></main>
  </GenithmWorkspaceFrame>;
 }`);
-// Dummy public configuration only: with no cookies, getClaims has no session.
-// These are deliberately non-routable placeholders, not user credentials.
 const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3099'],{cwd:resolve('apps/web'),env:{...process.env,GENITHM_UI_CONTRACT:'1',GENITHM_CODESPACES_PREVIEW:'0',NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_SUPABASE_URL:'https://example.invalid',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'ui-test-placeholder'},stdio:'inherit',detached:true});
-let browser;
+let browser,page;
 try{
  let ready=false;for(let i=0;i<40;i++){try{const r=await fetch('http://127.0.0.1:3099'+pathname,{signal:AbortSignal.timeout(10000)});if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}
  assert.ok(ready,'UI harness started');
  browser=await chromium.launch({headless:true});
- const page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});
+ page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto('http://127.0.0.1:3099'+pathname,{waitUntil:'networkidle'});
+ await page.screenshot({path:resolve(output,'workspace-desktop.png'),fullPage:true});
  assert.equal(await page.locator('.genithm-primary-links > a').count(),6);
  assert.equal(await page.locator('.genithm-dock-actions > a').count(),3);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).colorScheme),'light');
@@ -43,18 +42,25 @@ try{
  await page.locator('#genithm-search-input').fill('FASTQ');
  assert.equal(await page.locator('.genithm-search-results a').count(),1);
  await page.keyboard.press('Escape');
- assert.equal(await page.locator('.genithm-search-dialog').evaluate(d=>d.open),false);
+ await page.waitForFunction(()=>!document.querySelector('.genithm-search-dialog').open);
  await page.keyboard.press('Control+k');
- assert.equal(await page.locator('.genithm-search-dialog').evaluate(d=>d.open),true);
+ await page.waitForFunction(()=>document.querySelector('.genithm-search-dialog').open);
  await page.keyboard.press('Escape');
- await page.screenshot({path:resolve(output,'workspace-desktop.png'),fullPage:true});
+ await page.waitForFunction(()=>!document.querySelector('.genithm-search-dialog').open);
  await page.setViewportSize({width:390,height:844});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'No mobile horizontal overflow');
  await page.locator('.genithm-mobile-menu').click();
  assert.equal(await page.locator('.genithm-mobile-menu').getAttribute('aria-expanded'),'true');
  await page.screenshot({path:resolve(output,'workspace-mobile.png'),fullPage:true});
+ await page.setViewportSize({width:1440,height:1000});
+ await page.goto('http://127.0.0.1:3099/login',{waitUntil:'networkidle'});
+ assert.ok(await page.getByRole('heading',{name:'Sign in to Genithm'}).isVisible());
+ await page.screenshot({path:resolve(output,'login-light.png'),fullPage:true});
  assert.deepEqual(errors,[]);
- console.log('PASS: light surfaces, supplied logo, six-item navigation, three actions, search, keyboard and mobile layout.');
+ console.log('PASS: light surfaces, supplied logo, six-item navigation, three actions, keyboard search, mobile layout and sign-in rendering.');
+}catch(error){
+ if(page)await page.screenshot({path:resolve(output,'failure.png'),fullPage:true}).catch(()=>{});
+ throw error;
 }finally{
  await browser?.close();try{process.kill(-child.pid,'SIGTERM');}catch{}
  await rm(route,{recursive:true,force:true});
