@@ -2,8 +2,8 @@
   "schema_version": "genithm-v1-candidate/1",
   "release_target": "v1.0.0",
   "stage": "deployment_candidate",
-  "candidate_generation": 7,
-  "refresh_reason": "openrouter_free_preview_provider_release",
+  "candidate_generation": 8,
+  "refresh_reason": "desktop_scientific_execution_v41",
   "repository": "Genithm/Genithm-AI",
   "platforms": [
     "linux/amd64",
@@ -12,7 +12,7 @@
   "web_contract": {
     "platform": "cloudflare_workers",
     "adapter": "@opennextjs/cloudflare@1.20.6",
-    "wrangler": "4.130.0",
+    "wrangler": "4.151.1",
     "free_plan_max_gzip_kib": 3072,
     "health_path": "/api/health"
   },

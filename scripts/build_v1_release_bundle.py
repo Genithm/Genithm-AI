@@ -14,7 +14,7 @@ EXPECTED_PLATFORMS = ["linux/amd64", "linux/arm64"]
 EXPECTED_WEB_CONTRACT = {
     "platform": "cloudflare_workers",
     "adapter": "@opennextjs/cloudflare@1.20.6",
-    "wrangler": "4.130.0",
+    "wrangler": "4.151.1",
     "free_plan_max_gzip_kib": 3072,
     "health_path": "/api/health",
 }

@@ -22,6 +22,8 @@ data:
   GENITHM_SCIENTIFIC_VISIBILITY_SECONDS: "300"
   GENITHM_SCIENTIFIC_MAX_ATTEMPTS: "3"
   GENITHM_SCIENTIFIC_POLL_SECONDS: "2"
+  # Raise only within provisioned CPU/RAM limits; no extra nodes are created.
+  GENITHM_SCIENTIFIC_CONCURRENCY: "1"
   GENITHM_AUDIT_VISIBILITY_SECONDS: "300"
   GENITHM_AUDIT_POLL_SECONDS: "2"
   GENITHM_AI_VISIBILITY_SECONDS: "300"
@@ -179,7 +181,7 @@ spec:
     metadata: {labels: {app: scientific-worker}}
     spec:
       automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 330
       containers:
         - name: worker
           image: GENITHM_SCIENTIFIC_WORKER_IMAGE

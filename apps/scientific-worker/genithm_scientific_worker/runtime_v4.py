@@ -5,9 +5,9 @@ import hashlib
 import json
 import logging
 import os
-import time
 from typing import Any
 
+from .consumer_pool import concurrency_value, run_scientific_consumers
 from .artifact_audit import ScientificArtifactAuditError
 from .output_integrity import ScientificOutputIntegrityError, audit_scientific_output
 from .input_integrity import validate_input_manifest, validate_sequence_content
@@ -33,7 +33,7 @@ from .runtime import (
 from .sequence_insights import SequenceInsightsError
 
 LOGGER = logging.getLogger("genithm.scientific-worker")
-WORKER_VERSION = "genithm-scientific-worker/0.6.0"
+WORKER_VERSION = "genithm-scientific-worker/0.7.0"
 
 
 class Client(BaseClient):
@@ -176,6 +176,9 @@ def process_one(client: Client) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Genithm isolated scientific execution worker")
     parser.add_argument("--once", action="store_true", help="Process at most one scientific job and exit")
+    parser.add_argument("--concurrency", type=concurrency_value,
+                        default=os.environ.get("GENITHM_SCIENTIFIC_CONCURRENCY", "1"),
+                        help="Independent queue consumers (1-4); default 1, --once still processes one job")
     args = parser.parse_args()
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     config = Config.from_env()
@@ -183,9 +186,7 @@ def main() -> int:
     if args.once:
         process_one(client)
         return 0
-    while True:
-        if not process_one(client):
-            time.sleep(config.poll_seconds)
+    return run_scientific_consumers(config, args.concurrency)
 
 
 if __name__ == "__main__":

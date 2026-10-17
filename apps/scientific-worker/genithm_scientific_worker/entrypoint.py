@@ -13,9 +13,14 @@ def _is_continuous_run(args: list[str]) -> bool:
 
 
 def main() -> int:
+    heartbeat = None
     if _is_continuous_run(sys.argv[1:]):
-        start_worker_heartbeat(WORKER_KIND, WORKER_VERSION)
-    return runtime_main()
+        heartbeat = start_worker_heartbeat(WORKER_KIND, WORKER_VERSION)
+    try:
+        return runtime_main()
+    finally:
+        if heartbeat is not None:
+            heartbeat.set()
 
 
 if __name__ == "__main__":

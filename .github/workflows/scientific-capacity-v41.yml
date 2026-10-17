@@ -1,0 +1,39 @@
+name: Scientific execution capacity
+on:
+  pull_request:
+    paths:
+      - 'apps/scientific-worker/**'
+      - 'apps/web/lib/desktop-workspace-policy.ts'
+      - 'apps/web/tests/desktop-workspace-v41.test.mjs'
+      - '.github/workflows/scientific-capacity-v41.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/scientific-worker/**'
+      - '.github/workflows/scientific-capacity-v41.yml'
+permissions:
+  contents: read
+concurrency:
+  group: scientific-capacity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  numerical-and-capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install locked scientific test dependencies
+        run: pip install -e 'apps/scientific-worker[dev]'
+      - name: Test actual numerical parity and simultaneous audited jobs
+        run: pytest -q apps/scientific-worker/tests
+      - name: Benchmark identical nine-million-cell alignment in fresh subprocesses
+        run: python apps/scientific-worker/tests/benchmark_pairwise.py --length 3000 --output artifacts/science-capacity/benchmark.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-scientific-capacity
+          path: artifacts/science-capacity/
