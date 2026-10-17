@@ -6,7 +6,7 @@ from .heartbeat import start_worker_heartbeat
 from .runtime import main as runtime_main
 
 WORKER_KIND = "sequence_worker"
-WORKER_VERSION = "genithm-sequence-worker/0.1.0"
+WORKER_VERSION = "genithm-sequence-worker/0.3.0"
 
 
 def _is_continuous_run(args: list[str]) -> bool:
