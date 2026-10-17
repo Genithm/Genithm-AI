@@ -65,9 +65,9 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertIn("condition: service_healthy", compose)
         self.assertIn("mcli alias set preview http://minio:9000", compose)
         self.assertIn("mcli mb --ignore-existing", compose)
-        self.assertIn('"$ACCESS_KEY"', compose)
-        self.assertIn('"$SECRET_KEY"', compose)
-        self.assertIn('"preview/$BUCKET"', compose)
+        self.assertIn('"$$ACCESS_KEY"', compose)
+        self.assertIn('"$$SECRET_KEY"', compose)
+        self.assertIn('"preview/$$BUCKET"', compose)
         self.assertIn("docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:", launcher)
         self.assertIn("GENITHM_PREVIEW_STORAGE_IMAGE=$GENITHM_PREVIEW_STORAGE_IMAGE", launcher)
         self.assertLess(launcher.index('docker pull "$GENITHM_PREVIEW_STORAGE_IMAGE"'),
