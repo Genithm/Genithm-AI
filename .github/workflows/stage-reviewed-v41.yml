@@ -2,7 +2,7 @@ name: Stage reviewed V41 changes
 on:
   push:
     branches: [feat/desktop-scientific-execution-v41]
-    paths: ['.github/v41-review/b.b64']
+    paths: ['.github/v41-review/9.b64']
 permissions:
   contents: write
 jobs:
@@ -13,24 +13,25 @@ jobs:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           persist-credentials: false
-      - name: Verify and stage the reviewed patch as an unreferenced commit
+      - name: Verify reviewed patch and stage an unreferenced commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import base64,gzip,hashlib,json,os,pathlib,subprocess,urllib.request
           root=pathlib.Path('.')
-          encoded=''.join((root/f'.github/v41-review/{p}.b64').read_text().strip() for p in ('a','b'))
+          parts=[f'.github/v41-review/{i}.b64' for i in range(10)]
+          encoded=''.join((root/p).read_text().strip() for p in parts)
           patch=gzip.decompress(base64.b64decode(encoded,validate=True))
           assert hashlib.sha256(patch).hexdigest()=='4119fb5f3cfa6fd75f373e0756bb0929ca22d6ff0e9edb63051de716a706ed5e'
           subprocess.run(['git','apply','--check','--index','-'],input=patch,check=True)
           subprocess.run(['git','apply','--index','-'],input=patch,check=True)
-          removed=['.github/workflows/stage-reviewed-v41.yml','.github/v41-review/a.b64','.github/v41-review/b.b64']
+          removed=['.github/workflows/stage-reviewed-v41.yml','.github/v41-review/a.b64',*parts]
           subprocess.run(['git','rm','--',*removed],check=True)
           changed=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
           allowed={'.github/workflows/scientific-capacity-v41.yml','apps/scientific-worker/genithm_scientific_worker/consumer_pool.py','apps/scientific-worker/genithm_scientific_worker/entrypoint.py','apps/scientific-worker/genithm_scientific_worker/pairwise.py','apps/scientific-worker/genithm_scientific_worker/runtime_v4.py','apps/scientific-worker/pyproject.toml','apps/scientific-worker/tests/benchmark_pairwise.py','apps/scientific-worker/tests/pairwise_reference.py','apps/scientific-worker/tests/test_consumer_pool.py','apps/scientific-worker/tests/test_pairwise_capacity.py','apps/web/app/desktop-required/page.tsx','apps/web/lib/desktop-workspace-policy.ts','apps/web/proxy.ts','apps/web/tests/desktop-workspace-v41.test.mjs','deploy/codespaces/docker-compose.preview.yml','deploy/kubernetes/workers.yaml','docs/desktop-scientific-execution-v41.md','release/v1/candidate.json','scripts/build_v1_release_bundle.py','scripts/codespaces_preview.sh','scripts/test_genithm_product_browser.mjs',*removed}
           assert set(changed)==allowed,(set(changed)^allowed)
-          repo=os.environ['GITHUB_REPOSITORY']; head=os.environ['GITHUB_SHA']
+          repo=os.environ['GITHUB_REPOSITORY'];head=os.environ['GITHUB_SHA']
           assert repo=='Genithm/Genithm-AI'
           def api(path,data=None):
             req=urllib.request.Request('https://api.github.com/repos/'+repo+path,data=None if data is None else json.dumps(data).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='GET' if data is None else 'POST')
