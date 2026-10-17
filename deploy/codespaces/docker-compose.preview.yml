@@ -85,7 +85,11 @@ services:
   scientific-worker:
     image: ${GENITHM_SCIENTIFIC_WORKER_IMAGE:?GENITHM_SCIENTIFIC_WORKER_IMAGE is required}
     restart: unless-stopped
-    environment: *common-worker-env
+    # Drain active science jobs before stopping; no blind job replay.
+    stop_grace_period: 330s
+    environment:
+      <<: *common-worker-env
+      GENITHM_SCIENTIFIC_CONCURRENCY: ${GENITHM_SCIENTIFIC_CONCURRENCY:-1}
 
   audit-worker:
     image: ${GENITHM_AUDIT_WORKER_IMAGE:?GENITHM_AUDIT_WORKER_IMAGE is required}

@@ -94,60 +94,55 @@ def align(
     if len(sequence_a) * len(sequence_b) > 9_000_000:
         raise PairwiseAlignmentError("alignment exceeds V1 dynamic-programming cell limit")
 
+    # Exact same scoring and tie-breaking as V1, without two Python object
+    # matrices. Keep two score rows and one byte per traceback cell. The
+    # existing nine-million-cell safety limit and scientific artifact format
+    # are intentionally unchanged. Do not transpose inputs: local alignment
+    # selects the first row-major optimum and ties are orientation-sensitive.
     n, m = len(sequence_a), len(sequence_b)
-    scores = [[0] * (m + 1) for _ in range(n + 1)]
-    trace = [[0] * (m + 1) for _ in range(n + 1)]
-
-    if algorithm == "global":
+    stride = m + 1
+    trace = bytearray((n + 1) * stride)
+    local = algorithm == "local"
+    previous = [0] * stride if local else [j * gap_score for j in range(stride)]
+    current = [0] * stride
+    if not local:
+        trace[1:stride] = b"\x03" * m
         for i in range(1, n + 1):
-            scores[i][0] = i * gap_score
-            trace[i][0] = 2
-        for j in range(1, m + 1):
-            scores[0][j] = j * gap_score
-            trace[0][j] = 3
+            trace[i * stride] = 2
 
-    best_score = 0 if algorithm == "local" else scores[n][m]
-    best_i, best_j = (0, 0) if algorithm == "local" else (n, m)
-
+    best_score = 0
+    best_i = best_j = 0
     for i in range(1, n + 1):
+        current[0] = 0 if local else i * gap_score
         ai = sequence_a[i - 1]
-        for j in range(1, m + 1):
-            diagonal = scores[i - 1][j - 1] + (match_score if ai == sequence_b[j - 1] else mismatch_score)
-            up = scores[i - 1][j] + gap_score
-            left = scores[i][j - 1] + gap_score
-            if algorithm == "local":
-                value = max(0, diagonal, up, left)
-                if value == 0:
-                    direction = 0
-                elif value == diagonal:
-                    direction = 1
-                elif value == up:
-                    direction = 2
-                else:
-                    direction = 3
-            else:
-                value = max(diagonal, up, left)
-                if value == diagonal:
-                    direction = 1
-                elif value == up:
-                    direction = 2
-                else:
-                    direction = 3
-            scores[i][j] = value
-            trace[i][j] = direction
-            if algorithm == "local" and value > best_score:
+        row = i * stride
+        for j in range(1, stride):
+            diagonal = previous[j - 1] + (match_score if ai == sequence_b[j - 1] else mismatch_score)
+            up = previous[j] + gap_score
+            left = current[j - 1] + gap_score
+            # Strict comparisons preserve diagonal > up > left tie priority.
+            value, direction = diagonal, 1
+            if up > value:
+                value, direction = up, 2
+            if left > value:
+                value, direction = left, 3
+            if local and value <= 0:
+                value, direction = 0, 0
+            current[j] = value
+            trace[row + j] = direction
+            if local and value > best_score:
                 best_score, best_i, best_j = value, i, j
+        previous, current = current, previous
 
-    if algorithm == "global":
-        best_score, best_i, best_j = scores[n][m], n, m
+    if not local:
+        best_score, best_i, best_j = previous[m], n, m
 
     aligned_a: list[str] = []
     aligned_b: list[str] = []
     i, j = best_i, best_j
     while i > 0 or j > 0:
-        if algorithm == "local" and scores[i][j] == 0:
-            break
-        direction = trace[i][j]
+        # A zero traceback byte is the local-alignment stop marker.
+        direction = trace[i * stride + j]
         if direction == 1:
             aligned_a.append(sequence_a[i - 1])
             aligned_b.append(sequence_b[j - 1])

@@ -2,11 +2,24 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { updateSession } from "@/lib/supabase/proxy";
+import { isDesktopWorkspacePath, isMobileResearchClient } from "@/lib/desktop-workspace-policy";
 
 // The optional Codespaces sample workbench is available without Supabase.
 // Even in fixture mode, users must be able to discover the real login/signup
 // routes and see clear full-preview setup instructions. Production is unaffected.
 export async function proxy(request: NextRequest) {
+  // Product policy: show phones/tablets a desktop notice, not the research UI.
+  // API requests still use their own authentication; this is not access control.
+  if (isDesktopWorkspacePath(request.nextUrl.pathname) && isMobileResearchClient(request.headers)) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/desktop-required";
+    destination.search = "";
+    const response = NextResponse.redirect(destination, request.method === "GET" || request.method === "HEAD" ? 307 : 303);
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Vary", "User-Agent, Sec-CH-UA-Mobile, Sec-CH-UA-Platform");
+    return response;
+  }
+  if (request.nextUrl.pathname === "/desktop-required") return NextResponse.next();
   const codespacesDemo =
     process.env.NODE_ENV === "development" &&
     process.env.GENITHM_CODESPACES_PREVIEW === "1";
