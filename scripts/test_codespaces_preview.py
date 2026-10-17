@@ -54,6 +54,25 @@ class CodespacesPreviewContractTests(unittest.TestCase):
         self.assertIn("Codespaces: Rebuild Container", launcher)
         self.assertIn("scripts/codespaces_bioai.sh", launcher)
 
+    def test_codespaces_full_preview_uses_pinned_public_s3_image_not_private_quay(self):
+        compose = (ROOT / "deploy/codespaces/docker-compose.preview.yml").read_text(encoding="utf-8")
+        launcher = (ROOT / "scripts/codespaces_preview.sh").read_text(encoding="utf-8")
+        self.assertNotIn("quay.io/minio/minio:latest", compose)
+        self.assertNotIn("quay.io/minio/mc:latest", compose)
+        self.assertIn("GENITHM_PREVIEW_STORAGE_IMAGE", compose)
+        self.assertEqual(compose.count("image: ${GENITHM_PREVIEW_STORAGE_IMAGE:"), 2)
+        self.assertIn('test: ["CMD", "silo", "healthcheck", "ready"]', compose)
+        self.assertIn("condition: service_healthy", compose)
+        self.assertIn("mcli alias set preview http://minio:9000", compose)
+        self.assertIn("mcli mb --ignore-existing", compose)
+        self.assertIn('"$$ACCESS_KEY"', compose)
+        self.assertIn('"$$SECRET_KEY"', compose)
+        self.assertIn('"preview/$$BUCKET"', compose)
+        self.assertIn("docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:", launcher)
+        self.assertIn("GENITHM_PREVIEW_STORAGE_IMAGE=$GENITHM_PREVIEW_STORAGE_IMAGE", launcher)
+        self.assertLess(launcher.index('docker pull "$GENITHM_PREVIEW_STORAGE_IMAGE"'),
+                        launcher.index('echo "Preparing web dependencies..."'))
+
     def test_authenticated_routes_blocked_without_public_configuration(self):
         self.assertIn('process.env.NODE_ENV === "development"', self.proxy)
         self.assertIn('process.env.GENITHM_CODESPACES_PREVIEW === "1"', self.proxy)

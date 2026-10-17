@@ -69,6 +69,45 @@ and cannot use Docker yet, run `bash scripts/codespaces_bioai.sh`.
 That chat-only mode deliberately disables worker-backed computation and
 is **not** the full integrated scientific preview.
 
+## Fix MinIO Quay 401 on fresh preview startup
+
+If startup reaches `docker compose pull` but fails with:
+
+```text
+failed to resolve reference "quay.io/minio/minio:latest": 401 Unauthorized
+```
+
+the upstream MinIO Quay registry no longer supports anonymous pulls. This is
+**not a Supabase or Codespaces Docker failure**. The full-preview Compose
+configuration now uses **PGSTY SILO**, a maintained S3/MinIO-compatible server,
+pinned to its public multi-platform September 2026 release and exact image
+digest. The image includes `mcli`, so the one-time bucket setup no longer
+pulls `quay.io/minio/mc:latest`. The API and worker S3 endpoint stays
+`http://minio:9000`; service names and signed-URL behavior do not change.
+
+The fix only changes Docker Compose and the launcher, so you **do not need
+another container rebuild** when Docker already works:
+
+```bash
+git pull --ff-only
+bash scripts/codespaces_preview.sh
+```
+
+The launcher now pulls the pinned storage image **before npm ci**, to fail
+quickly and show the registry problem if the replacement is unreachable.
+
+For an isolated storage-only check, inspect the Compose service list with your
+existing protected `.env.codespaces-preview`:
+
+```bash
+docker compose --env-file .env.codespaces-preview \
+  -f deploy/codespaces/docker-compose.preview.yml config --services
+```
+
+Do not publish the private port 3000 URL or paste Codespaces secret values.
+This replacement is for **disposable local preview storage**, not a production
+storage migration. Never upload confidential research to this preview.
+
 ## Launch the real product
 
 From the **repository root** in a Codespaces terminal:

@@ -1,6 +1,7 @@
 services:
   minio:
-    image: quay.io/minio/minio:latest
+    # Public, version/digest-pinned S3-compatible SILO image; upstream MinIO Quay rejects anonymous pulls.
+    image: ${GENITHM_PREVIEW_STORAGE_IMAGE:?Pinned S3 preview storage image is required}
     command: server /data --console-address :9001
     restart: unless-stopped
     environment:
@@ -11,11 +12,19 @@ services:
       - "9000:9000"
     volumes:
       - genithm-preview-storage:/data
+    healthcheck:
+      test: ["CMD", "silo", "healthcheck", "ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
 
   minio-setup:
-    image: quay.io/minio/mc:latest
+    # Standard SILO image bundles the compatible mcli CLI and /bin/sh.
+    image: ${GENITHM_PREVIEW_STORAGE_IMAGE:?Pinned S3 preview storage image is required}
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     environment:
       ACCESS_KEY: ${GENITHM_PREVIEW_STORAGE_ACCESS_KEY}
       SECRET_KEY: ${GENITHM_PREVIEW_STORAGE_SECRET_KEY}
@@ -25,8 +34,8 @@ services:
       - -c
       - |
         set -eu
-        until mc alias set preview http://minio:9000 "$$ACCESS_KEY" "$$SECRET_KEY"; do sleep 1; done
-        mc mb --ignore-existing "preview/$$BUCKET"
+        mcli alias set preview http://minio:9000 "$$ACCESS_KEY" "$$SECRET_KEY"
+        mcli mb --ignore-existing "preview/$$BUCKET"
 
   api:
     image: ${GENITHM_API_IMAGE:?GENITHM_API_IMAGE is required}

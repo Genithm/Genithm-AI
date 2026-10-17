@@ -21,6 +21,8 @@ on:
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
+      - 'scripts/codespaces_preview.sh'
+      - 'deploy/codespaces/**'
       - '.github/workflows/codespaces-preview-contract.yml'
   push:
     branches: [main]
@@ -43,6 +45,8 @@ on:
       - 'apps/scientific-worker/genithm_scientific_worker/sequence_composition.py'
       - 'apps/web/app/api/dev-science/**'
       - 'scripts/test_codespaces_preview.py'
+      - 'scripts/codespaces_preview.sh'
+      - 'deploy/codespaces/**'
       - '.github/workflows/codespaces-preview-contract.yml'
 
 permissions:
@@ -82,6 +86,54 @@ jobs:
         run: python scripts/test_codespaces_comparative.py
       - name: Verify Codespaces security and auth boundaries
         run: python scripts/test_codespaces_preview.py
+      - name: Smoke test preview object storage image and bucket initialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file="$(mktemp)"
+          compose_file="deploy/codespaces/docker-compose.preview.yml"
+          project="genithm-s3-preview-ci"
+          cleanup() {
+            docker compose -p "$project" --env-file "$env_file" -f "$compose_file" down --volumes --remove-orphans >/dev/null 2>&1 || true
+            rm -f "$env_file"
+          }
+          trap cleanup EXIT
+          printf '%s\n' \
+            'GENITHM_PREVIEW_STORAGE_IMAGE=docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46' \
+            'GENITHM_PREVIEW_STORAGE_ACCESS_KEY=test-genithm' \
+            'GENITHM_PREVIEW_STORAGE_SECRET_KEY=temporary-ci-only-password-0123456789' \
+            'GENITHM_R2_SEQUENCE_BUCKET=genithm-ci-test-sequences' \
+            'GENITHM_PREVIEW_WEB_ORIGIN=https://example.invalid' \
+            'GENITHM_PREVIEW_STORAGE_PUBLIC_ENDPOINT=https://example.invalid' \
+            'SUPABASE_URL=https://example.invalid' \
+            'SUPABASE_PUBLISHABLE_KEY=ci-placeholder' \
+            'SUPABASE_SECRET_KEY=ci-placeholder' \
+            'NCBI_EMAIL=test@example.invalid' \
+            'GENITHM_API_IMAGE=alpine:3.20' \
+            'GENITHM_SEQUENCE_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_SOURCE_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_BLAST_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_SCIENTIFIC_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_AUDIT_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_AI_WORKER_IMAGE=alpine:3.20' \
+            'GENITHM_AUDIT_SIGNING_KEY_ID=ci-placeholder' \
+            'GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64=ci-placeholder' \
+            'GENITHM_AI_PRIMARY_PROVIDER=ci' \
+            'GENITHM_AI_PRIMARY_API_KEY=ci-placeholder' \
+            'GENITHM_AI_PRIMARY_ENDPOINT=https://example.invalid' \
+            'GENITHM_AI_PRIMARY_MODEL=ci-placeholder' \
+            'GENITHM_AI_PRIMARY_PROTOCOL=ci-placeholder' \
+            'GENITHM_AI_BACKUP_ENABLED=false' \
+            'GENITHM_AI_BACKUP_PROVIDER=ci' \
+            'GENITHM_AI_BACKUP_API_KEY=ci-placeholder' \
+            'GENITHM_AI_BACKUP_ENDPOINT=https://example.invalid' \
+            'GENITHM_AI_BACKUP_MODEL=ci-placeholder' \
+            'GENITHM_AI_BACKUP_PROTOCOL=ci-placeholder' \
+            > "$env_file"
+          docker compose -p "$project" --env-file "$env_file" -f "$compose_file" config --quiet
+          docker compose -p "$project" --env-file "$env_file" -f "$compose_file" up \
+            --abort-on-container-exit --exit-code-from minio-setup minio-setup
+
       - name: Install pinned frontend dependencies
         run: npm --prefix apps/web ci --no-fund
       - name: Check TypeScript

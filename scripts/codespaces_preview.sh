@@ -63,6 +63,8 @@ SUPABASE_PUBLISHABLE_KEY="sb_publishable_uuFaIXmkIG2PpCDMD3Jd4w_jXkMc-Qt"
 WEB_ORIGIN="https://${CODESPACE_NAME}-3000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 STORAGE_ORIGIN="https://${CODESPACE_NAME}-9000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 NCBI_EMAIL="${NCBI_EMAIL:-genithmai@gmail.com}"
+# Signed, multi-arch classic SILO build (S3 API + bundled mcli), used only in Codespaces.
+GENITHM_PREVIEW_STORAGE_IMAGE="docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46"
 GENITHM_PREVIEW_STORAGE_ACCESS_KEY="genithmpreview"
 GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
@@ -95,6 +97,7 @@ DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
 NCBI_EMAIL=$NCBI_EMAIL
 NCBI_API_KEY=${NCBI_API_KEY:-}
 GENITHM_PREVIEW_WEB_ORIGIN=$WEB_ORIGIN
+GENITHM_PREVIEW_STORAGE_IMAGE=$GENITHM_PREVIEW_STORAGE_IMAGE
 GENITHM_PREVIEW_STORAGE_PUBLIC_ENDPOINT=$STORAGE_ORIGIN
 GENITHM_PREVIEW_STORAGE_ACCESS_KEY=$GENITHM_PREVIEW_STORAGE_ACCESS_KEY
 GENITHM_PREVIEW_STORAGE_SECRET_KEY=$GENITHM_PREVIEW_STORAGE_SECRET_KEY
@@ -166,6 +169,14 @@ for image in "${runtime_images[@]}"; do
     exit 4
   fi
 done
+
+echo "Checking pinned temporary S3 preview storage image..."
+if ! docker pull "$GENITHM_PREVIEW_STORAGE_IMAGE"; then
+  echo "Cannot pull the pinned S3-compatible Codespaces storage image."
+  echo "Check Docker Hub availability and Codespaces network access."
+  echo "This preview deliberately does not use quay.io/minio/minio or quay.io/minio/mc."
+  exit 4
+fi
 
 echo "Preparing web dependencies..."
 (
