@@ -34,8 +34,8 @@ services:
       - -c
       - |
         set -eu
-        mcli alias set preview http://minio:9000 "$ACCESS_KEY" "$SECRET_KEY"
-        mcli mb --ignore-existing "preview/$BUCKET"
+        mcli alias set preview http://minio:9000 "$$ACCESS_KEY" "$$SECRET_KEY"
+        mcli mb --ignore-existing "preview/$$BUCKET"
 
   api:
     image: ${GENITHM_API_IMAGE:?GENITHM_API_IMAGE is required}
