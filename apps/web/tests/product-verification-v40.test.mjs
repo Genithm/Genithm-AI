@@ -25,7 +25,11 @@ test('Verification uses actual routes and never installs an authentication bypas
  assert.match(browser,/PRIVATE_FIXTURE_READ/);
  assert.match(browser,/context\.route\(/);
  assert.doesNotMatch(browser,/writeFile\([^\n]*page\.tsx/);
- assert.doesNotMatch(read('../proxy.ts'),/GENITHM_UI_CONTRACT|fixture|3198/);
+ // Existing comments document Codespaces sample mode. Inspect executable
+ // statements, not that documentation, for test-only auth bypasses.
+ const proxy=read('../proxy.ts').replace(/^\s*\/\/.*$/gm,'');
+ assert.doesNotMatch(proxy,/GENITHM_UI_CONTRACT|fixture|3198/);
+ assert.match(proxy,/return updateSession\(request\)/);
 });
 
 test('Permanent verification is read-only, audits the committed lockfile and builds without deploying',()=>{
