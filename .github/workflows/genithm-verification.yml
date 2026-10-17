@@ -1,0 +1,81 @@
+name: Genithm verification
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-verification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: genithm-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  dependency-and-cloudflare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      GENITHM_SCIENCE_V22_ENABLED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Audit the committed lockfile, including development tooling
+        run: |
+          mkdir -p artifacts/verification
+          cd apps/web
+          npm audit --json > ../../artifacts/verification/npm-audit.json
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Build the Cloudflare worker without deployment
+        run: |
+          npm --prefix apps/web run cf:build > artifacts/verification/cloudflare-build.log 2>&1 || { tail -100 artifacts/verification/cloudflare-build.log; exit 1; }
+          git diff --exit-code -- apps/web/package.json apps/web/package-lock.json
+      - name: Upload dependency and packaging evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-dependency-verification
+          path: artifacts/verification/
+          retention-days: 7
+  product-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Install isolated browser and accessibility checks
+        run: |
+          browser_root="$RUNNER_TEMP/genithm-product-browser"
+          echo "GENITHM_PLAYWRIGHT_ROOT=$browser_root" >> "$GITHUB_ENV"
+          npm install --prefix "$browser_root" --no-save --package-lock=false playwright@1.56.1 axe-core@4.10.3
+          "$browser_root/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Exercise actual authenticated routes against loopback-only fixtures
+        run: node scripts/test_genithm_product_browser.mjs
+      - name: Upload browser verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-product-verification
+          path: artifacts/genithm-product-verification/
+          retention-days: 7
