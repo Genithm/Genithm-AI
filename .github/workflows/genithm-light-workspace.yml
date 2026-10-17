@@ -1,0 +1,73 @@
+name: Genithm light workspace
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-light-workspace.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-light-workspace.yml'
+permissions:
+  contents: read
+concurrency:
+  group: genithm-light-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  light-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Check light design and authentication contracts
+        run: python3 scripts/test_genithm_light_workspace.py
+      - name: Install locked application dependencies
+        run: npm --prefix apps/web ci --no-fund
+      - name: Typecheck application
+        run: npm --prefix apps/web run typecheck
+      - name: Install isolated browser test dependency without modifying the app
+        run: |
+          browser_root="$RUNNER_TEMP/genithm-ui-browser"
+          echo "GENITHM_PLAYWRIGHT_ROOT=$browser_root" >> "$GITHUB_ENV"
+          npm install --prefix "$browser_root" --no-save --package-lock=false playwright@1.56.1
+          "$browser_root/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Exercise real shared UI components in an ephemeral test-only route
+        run: node scripts/test_genithm_light_browser.mjs
+      - name: Upload rendered UI checks
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-light-workspace
+          path: artifacts/genithm-light/
+          if-no-files-found: ignore
+  regression-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Run all web regression tests without early exit
+        run: node scripts/test_genithm_web_regressions.mjs
+      - name: Upload complete assertion details
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-web-regressions
+          path: artifacts/genithm-regressions/

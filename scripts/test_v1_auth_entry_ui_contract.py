@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGIN_PAGE = ROOT / "apps/web/app/login/page.tsx"
@@ -31,14 +32,12 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'role="status"' in login_page
     assert 'autoComplete="email"' in login_page
     assert 'minLength={10}' in login_page
-
     assert 'import { signup } from "../login/actions"' in signup_page
     assert 'action={signup}' in signup_page
     assert 'name="password_confirmation"' in signup_page
     assert 'href="/legal/terms"' in signup_page
     assert 'href="/legal/privacy"' in signup_page
     assert 'role="alert"' in signup_page
-
     assert 'signInWithPassword' in actions
     assert 'auth.signUp' in actions
     assert 'emailRedirectTo' in actions
@@ -46,38 +45,16 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'GENITHM_APP_URL' in actions
     assert 'formData.get("origin")' not in actions
     assert 'name="origin"' not in signup_page
-    assert "service_role" not in login_page.lower()
-    assert "service_role" not in signup_page.lower()
-    assert "service_role" not in actions.lower()
-
+    assert 'service_role' not in login_page.lower()
+    assert 'service_role' not in signup_page.lower()
+    assert 'service_role' not in actions.lower()
     assert 'serverActions' in next_config
     assert 'allowedOrigins' in next_config
     assert 'CODESPACE_NAME' in next_config
     assert 'localhost:3000' in next_config
     assert '127.0.0.1:3000' in next_config
-
-    assert '/auth/v1/settings' in preview_launcher
-    assert 'disable_signup' in preview_launcher
-    assert 'email authentication is disabled' in preview_launcher
-    assert 'get_release_readiness' in preview_launcher
-    assert '"status"' in preview_launcher
-    assert '"ready"' in preview_launcher
-    assert 'SUPABASE_SECRET_KEY' in preview_launcher
-    assert 'OPENROUTER_API_KEY' in preview_launcher
-    assert 'https://openrouter.ai/api/v1/models' in preview_launcher
-    assert 'https://openrouter.ai/api/v1/chat/completions' in preview_launcher
-    assert 'GENITHM_API_IMAGE' in preview_launcher
-    assert 'GENITHM_SEQUENCE_WORKER_IMAGE' in preview_launcher
-    assert 'GENITHM_SOURCE_WORKER_IMAGE' in preview_launcher
-    assert 'GENITHM_BLAST_WORKER_IMAGE' in preview_launcher
-    assert 'GENITHM_SCIENTIFIC_WORKER_IMAGE' in preview_launcher
-    assert 'GENITHM_AUDIT_WORKER_IMAGE' in preview_launcher
-    assert 'GENITHM_AI_WORKER_IMAGE' in preview_launcher
-    assert 'RUNTIME_SHA' in preview_launcher
-    assert 'release/v1/candidate.json' in preview_launcher
-    assert 'runtime_images=(' in preview_launcher
-    assert 'git -C "$ROOT_DIR" rev-parse HEAD' in preview_launcher
-
+    for token in ['/auth/v1/settings','disable_signup','email authentication is disabled','get_release_readiness','"status"','"ready"','SUPABASE_SECRET_KEY','OPENROUTER_API_KEY','https://openrouter.ai/api/v1/models','https://openrouter.ai/api/v1/chat/completions','GENITHM_API_IMAGE','GENITHM_SEQUENCE_WORKER_IMAGE','GENITHM_SOURCE_WORKER_IMAGE','GENITHM_BLAST_WORKER_IMAGE','GENITHM_SCIENTIFIC_WORKER_IMAGE','GENITHM_AUDIT_WORKER_IMAGE','GENITHM_AI_WORKER_IMAGE','RUNTIME_SHA','release/v1/candidate.json','runtime_images=(', 'git -C "$ROOT_DIR" rev-parse HEAD']:
+        assert token in preview_launcher, token
     assert 'export async function proxy(request: NextRequest)' in proxy_entry
     assert 'return updateSession(request)' in proxy_entry
     assert not OLD_MIDDLEWARE.exists()
@@ -86,15 +63,17 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'redirect("/login?message="' in dashboard_layout
     assert 'response.status === 401' in chat_composer
     assert 'Your session expired. Please sign in again.' in chat_composer
-
-    assert "@media (max-width: 600px)" in styles
-    assert "prefers-reduced-motion" in styles
+    assert re.search(r'@media\s*\(max-width:\s*600px\)', styles)
+    assert 'prefers-reduced-motion' in styles
+    assert 'var(--g-line)' in styles
+    assert 'var(--g-ink)' in styles
+    assert 'genithm-logo.webp' in styles
 
 
 def main():
     test_auth_entry_preserves_supabase_server_actions_and_secure_contract()
-    print("V1 auth entry UI contract: PASS")
+    print('V1 auth entry UI contract: PASS (light branding, authentication unchanged)')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

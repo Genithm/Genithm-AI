@@ -1,0 +1,10 @@
+/* Public sign-in, sign-up and legal pages use the same light branding. */
+.genithm-public-chrome .nav{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 0;border-bottom:1px solid var(--g-line)}
+.genithm-public-chrome .navlinks{display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:13px}
+.genithm-public-chrome .navlinks a{color:var(--g-muted);text-decoration:none}
+.genithm-public-chrome .navlinks a:hover{color:var(--g-blue)}
+.genithm-public-chrome .navlinks .button{color:var(--g-blue);padding:10px 16px;border-radius:9px;background:white}
+.genithm-public-chrome.footer{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:22px 0;margin-top:10px;border-top:1px solid var(--g-line);color:var(--g-muted);font-size:12px}
+.genithm-public-chrome.footer a{color:var(--g-muted);text-decoration:none}
+.genithm-public-chrome.footer a:hover{color:var(--g-blue)}
+@media(max-width:650px){.genithm-public-chrome .nav{flex-wrap:wrap;gap:12px;padding:14px 0}.genithm-public-chrome .navlinks{gap:14px;font-size:12px}.genithm-public-chrome .genithm-brand img{width:38px;height:38px}.genithm-public-chrome .genithm-brand span{font-size:21px}.genithm-public-chrome.footer{gap:14px;font-size:11px}}
