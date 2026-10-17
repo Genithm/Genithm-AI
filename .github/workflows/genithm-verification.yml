@@ -5,11 +5,6 @@ on:
       - 'apps/web/**'
       - 'scripts/test_genithm_*'
       - '.github/workflows/genithm-verification.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'apps/web/package-lock.json'
-      - '.github/workflows/genithm-verification.yml'
 permissions:
   contents: read
 concurrency:
@@ -18,33 +13,54 @@ concurrency:
 jobs:
   dependency-verification:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           persist-credentials: false
-      - name: Capture tracked source for independent review
-        run: |
-          mkdir -p artifacts/verification
-          git archive --format=zip HEAD > artifacts/verification/source.zip
-          git rev-parse HEAD > artifacts/verification/revision.txt
-      - name: Upload review snapshot
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: genithm-review-source
-          path: artifacts/verification/
-          retention-days: 3
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Audit locked dependencies including development tooling
+      - name: Prepare dependency remediation proposal for review
         run: |
+          mkdir -p artifacts/verification
           cd apps/web
+          npm install --package-lock-only --ignore-scripts --save-dev --save-exact wrangler@4.151.1
+          npm audit fix --package-lock-only --ignore-scripts
+          cp package.json package-lock.json ../../artifacts/verification/
           npm audit --json > ../../artifacts/verification/npm-audit.json
-      - name: Upload dependency evidence
+      - name: Upload reviewed dependency proposal
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: genithm-dependency-verification
-          path: artifacts/verification/npm-audit.json
+          path: artifacts/verification/
+          retention-days: 7
+  product-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Install isolated browser and accessibility checks
+        run: |
+          browser_root="$RUNNER_TEMP/genithm-product-browser"
+          echo "GENITHM_PLAYWRIGHT_ROOT=$browser_root" >> "$GITHUB_ENV"
+          npm install --prefix "$browser_root" --no-save --package-lock=false playwright@1.56.1 axe-core@4.10.3
+          "$browser_root/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Exercise actual authenticated routes against loopback-only fixtures
+        run: node scripts/test_genithm_product_browser.mjs
+      - name: Upload browser verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-product-verification
+          path: artifacts/genithm-product-verification/
           retention-days: 7
