@@ -48,9 +48,9 @@ export function GenithmWorkspaceFrame({children,email,isPlatformAdmin}:{children
     <a className="genithm-skip" href="#genithm-content">Skip to workspace</a>
     <header className="genithm-topbar">
       <GenithmBrand/>
-      <button type="button" className="genithm-search-trigger" onClick={openSearch}><GenithmIcon name="search"/><span>Find a page or scientific tool...</span><kbd>Ctrl K</kbd></button>
+      <button type="button" className="genithm-search-trigger" aria-label="Find a page or scientific tool" onClick={openSearch}><GenithmIcon name="search"/><span>Find a page or scientific tool...</span><kbd>Ctrl K</kbd></button>
       <details className="genithm-account">
-        <summary><span className="genithm-user-avatar" aria-hidden="true">{email.slice(0,1).toUpperCase()}</span><span><strong>Your workspace</strong><small>{email}</small></span><span aria-hidden="true">⌄</span></summary>
+        <summary aria-label={`Your workspace ${email} account menu`}><span className="genithm-user-avatar" aria-hidden="true">{email.slice(0,1).toUpperCase()}</span><span><strong>Your workspace</strong><small>{email}</small></span><span aria-hidden="true">⌄</span></summary>
         <div className="genithm-account-menu"><Link href="/dashboard/notebook">Research notebook</Link><Link href="/dashboard/ai/research">Research history</Link><Link href="/dashboard/billing">Plan and usage</Link>
           {isPlatformAdmin?<><Link href="/dashboard/admin/billing">Billing administration</Link><Link href="/dashboard/admin/billing/payments">Payment administration</Link><Link href="/dashboard/admin/billing/payments/setup">Payment setup</Link></>:null}
           <form action="/auth/signout" method="post"><button type="submit">Sign out</button></form>

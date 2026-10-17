@@ -5,15 +5,26 @@ on:
       - 'apps/web/**'
       - 'scripts/test_genithm_*'
       - '.github/workflows/genithm-verification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'scripts/test_genithm_*'
+      - '.github/workflows/genithm-verification.yml'
 permissions:
   contents: read
 concurrency:
   group: genithm-verification-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  dependency-verification:
+  dependency-and-cloudflare:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      GENITHM_SCIENCE_V22_ENABLED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
@@ -21,15 +32,19 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Prepare dependency remediation proposal for review
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Audit the committed lockfile, including development tooling
         run: |
           mkdir -p artifacts/verification
           cd apps/web
-          npm install --package-lock-only --ignore-scripts --save-dev --save-exact wrangler@4.151.1
-          npm audit fix --package-lock-only --ignore-scripts
-          cp package.json package-lock.json ../../artifacts/verification/
           npm audit --json > ../../artifacts/verification/npm-audit.json
-      - name: Upload reviewed dependency proposal
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Build the Cloudflare worker without deployment
+        run: |
+          npm --prefix apps/web run cf:build > artifacts/verification/cloudflare-build.log 2>&1 || { tail -100 artifacts/verification/cloudflare-build.log; exit 1; }
+          git diff --exit-code -- apps/web/package.json apps/web/package-lock.json
+      - name: Upload dependency and packaging evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

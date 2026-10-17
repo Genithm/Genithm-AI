@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   analyzeFastqQc,fastqQcTsv,MAX_FASTQ_BYTES,
@@ -24,6 +24,8 @@ function download(data:string,name:string){
 }
 export function FastqQcWorkbench({projects}:{projects:Project[]}){
   const router=useRouter();
+  const r1Input=useRef<HTMLInputElement>(null);
+  const r2Input=useRef<HTMLInputElement>(null);
   const [r1,setR1]=useState<File|null>(null);
   const [r2,setR2]=useState<File|null>(null);
   const [paired,setPaired]=useState(false);
@@ -36,6 +38,12 @@ export function FastqQcWorkbench({projects}:{projects:Project[]}){
   const [error,setError]=useState("");
 
   function resetResults(){setSummary(null);setHashes([]);setError("");}
+  function clearFiles(){
+    setR1(null);setR2(null);setTitle("");resetResults();
+    // Reset native controls too, so selecting the same file fires change again.
+    if(r1Input.current)r1Input.current.value="";
+    if(r2Input.current)r2Input.current.value="";
+  }
   async function analyze(){
     if(!r1||busy||saving)return;
     setBusy(true);resetResults();
@@ -82,12 +90,12 @@ export function FastqQcWorkbench({projects}:{projects:Project[]}){
       </div>
       <div className={styles.inputs}>
         <label>FASTQ {paired?"R1":"reads"}
-          <input type="file" accept=".fastq,.fq,.txt,text/plain"
+          <input ref={r1Input} type="file" accept=".fastq,.fq,.txt,text/plain"
             disabled={busy||saving} onChange={e=>{setR1(e.target.files?.[0]??null);resetResults();}}/>
           <small>{r1?r1.name:"Select local uncompressed FASTQ"}</small>
         </label>
         {paired?<label>FASTQ R2
-          <input type="file" accept=".fastq,.fq,.txt,text/plain"
+          <input ref={r2Input} type="file" accept=".fastq,.fq,.txt,text/plain"
             disabled={busy||saving} onChange={e=>{setR2(e.target.files?.[0]??null);resetResults();}}/>
           <small>{r2?r2.name:"Select corresponding mate FASTQ"}</small>
         </label>:null}
@@ -96,7 +104,7 @@ export function FastqQcWorkbench({projects}:{projects:Project[]}){
         <button type="button" className={styles.primary} disabled={!r1||(paired&&!r2)||busy||saving}
           onClick={()=>void analyze()}>{busy?"Analyzing sequencing reads…":"Analyze actual FASTQ reads →"}</button>
         <button type="button" className={styles.secondary} disabled={busy||saving}
-          onClick={()=>{setR1(null);setR2(null);setSummary(null);setHashes([]);setError("");}}>Clear results</button>
+          onClick={clearFiles}>Clear results</button>
       </div>
       <p className={styles.small}>Limits: 12 MiB per uncompressed file · 100,000 reads/file · 400 bases/read. Only A/C/G/T/N sequence symbols and ASCII Phred+33 quality bytes are accepted. Quality encoding is assumed, not autodetected; verify it before analysis.</p>
       {error?<p className={styles.error} role="alert">{error}</p>:null}

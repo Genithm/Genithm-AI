@@ -35,7 +35,7 @@ export function VariantQcWorkbench({ projects }: { projects:QcProject[] }) {
   const [epoch,setEpoch]=useState(0);
 
   function clear() {
-    setFile(null);setResult(null);setFingerprint("");setError("");
+    setFile(null);setResult(null);setFingerprint("");setTitle("");setError("");
     setEpoch(x=>x+1);
   }
   async function analyze() {
