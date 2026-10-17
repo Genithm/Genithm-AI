@@ -1,109 +1,24 @@
 import Link from "next/link";
-
 import { ResearchActivityRefresh } from "@/components/research-activity-refresh";
-import { activityTitle, classifyActivity, statusLabel } from "@/lib/scientific-activity";
+import { activityTitle,classifyActivity,statusLabel } from "@/lib/scientific-activity";
+import { GenithmIcon } from "./genithm-icon";
 
-export type RecentScientificRun = {
-  id: string;
-  job_type: string;
-  status: string;
-  created_at: string;
-  result_sha256: string | null;
-};
-
-type Props = {
-  projectCount: number;
-  scienceReady: boolean;
-  recentRuns: RecentScientificRun[];
-  recentRunsError: boolean;
-};
-
-const tools = [
-  {icon:"≋",name:"FASTQ QC Lab",detail:"Read quality, Q30, GC and paired-end QC",href:"/dashboard/fastq-qc"},
-  { icon: "◉", name: "Variant QC Lab", detail: "Private VCF quality metrics and charts", href: "/dashboard/variant-qc" },
-  { icon: "⌘", name: "Sequence analysis", detail: "FASTA validation, ORFs and composition", href: "/dashboard/tools" },
-  { icon: "⇄", name: "Sequence alignment", detail: "Pairwise alignment and MAFFT", href: "/dashboard/tools" },
-  { icon: "◎", name: "BLAST and homology", detail: "Similarity searches with recorded evidence", href: "/dashboard/tools" },
-  { icon: "◈", name: "Protein analysis", detail: "Protein properties and annotation", href: "/dashboard/tools" },
-  { icon: "♧", name: "Phylogenetics", detail: "Multiple alignment and tree workflows", href: "/dashboard/workflows" },
-  { icon: "⚡", name: "Scientific pipelines", detail: "Approved multistep computations", href: "/dashboard/pipelines" },
-] as const;
-
-/** Navigation only: every item leads to an existing authenticated route.
- *  Never display example datasets or invented execution statuses as real science.
- */
-export function GenithmToolDock({ projectCount, scienceReady, recentRuns, recentRunsError }: Props) {
-  const active = recentRuns.some((run) => classifyActivity("scientific", run.status) === "active");
-  return (
-    <aside className="genithm-tool-dock" aria-label="Bioinformatics tools and workspace status">
-      <ResearchActivityRefresh active={active} />
-      <div className="genithm-dock-heading">
-        <div>
-          <span className="genithm-dock-kicker">SCIENTIFIC WORKSPACE</span>
-          <h2>Research tools</h2>
-        </div>
-        <span className="genithm-dock-dna" aria-hidden="true">⌘</span>
-      </div>
-      <div className="genithm-dock-section">
-        <span className="genithm-dock-label">Quick actions</span>
-        <Link className="genithm-dock-primary" href="/dashboard/tools">
-          <span aria-hidden="true">＋</span><span><strong>Upload & analyze</strong><small>Validated FASTA and scientific tools</small></span><span aria-hidden="true">↗</span>
-        </Link>
-        <Link className="genithm-dock-action" href="/dashboard/pipelines">
-          <span aria-hidden="true">▶</span><span><strong>Run a pipeline</strong><small>Permission-controlled scientific execution</small></span><span aria-hidden="true">↗</span>
-        </Link>
-        <Link className="genithm-dock-action" href="/dashboard/ai/research">
-          <span aria-hidden="true">▤</span><span><strong>Research history</strong><small>Recorded runs, sources and outputs</small></span><span aria-hidden="true">↗</span>
-        </Link>
-      </div>
-      <div className="genithm-dock-section">
-        <Link className="genithm-dock-action" href="/dashboard/notebook">
-          <span aria-hidden="true">▤</span><span><strong>Scientific notebook</strong><small>Record observations linked to results</small></span><span aria-hidden="true">↗</span>
-        </Link>
-      </div>
-      <div className="genithm-dock-section">
-        <span className="genithm-dock-label">Built-in bioinformatics</span>
-        <nav className="genithm-dock-tools" aria-label="Scientific module shortcuts">
-          {tools.map((tool) => (
-            <Link href={tool.href} key={tool.name}>
-              <span className="genithm-tool-icon" aria-hidden="true">{tool.icon}</span>
-              <span className="genithm-tool-copy"><strong>{tool.name}</strong><small>{tool.detail}</small></span>
-              <span className="genithm-tool-arrow" aria-hidden="true">›</span>
-            </Link>
-          ))}
-        </nav>
-      </div>
-      <div className="genithm-dock-section genithm-dock-recent">
-        <span className="genithm-dock-label">Recent scientific runs</span>
-        {recentRunsError ? (
-          <p className="genithm-recent-warning" role="alert">Recent runs are unavailable. No job status was inferred.</p>
-        ) : recentRuns.length ? (
-          <div className="genithm-recent-list">
-            {recentRuns.map((run) => (
-              <Link href={`/dashboard/scientific-jobs/${run.id}`} key={run.id}
-                className="genithm-recent-item">
-                <span className="genithm-recent-title">{activityTitle("scientific", run.job_type)}</span>
-                <span className="genithm-recent-status">{statusLabel(run.status)}</span>
-                <small>{classifyActivity("scientific", run.status) === "completed" && run.result_sha256
-                  ? "Result fingerprint recorded" : "Open execution details"}</small>
-              </Link>
-            ))}
-          </div>
-        ) : <p className="genithm-recent-empty">No scientific runs recorded yet.</p>}
-        <Link className="genithm-dock-footerlink" href="/dashboard/results">View all results →</Link>
-        <Link className="genithm-dock-footerlink" href="/dashboard/results/studies">Saved comparisons →</Link>
-      </div>
-      <div className="genithm-dock-section genithm-dock-status">
-        <span className="genithm-dock-label">Active environment</span>
-        <div className="genithm-environment">
-          <span className={scienceReady ? "genithm-env-ready" : "genithm-env-offline"} aria-hidden="true" />
-          <div><strong>{scienceReady ? "Scientific workers available" : "Scientific workers unavailable"}</strong>
-            <small>{scienceReady ? "Computations still require authorization" : "Chat and saved results remain accessible"}</small>
-          </div>
-        </div>
-        <div className="genithm-project-count"><span>Research projects</span><strong>{projectCount}</strong></div>
-        <Link className="genithm-dock-footerlink" href="/dashboard/operations">View execution status →</Link>
-      </div>
-    </aside>
-  );
+export type RecentScientificRun={id:string;job_type:string;status:string;created_at:string;result_sha256:string|null};
+type Props={projectCount:number;scienceReady:boolean;recentRuns:RecentScientificRun[];recentRunsError:boolean};
+export function GenithmToolDock({projectCount,scienceReady,recentRuns,recentRunsError}:Props){
+  const active=recentRuns.some(run=>classifyActivity("scientific",run.status)==="active");
+  return <aside className="genithm-tool-dock" aria-label="Bioinformatics tools and workspace status">
+    <ResearchActivityRefresh active={active}/>
+    <div className="genithm-dock-heading"><h2>Quick actions</h2><p>Choose your next step.</p></div>
+    <div className="genithm-dock-actions">
+      <Link className="genithm-dock-action" href="/dashboard/data"><span><GenithmIcon name="upload"/></span><span><strong>Upload data</strong><small>FASTA files and local QC</small></span><GenithmIcon name="arrow" size={16}/></Link>
+      <Link className="genithm-dock-action" href="/dashboard/apps"><span><GenithmIcon name="run"/></span><span><strong>Run an analysis</strong><small>Choose an available tool</small></span><GenithmIcon name="arrow" size={16}/></Link>
+      <Link className="genithm-dock-action" href="/dashboard/results"><span><GenithmIcon name="results"/></span><span><strong>View results</strong><small>Explore your recorded analyses</small></span><GenithmIcon name="arrow" size={16}/></Link>
+    </div>
+    <details className="genithm-dock-details"><summary>Recent scientific runs</summary><div>
+      {recentRunsError?<p role="alert">Recent runs could not be loaded.</p>:recentRuns.length?recentRuns.slice(0,3).map(run=><Link className="genithm-recent-item" href={`/dashboard/scientific-jobs/${run.id}`} key={run.id}><strong>{activityTitle("scientific",run.job_type)}</strong><small>{statusLabel(run.status)}</small></Link>):<p>No scientific runs recorded yet.</p>}
+      <Link href="/dashboard/results">View all results →</Link><Link href="/dashboard/results/studies">Saved comparisons</Link>
+    </div></details>
+    <details className="genithm-dock-details"><summary>Workspace status</summary><div><p>{scienceReady?"Scientific workers available. Execution still requires your approval.":"Worker-backed execution is unavailable. Chat and local QC may still be used."}</p><p>{projectCount} accessible research projects.</p><Link href="/dashboard/operations">Execution status</Link><Link href="/dashboard/pipelines">Pipelines</Link><Link href="/dashboard/workflows">Advanced workflows</Link><Link href="/dashboard/ai/research">Research history</Link><Link href="/dashboard/notebook">Scientific notebook</Link><Link href="/dashboard/tools">Advanced scientific tools</Link><Link href="/dashboard/variant-qc">Variant QC Lab</Link><Link href="/dashboard/fastq-qc">FASTQ QC Lab</Link></div></details>
+  </aside>;
 }

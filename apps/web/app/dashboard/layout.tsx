@@ -1,66 +1,20 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-
 import { AnalysisLaunchGuard } from "@/components/analysis-launch-guard";
-import { DashboardHomeOverview } from "@/components/dashboard-home-overview";
-import { DashboardPrimaryNav } from "@/components/dashboard-primary-nav";
-import { DashboardSectionNavigator } from "@/components/dashboard-section-navigator";
+import { GenithmWorkspaceFrame } from "@/components/genithm-workspace-frame";
 import { createClient } from "@/lib/supabase/server";
 import "./dashboard-section-nav.css";
 import "./dashboard-polish.css";
+import "./workspace-chrome.css";
 
-export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function DashboardLayout({children}:Readonly<{children:React.ReactNode}>) {
   const supabase = await createClient();
-  const [{ data: claimsData, error: claimsError }, { data: isPlatformAdmin }] = await Promise.all([
-    supabase.auth.getClaims(),
-    supabase.rpc("is_platform_admin"),
+  const [{data:claimsData,error:claimsError},{data:isPlatformAdmin}] = await Promise.all([
+    supabase.auth.getClaims(), supabase.rpc("is_platform_admin"),
   ]);
-
   const claims = claimsData?.claims;
-  if (claimsError || !claims?.sub) {
-    redirect("/login?message=" + encodeURIComponent("Your session expired. Please sign in again."));
-  }
-
-  const email = String(claims.email ?? "Researcher");
-
-  return (
-    <>
-      <div className="dashboard-shell">
-        <div className="dashboard-shell-inner">
-          <Link className="dashboard-brand" href="/dashboard" aria-label="Genithm dashboard">
-            <span className="dashboard-brand-mark" aria-hidden="true"><img src="/genithm-logo.webp" alt="" width="32" height="32" /></span>
-            <span>
-              <strong>Genithm</strong>
-              <small>Research workspace</small>
-            </span>
-          </Link>
-
-          <DashboardPrimaryNav isPlatformAdmin={Boolean(isPlatformAdmin)} />
-
-          <div className="dashboard-account">
-            <span className="dashboard-account-copy">
-              <strong>Secure session</strong>
-              <small>{email}</small>
-            </span>
-            <form action="/auth/signout" method="post">
-              <button className="button compact" type="submit">Sign out</button>
-            </form>
-          </div>
-        </div>
-
-        {isPlatformAdmin ? (
-          <nav className="dashboard-admin-nav" aria-label="Platform administration">
-            <span>Platform administration</span>
-            <Link href="/dashboard/admin/billing">Billing operations</Link>
-            <Link href="/dashboard/admin/billing/payments">Payment operations</Link>
-            <Link href="/dashboard/admin/billing/payments/setup">Payment setup</Link>
-          </nav>
-        ) : null}
-      </div>
-      <DashboardHomeOverview />
-      <DashboardSectionNavigator />
-      <AnalysisLaunchGuard />
-      {children}
-    </>
-  );
+  if (claimsError || !claims?.sub) redirect("/login?message=" + encodeURIComponent("Your session expired. Please sign in again."));
+  return <GenithmWorkspaceFrame email={String(claims.email ?? "Researcher")} isPlatformAdmin={Boolean(isPlatformAdmin)}>
+    <AnalysisLaunchGuard />
+    {children}
+  </GenithmWorkspaceFrame>;
 }
