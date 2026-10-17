@@ -1,12 +1,13 @@
-/* UI-only temporary harness. It imports the real components, but never reaches
- * Supabase or executes a job. The route exists only while this CI process runs. */
+/* UI-only ephemeral harness; uses actual shared components, no Supabase calls. */
 import assert from 'node:assert/strict';
 import {mkdir,writeFile,rm} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const {chromium}=await import(pathToFileURL(resolve('apps/web/node_modules/playwright/index.mjs')).href);
-const route=resolve('apps/web/app/__genithm_ui_contract');
+// Underscore-prefixed app folders are private in Next.js and cannot be test routes.
+const pathname='/genithm-ui-contract-check';
+const route=resolve('apps/web/app'+pathname);
 const output=resolve('artifacts/genithm-light');
 await mkdir(route,{recursive:true});await mkdir(output,{recursive:true});
 await writeFile(resolve(route,'page.tsx'),`import {notFound} from 'next/navigation';
@@ -25,17 +26,17 @@ export default function UiContract(){
 const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3099'],{cwd:resolve('apps/web'),env:{...process.env,GENITHM_UI_CONTRACT:'1',NEXT_TELEMETRY_DISABLED:'1'},stdio:'inherit',detached:true});
 let browser;
 try{
- let ready=false;for(let i=0;i<60;i++){try{const r=await fetch('http://127.0.0.1:3099/__genithm_ui_contract');if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}
+ let ready=false;for(let i=0;i<60;i++){try{const r=await fetch('http://127.0.0.1:3099'+pathname,{signal:AbortSignal.timeout(10000)});if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}
  assert.ok(ready,'UI harness started');
  browser=await chromium.launch({headless:true});
  const page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'});
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto('http://127.0.0.1:3099/__genithm_ui_contract',{waitUntil:'networkidle'});
+ await page.goto('http://127.0.0.1:3099'+pathname,{waitUntil:'networkidle'});
  assert.equal(await page.locator('.genithm-primary-links > a').count(),6);
  assert.equal(await page.locator('.genithm-dock-actions > a').count(),3);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).colorScheme),'light');
  assert.equal(await page.locator('[data-ui-surface]').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
- assert.ok(await page.locator('.genithm-brand img').first().evaluate(img=>img.complete&&img.naturalWidth>0),'Supplied logo loads');
+ assert.ok(await page.locator('.genithm-workspace .genithm-brand img').first().evaluate(img=>img.complete&&img.naturalWidth>0),'Supplied logo loads');
  await page.locator('.genithm-search-trigger').click();
  await page.locator('#genithm-search-input').fill('FASTQ');
  assert.equal(await page.locator('.genithm-search-results a').count(),1);

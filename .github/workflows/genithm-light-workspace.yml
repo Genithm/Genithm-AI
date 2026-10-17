@@ -3,13 +3,13 @@ on:
   pull_request:
     paths:
       - 'apps/web/**'
-      - 'scripts/test_genithm_light*'
+      - 'scripts/test_genithm_*'
       - '.github/workflows/genithm-light-workspace.yml'
   push:
     branches: [main]
     paths:
       - 'apps/web/**'
-      - 'scripts/test_genithm_light*'
+      - 'scripts/test_genithm_*'
       - '.github/workflows/genithm-light-workspace.yml'
 permissions:
   contents: read
@@ -49,3 +49,24 @@ jobs:
           name: genithm-light-workspace
           path: artifacts/genithm-light/
           if-no-files-found: ignore
+  regression-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm --prefix apps/web ci --no-fund
+      - name: Run all web regression tests without early exit
+        run: node scripts/test_genithm_web_regressions.mjs
+      - name: Upload complete assertion details
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-web-regressions
+          path: artifacts/genithm-regressions/

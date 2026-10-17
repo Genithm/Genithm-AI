@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     layout = (ROOT / "apps/web/app/dashboard/layout.tsx").read_text(encoding="utf-8")
+    frame = (ROOT / "apps/web/components/genithm-workspace-frame.tsx").read_text(encoding="utf-8")
     primary_nav = (ROOT / "apps/web/components/dashboard-primary-nav.tsx").read_text(encoding="utf-8")
     section_nav = (ROOT / "apps/web/components/dashboard-section-navigator.tsx").read_text(encoding="utf-8")
     section_css = (ROOT / "apps/web/app/dashboard/dashboard-section-nav.css").read_text(encoding="utf-8")
@@ -15,10 +16,14 @@ def main() -> int:
     chat_api = (ROOT / "apps/web/app/api/ai/chat/route.ts").read_text(encoding="utf-8")
     chat_provider = (ROOT / "apps/web/lib/genithm-ai-chat.ts").read_text(encoding="utf-8")
 
-    assert "DashboardPrimaryNav" in layout
+    # V40 moved navigation into a shared frame without moving the auth boundary.
+    assert "GenithmWorkspaceFrame" in layout
+    assert "getClaims()" in layout
+    assert "AnalysisLaunchGuard" in layout
+    assert "DashboardPrimaryNav" in frame
     assert 'aria-label="Workspace navigation"' in primary_nav
     assert "usePathname" in primary_nav
-    assert 'aria-current={active?"page":undefined}' in primary_nav
+    assert 'aria-current={active ? "page" : undefined}' in primary_nav
     assert "IntersectionObserver" in section_nav
     assert 'aria-current={active ? "step" : undefined}' in section_nav
     assert "dashboard-section-link is-active" in section_nav
@@ -27,10 +32,10 @@ def main() -> int:
     assert "prefers-reduced-motion" in section_css
 
     assert 'redirect("/dashboard/ai")' in dashboard_home
-    assert 'label:"BioAI chat"' in primary_nav
-    assert 'label:"Scientific tools"' in primary_nav
+    assert 'label:"AI Chat"' in primary_nav
+    assert 'label:"Tools"' in primary_nav
     assert 'AiChatComposer' in chat_home
-    assert '/dashboard/tools' in primary_nav  # Advanced scientific tools remain accessible
+    assert '/dashboard/tools' in primary_nav
     assert 'AiChatComposer' in chat_conversation
     assert 'action={requestAiPlan}' not in chat_conversation
     assert 'action={approveAiPlan}' in chat_conversation
@@ -101,7 +106,7 @@ def main() -> int:
     assert 'must approve it before authoritative execution' in chat_provider
     assert 'key={`${conversation.id}:${messages?.length ?? 0}`}' in chat_conversation
 
-    print("PASS: V1 dashboard UI shell contract")
+    print("PASS: shared light shell preserves authenticated chat and scientific approval contracts")
     return 0
 
 
