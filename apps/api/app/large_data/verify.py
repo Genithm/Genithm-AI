@@ -17,10 +17,12 @@ Q30 = bytes(1 if i >= 63 else 0 for i in range(256))
 
 
 class HashingReader(io.RawIOBase):
-    def __init__(self, source, expected_bytes, tick=lambda _n: None):
+    def __init__(self, source, expected_bytes, tick=lambda _n: None, capture_prefix=False):
         self.source, self.expected_bytes, self.tick = source, expected_bytes, tick
         self.count = 0
         self.digest = hashlib.sha256()
+        self.prefix = bytearray()
+        self.capture_prefix = capture_prefix
 
     def readable(self):
         return True
@@ -41,6 +43,8 @@ class HashingReader(io.RawIOBase):
         if self.count > self.expected_bytes:
             raise LargeDataError("source_changed")
         self.digest.update(data)
+        if self.capture_prefix and len(self.prefix) < 65536:
+            self.prefix.extend(data[:65536 - len(self.prefix)])
         buffer[:len(data)] = data
         return len(data)
 
@@ -81,11 +85,23 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
             last_report = now
 
     try:
-        reader = HashingReader(source,row["expected_bytes"],tick)
+        modern = row.get("intake_mode", "legacy") != "legacy"
+        reader = HashingReader(source,row["expected_bytes"],tick,capture_prefix=modern)
+        fasta = None
         with io.BufferedReader(reader, buffer_size=CHUNK_BYTES) as raw:
             if row["data_format"] == "opaque":
-                while raw.read(CHUNK_BYTES):
-                    pass
+                from .file_registry import describe
+                from .fasta import scan_fasta
+                hint = describe(row.get("original_filename", ""))
+                if modern and row["intake_mode"] == "auto" and hint["available_inspection"] == "complete_fasta":
+                    if hint["compression_hint"] == "gzip":
+                        with gzip.GzipFile(fileobj=raw, mode="rb") as decoded:
+                            fasta = scan_fasta(decoded, max_expanded_bytes, lambda: tick(reader.count))
+                    else:
+                        fasta = scan_fasta(raw, max_expanded_bytes, lambda: tick(reader.count))
+                else:
+                    while raw.read(CHUNK_BYTES):
+                        pass
                 metrics = None
             elif row["data_format"] == "fastq":
                 metrics = scan_fastq(raw,max_expanded_bytes,lambda:tick(reader.count))
@@ -109,6 +125,12 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
                 "metrics":metrics,"elapsed_seconds":round(monotonic()-start,3)}
             from .quality_report import seal_report
             result["source_sha256"] = digest
+            if modern:
+                from .file_intake import build_intake
+                result["verifier_version"] = "genithm-large-data/1.2.0"
+                result["intake"] = build_intake(row, bytes(reader.prefix), fasta=fasta)
+                if fasta is not None:
+                    result["scientific_scope"] = "full_fasta_structural_summary"
             return digest, seal_report(result)
     except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
         raise LargeDataError("format_invalid") from exc

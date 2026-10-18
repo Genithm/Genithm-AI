@@ -14,9 +14,9 @@ from .verify import verify_stream
 log = logging.getLogger("genithm.large-data-verifier")
 
 
-def process_one(c, worker_id, stop=None):
+def process_one(c, worker_id, stop=None, *, universal=False):
     stop = stop or threading.Event()
-    row = c.rpc("claim",p_worker=worker_id,p_storage=c.storage.config.identity)
+    row = c.rpc("claim_file_v47" if universal else "claim",p_worker=worker_id,p_storage=c.storage.config.identity)
     if not row:
         return False
     token = row["operation_token"]
@@ -46,7 +46,7 @@ def process_one(c, worker_id, stop=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Genithm private large-file checksum and FASTQ verifier")
+    parser = argparse.ArgumentParser(description="Genithm private file integrity, FASTQ and FASTA verifier")
     parser.add_argument("--once",action="store_true")
     args = parser.parse_args()
     c, worker_id, stop = clients(), str(uuid4()), threading.Event()
@@ -56,16 +56,18 @@ def main():
     def pulse():
         while not stop.is_set():
             try:
-                c.rpc("heartbeat",p_worker=worker_id,p_storage=c.storage.config.identity)
+                c.rpc("heartbeat_file_v47",p_worker=worker_id,p_storage=c.storage.config.identity)
             except Exception:
                 log.warning("large-data heartbeat unavailable")
             stop.wait(30)
+    # Register capability synchronously so --once cannot race its first claim.
+    c.rpc("heartbeat_file_v47",p_worker=worker_id,p_storage=c.storage.config.identity)
     heart = threading.Thread(target=pulse,daemon=True)
     heart.start()
     try:
         while not stop.is_set():
             try:
-                worked = process_one(c,worker_id,stop)
+                worked = process_one(c,worker_id,stop,universal=True)
             except Exception as exc:
                 log.warning("large-data worker cycle failed: type=%s",type(exc).__name__)
                 worked = False

@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {createClient} from "@/lib/supabase/client";
 import {LargePairPanel} from "./large-pair-panel";
+import {UniversalFilePanel,type FileCatalog,type FileLimits} from "./universal-file-panel";
 import {QualityReportViewer} from "./quality-report-viewer";
 import qualityStyles from "./quality-report.module.css";
 
@@ -10,7 +11,7 @@ type Upload={id:string;project_id:string;original_filename:string;expected_bytes
  data_format:"fastq"|"fastq.gz"|"opaque";state:string;part_bytes?:number;checked_bytes:number;error_code:string|null;
  summary?:{scientific_scope:string;metrics?:{read_count:number;base_count:number;mean_phred:number;q30_bases:number;gc_percent:number|null;quality_profile_available?:boolean}|null};
  parts?:{number:number;size:number}[]};
-type Overview={limits:{enabled:boolean;capacity_bytes:number;charged_bytes:number;max_file_bytes:number;verifier_ready:boolean};uploads:Upload[]};
+type Overview={limits:FileLimits&{verifier_ready:boolean};uploads:Upload[];file_catalog?:FileCatalog};
 const API_BASE=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"").replace(/\/$/,"");
 const API=API_BASE+"/api/v1/large-data";
 const size=(n:number)=>(n/1024**3).toFixed(2)+" GiB";
@@ -30,7 +31,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  const db=useMemo(()=>createClient(),[]);
  const [project,setProject]=useState(projects[0]?.id||"");const [overview,setOverview]=useState<Overview|null>(null);
  const [file,setFile]=useState<File|null>(null);const [current,setCurrent]=useState<Upload|null>(null);
- const [busy,setBusy]=useState(false);const [stage,setStage]=useState("");const [bytes,setBytes]=useState(0);
+ const [batchBusy,setBatchBusy]=useState(false);const [busy,setBusy]=useState(false);const [stage,setStage]=useState("");const [bytes,setBytes]=useState(0);
  const [error,setError]=useState("");const paused=useRef(false);const hashWorker=useRef<Worker|null>(null);const cancelHash=useRef<(()=>void)|null>(null);
  const inFlight=useRef(new Set<AbortController>());const requestId=useRef<string|null>(null);
  async function request(path:string,body?:unknown,method?:string):Promise<Response>{
@@ -47,7 +48,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  async function download(path:string,format:"json"|"tsv"){
   const response=await request(path+"?format="+format);const blob=await response.blob();
   const url=URL.createObjectURL(blob);const link=document.createElement("a");
-  link.href=url;link.download="genithm-quality-report."+format;document.body.appendChild(link);link.click();link.remove();
+  link.href=url;link.download=(path.endsWith("/file-report")?"genithm-file-report.":"genithm-quality-report.")+format;document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
  async function refresh(){
@@ -72,7 +73,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  }
  function pause(){paused.current=true;cancelHash.current?.();for(const c of inFlight.current)c.abort();}
  async function transfer(){
-  if(!file||!overview||busy)return;setBusy(true);setError("");paused.current=false;
+  if(!file||!overview||busy||batchBusy)return;setBusy(true);setError("");paused.current=false;
   let session=current;
   try{
    if(file.size<1||file.size>overview.limits.max_file_bytes)throw new Error("This file exceeds the configured project limit.");
@@ -84,7 +85,9 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
    }else{
     requestId.current??=crypto.randomUUID();
     const data_format=file.name.toLowerCase().match(/\.(fastq|fq)\.gz$/)?"fastq.gz":file.name.toLowerCase().match(/\.(fastq|fq)$/)?"fastq":"opaque";
-    session=await call<Upload>("/uploads",{project_id:project,request_id:requestId.current,filename:file.name,expected_bytes:file.size,expected_sha256:sha,data_format});
+    session=overview.limits.file_uploads_version===47?
+     await call<Upload>("/files",{project_id:project,request_id:requestId.current,filename:file.name,expected_bytes:file.size,expected_sha256:sha,mode:"auto"}):
+     await call<Upload>("/uploads",{project_id:project,request_id:requestId.current,filename:file.name,expected_bytes:file.size,expected_sha256:sha,data_format});
    }
    setCurrent(session);
    if(session.state!=="uploading"){setStage("Server state: "+session.state.replaceAll("_"," "));return;}
@@ -114,35 +117,42 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
   }catch(e){if(paused.current){setError("");setStage("Paused. Confirmed parts remain on the server.");}else{setError(e instanceof Error?e.message:"Upload interrupted.");setStage("Stopped; refresh status before retrying.");}}
   finally{setBusy(false);}
  }
+ async function selectFromLibrary(id:string){
+  if(busy||batchBusy)return;
+  const selected=await call<Upload>("/uploads/"+id);
+  if(selected.project_id!==project||selected.state!=="uploading")throw new Error("This upload is no longer resumable in the selected project.");
+  setCurrent(selected);setFile(null);requestId.current=null;setStage("Choose the identical source in Source file above, then resume.");
+ }
  async function cleanup(item:Upload){setError("");try{await call("/uploads/"+item.id+"/abort",{});if(current?.id===item.id)setCurrent(null);setOverview(await call<Overview>("/projects/"+project));}
   catch(e){setError(e instanceof Error?e.message:"Cleanup not confirmed; storage remains reserved.");}}
  return <section className={"genithm-page "+qualityStyles.controls} aria-label="Managed large-file uploads">
-  <h2>Large research files</h2><p>Resumable private uploads and server-side verification. FASTQ and FASTQ.gz receive complete aggregate read QC; other formats receive byte-integrity checks only.</p>
-  <label>Research project <select value={project} disabled={busy} onChange={e=>{setProject(e.target.value);requestId.current=null;setFile(null);}}>
+  <h2>Large research files</h2><p>Resumable private uploads and server-side verification. Upload any nonempty research file within project limits. The universal worker fully inspects supported FASTA and FASTQ files; other formats receive byte-integrity checks, not automatic biological analysis.</p>
+  <label>Research project <select value={project} disabled={busy||batchBusy} onChange={e=>{setProject(e.target.value);requestId.current=null;setFile(null);}}>
    {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
   {overview&&<p className="genithm-note">{size(overview.limits.charged_bytes)} reserved or stored / {size(overview.limits.capacity_bytes)} allowed.
    Per-file ceiling: {size(overview.limits.max_file_bytes)}. Verifier: {overview.limits.verifier_ready?"available":"offline"}.</p>}
-  <label>Source file <input type="file" disabled={busy} onChange={e=>{setFile(e.target.files?.[0]||null);requestId.current=null;}}/></label>
+  <label>Source file <input type="file" disabled={busy||batchBusy} onChange={e=>{setFile(e.target.files?.[0]||null);requestId.current=null;}}/></label>
   {current&&<p>Selected server upload: {current.original_filename} ({current.state}). Choose the identical source file to resume.</p>}
   <div className="genithm-page-links">
-   <button className="button primary" type="button" disabled={busy||!file||!overview?.limits.enabled||(!current&&!overview.limits.verifier_ready)} onClick={()=>void transfer()}>{current?"Resume selected upload":"Start private upload"}</button>
+   <button className="button primary" type="button" disabled={busy||batchBusy||!file||!overview?.limits.enabled||(!current&&!(overview.limits.file_uploads_version===47?overview.limits.file_verifier_ready:overview.limits.verifier_ready))} onClick={()=>void transfer()}>{current?"Resume selected upload":"Start private upload"}</button>
    <button className="button" type="button" disabled={!busy} onClick={pause}>Pause transfer</button>
-   <button className="button" type="button" disabled={busy} onClick={()=>void refresh()}>Refresh server status</button>
-   <button className="button" type="button" disabled={busy} onClick={()=>{setCurrent(null);requestId.current=null;setStage("");}}>New upload</button>
+   <button className="button" type="button" disabled={busy||batchBusy} onClick={()=>void refresh()}>Refresh server status</button>
+   <button className="button" type="button" disabled={busy||batchBusy} onClick={()=>{setCurrent(null);requestId.current=null;setStage("");}}>New upload</button>
   </div>
   {stage&&<p role="status">{stage} {file&&busy?`${size(bytes)} / ${size(file.size)} in this phase`:""}</p>}
   {error&&<p role="alert" className="error">{error}</p>}
   <p className="genithm-note">Closing the tab pauses browser uploads, not already-queued server verification. Resume from the server list with the same file. This uploader does not store access tokens or signed URLs in upload checkpoints. A 100 GiB policy ceiling is not a promise that every analysis supports that size.</p>
+  {overview&&<UniversalFilePanel key={project+"-files"} project={project} limits={overview.limits} catalog={overview.file_catalog} api={call} blocked={busy} onBusy={setBatchBusy} onResume={selectFromLibrary} download={download}/>}
   {overview&&<LargePairPanel key={project} project={project} sources={overview.uploads} call={call} download={download}/>}
   {overview?.uploads.map(item=><article key={item.id} className="genithm-disclosure">
    <h3>{item.original_filename}</h3><p>{size(item.expected_bytes)} · {item.state.replaceAll("_"," ")}{item.error_code?" · "+item.error_code.replaceAll("_"," "):""}</p>
-   {item.state==="uploading"&&<button className="button" disabled={busy} onClick={()=>{setCurrent(item);requestId.current=null;}}>Select to resume</button>}
+   {item.state==="uploading"&&<button className="button" disabled={busy||batchBusy} onClick={()=>{setCurrent(item);requestId.current=null;}}>Select to resume</button>}
    {item.state==="ready"&&item.summary?.metrics&&<p>Server QC: {item.summary.metrics.read_count.toLocaleString()} reads · {item.summary.metrics.base_count.toLocaleString()} bases · mean Phred {item.summary.metrics.mean_phred.toFixed(2)}. Complete data scanned, not sampled.</p>}
    {item.state==="ready"&&item.summary?.metrics&&(item.summary.metrics.quality_profile_available?
     <QualityReportViewer path={"/uploads/"+item.id+"/quality-report"} call={call} download={download}/>:
     <p className="genithm-note">Detailed profiles were not recorded by this result's verifier. Existing aggregate results are unchanged.</p>)}
    {item.state==="ready"&&item.summary?.scientific_scope==="bytes_only"&&<p>All file bytes verified. No biological analysis has been performed.</p>}
-   {!['aborted','verifying','completing'].includes(item.state)&&<details><summary>Remove upload and stored bytes</summary><p>Quota is released only after confirmed cleanup. Active upload links must expire first.</p><button disabled={busy} className="button" onClick={()=>void cleanup(item)}>Confirm removal</button></details>}
+   {!['aborted','verifying','completing'].includes(item.state)&&<details><summary>Remove upload and stored bytes</summary><p>Quota is released only after confirmed cleanup. Active upload links must expire first.</p><button disabled={busy||batchBusy} className="button" onClick={()=>void cleanup(item)}>Confirm removal</button></details>}
   </article>)}
  </section>;
 }

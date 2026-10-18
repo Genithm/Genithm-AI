@@ -37,6 +37,8 @@ jobs:
         run: supabase db start
       - name: Replay all migrations from scratch
         run: supabase db reset --local
+      - name: Verify V47 universal intake permissions and metadata boundaries
+        run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v47_file_intake_contract.sql
       - name: Verify V14 autonomous pipeline RLS, dispatch permissions, and event triggers
         run: psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 -f supabase/tests/v14_research_pipeline_contract.sql
       - name: Verify V16 nucleotide ORF template, grants, and event-driven pipeline transitions

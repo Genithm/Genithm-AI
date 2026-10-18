@@ -154,7 +154,11 @@ def report_for_row(row: dict, *, paired: bool = False) -> dict:
         raise LargeDataError("quality_profile_not_available", 409)
     check_digest(report)
     try:
-        _require(set(report) == (PAIR_FIELDS if paired else SINGLE_FIELDS))
+        modern = not paired and row.get("intake_mode", "legacy") != "legacy"
+        _require(set(report) == (PAIR_FIELDS if paired else SINGLE_FIELDS | {"intake"} if modern else SINGLE_FIELDS))
+        if modern:
+            from .file_intake import validate_intake
+            validate_intake(row, report)
         _require(_finite(report["elapsed_seconds"]) >= 0)
         if paired:
             _require(report["schema"] == "genithm-large-pair-result/1" and report["verifier_version"] == "genithm-large-pair/1.0.0")
@@ -172,12 +176,12 @@ def report_for_row(row: dict, *, paired: bool = False) -> dict:
             metrics = report["mates"]
             _require(all(m["read_count"] == count and m["paired_identifiers_checked"] is True for m in metrics))
         else:
-            _require(report["schema"] == "genithm-large-data-result/1" and report["verifier_version"] == "genithm-large-data/1.1.0")
+            _require(report["schema"] == "genithm-large-data-result/1" and report["verifier_version"] == ("genithm-large-data/1.2.0" if modern else "genithm-large-data/1.1.0"))
             _require(report["verification"] == "whole_object_sha256")
             _require(report["format"] == row["data_format"] and report["source_bytes"] == row["expected_bytes"])
             _require(isinstance(report["source_sha256"], str) and HEX.fullmatch(report["source_sha256"]))
             _require(report["source_sha256"] == row["expected_sha256"] == row["actual_sha256"])
-            if report["metrics"] is None and report["scientific_scope"] == "bytes_only":
+            if report["metrics"] is None and report["scientific_scope"] in {"bytes_only", "full_fasta_structural_summary"}:
                 raise LargeDataError("quality_profile_not_available", 409)
             _require(report["format"] in ("fastq", "fastq.gz") and report["scientific_scope"] == "full_fastq_aggregate_qc")
             _require(report["metrics"]["paired_identifiers_checked"] is False)
