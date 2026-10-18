@@ -64,6 +64,7 @@ def database():
            $$select exists(select 1 from public.organization_members where organization_id=org and user_id=auth.uid())$$;
         ''')
         db.execute(MIGRATION.read_text())
+        db.execute((ROOT/"supabase/migrations/20261018193000_large_data_pairs_v45.sql").read_text())
     yield
 
 
@@ -94,7 +95,8 @@ def env(database):
     gateway=SqlGateway(url=f'http://127.0.0.1:{auth.server_port}',publishable_key='test-public',secret_key='unused-no-production-secrets')
     c=Clients(gateway,storage)
     c.rpc('heartbeat',p_worker=str(uuid4()),p_storage=config.identity)
-    app=FastAPI();app.include_router(router);app.add_middleware(LargeDataBodyLimit)
+    from app.large_data.pair_routes import router as pair_router
+    app=FastAPI();app.include_router(router);app.include_router(pair_router);app.add_middleware(LargeDataBodyLimit)
     app.dependency_overrides[clients]=lambda:c
     api=TestClient(app)
     try:

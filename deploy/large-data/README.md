@@ -71,5 +71,16 @@ Validation BEFORE enabling production:
 
 No arbitrary uploaded BAM/CRAM/VCF file is routed to an existing small-input scientific executor.
 Opaque inputs receive byte verification only. FASTQ/gzip receives full aggregate QC (Phred+33
-assumed, four-line layout, A/C/G/T/N). Paired-read matching, alignment, variant calling, DE analysis,
+assumed, four-line layout, A/C/G/T/N). The separately enabled V45 paired checker supports ordered mate consistency. Alignment, variant calling, DE analysis,
 and downstream use require their own versioned executor integration and resource admission.
+
+
+## Optional V45 paired-input validation
+
+The paired workflow requires its own reviewed migration, `GENITHM_LARGE_DATA_PAIRING_ENABLED=true`
+on API and paired worker, and `python -m app.large_data.pair_worker`. It has a separate heartbeat
+and queue, not a silent change to the six original workers or the single-file verifier.
+Select two ready managed FASTQ uploads through Data -> Large files -> Paired-end verification.
+See `docs/paired-large-data-v45.md` for source roles, lease/cancel semantics, memory/compute
+admission and capacity evidence. No new infrastructure, storage quota or feature activation
+is performed automatically.

@@ -17,6 +17,7 @@ log = logging.getLogger("genithm.large-data")
 router = APIRouter(prefix="/api/v1/large-data", tags=["large-data"])
 SAFE_CODES = {"not_found":404,"quota_not_configured":409,"quota_exceeded":409,"file_size_limit":413,
  "too_many_active_uploads":429,"verifier_not_ready":503,"idempotency_conflict":409,
+ "pair_source_invalid":409,"pair_queue_full":429,"pair_worker_not_ready":503,"pair_source_in_use":409,
  "operation_in_progress":409,"upload_links_still_active":409,"lease_lost":409,"invalid_part":422}
 PUBLIC_FIELDS = ("id","project_id","original_filename","expected_bytes","expected_sha256","data_format","state",
                  "part_bytes","checked_bytes","actual_sha256","summary","error_code","created_at","updated_at")
