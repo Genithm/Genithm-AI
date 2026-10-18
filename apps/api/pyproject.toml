@@ -9,6 +9,7 @@ description = "Genithm AI API service"
 requires-python = ">=3.11"
 dependencies = [
   "boto3==1.43.91",
+  "numpy==2.3.5",
   "fastapi==0.141.1",
   "pydantic-settings==2.15.0",
   "uvicorn[standard]==0.52.4",

@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import os
 from uuid import UUID
+from typing import Literal
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from .routes import Clients, clients, operation
+from .quality_report import brief_summary, report_response
 
 router = APIRouter(prefix="/api/v1/large-data", tags=["large-data-pairs"])
 FIELDS = ("id", "project_id", "title", "r1_id", "r2_id", "state", "expected_bytes", "checked_bytes",
@@ -18,7 +20,9 @@ def enabled():
 
 
 def public(row):
-    return {key: row.get(key) for key in FIELDS}
+    result = {key: row.get(key) for key in FIELDS}
+    result["summary"] = brief_summary(row.get("summary"))
+    return result
 
 
 class PairRequest(BaseModel):
@@ -33,7 +37,10 @@ class PairRequest(BaseModel):
 @router.get("/projects/{project_id}/pairs", dependencies=[Depends(enabled)])
 def overview(project_id: UUID, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
     owner = c.auth(authorization)
-    return operation(lambda: c.rpc("pair_overview", p_owner=owner, p_project=str(project_id), p_storage=c.storage.config.identity))
+    def run():
+        result = c.rpc("pair_overview", p_owner=owner, p_project=str(project_id), p_storage=c.storage.config.identity)
+        return {"worker_ready": result["worker_ready"], "pairs": [public(p) for p in result["pairs"]]}
+    return operation(run)
 
 
 @router.post("/pairs", status_code=201, dependencies=[Depends(enabled)])
@@ -56,3 +63,10 @@ def status(pair_id: UUID, authorization: str | None = Header(default=None), c: C
 def cancel(pair_id: UUID, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
     owner = c.auth(authorization)
     return operation(lambda: public(c.rpc("pair_cancel", p_owner=owner, p_id=str(pair_id))))
+
+
+@router.get("/pairs/{pair_id}/quality-report", dependencies=[Depends(enabled)])
+def quality_report(pair_id: UUID, format: Literal["json", "tsv"] = "json",
+                   authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    return operation(lambda: report_response(c.rpc("pair_get", p_owner=owner, p_id=str(pair_id)), format, paired=True))

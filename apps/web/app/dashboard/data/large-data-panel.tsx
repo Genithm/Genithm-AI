@@ -2,11 +2,12 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {createClient} from "@/lib/supabase/client";
 import {LargePairPanel} from "./large-pair-panel";
+import {QualityReportViewer} from "./quality-report-viewer";
 
 type Project={id:string;name:string};
 type Upload={id:string;project_id:string;original_filename:string;expected_bytes:number;expected_sha256:string;
  data_format:"fastq"|"fastq.gz"|"opaque";state:string;part_bytes?:number;checked_bytes:number;error_code:string|null;
- summary?:{scientific_scope:string;metrics?:{read_count:number;base_count:number;mean_phred:number;q30_bases:number;gc_percent:number|null}|null};
+ summary?:{scientific_scope:string;metrics?:{read_count:number;base_count:number;mean_phred:number;q30_bases:number;gc_percent:number|null;quality_profile_available?:boolean}|null};
  parts?:{number:number;size:number}[]};
 type Overview={limits:{enabled:boolean;capacity_bytes:number;charged_bytes:number;max_file_bytes:number;verifier_ready:boolean};uploads:Upload[]};
 const API_BASE=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"").replace(/\/$/,"");
@@ -31,7 +32,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  const [busy,setBusy]=useState(false);const [stage,setStage]=useState("");const [bytes,setBytes]=useState(0);
  const [error,setError]=useState("");const paused=useRef(false);const hashWorker=useRef<Worker|null>(null);const cancelHash=useRef<(()=>void)|null>(null);
  const inFlight=useRef(new Set<AbortController>());const requestId=useRef<string|null>(null);
- async function call<T>(path:string,body?:unknown,method?:string):Promise<T>{
+ async function request(path:string,body?:unknown,method?:string):Promise<Response>{
   if(!API_BASE)throw new Error("The private large-data API has not been configured.");
   const {data,error:authError}=await db.auth.getSession();const token=data.session?.access_token;
   if(authError||!token)throw new Error("Sign in again before using private storage.");
@@ -39,7 +40,14 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
    headers:{Authorization:"Bearer "+token,...(body!==undefined?{"Content-Type":"application/json"}:{})},
    body:body===undefined?undefined:JSON.stringify(body)});
   if(!response.ok){const json=await response.json().catch(()=>({detail:"large_data_unavailable"}));throw new Error(explain(typeof json.detail==="string"?json.detail:"large_data_unavailable"));}
-  return response.json() as Promise<T>;
+  return response;
+ }
+ async function call<T>(path:string,body?:unknown,method?:string):Promise<T>{return (await request(path,body,method)).json() as Promise<T>;}
+ async function download(path:string,format:"json"|"tsv"){
+  const response=await request(path+"?format="+format);const blob=await response.blob();
+  const url=URL.createObjectURL(blob);const link=document.createElement("a");
+  link.href=url;link.download="genithm-quality-report."+format;document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
  async function refresh(){
   if(!project)return;setError("");try{setOverview(await call<Overview>("/projects/"+project));
@@ -124,11 +132,14 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
   {stage&&<p role="status">{stage} {file&&busy?`${size(bytes)} / ${size(file.size)} in this phase`:""}</p>}
   {error&&<p role="alert" className="error">{error}</p>}
   <p className="genithm-note">Closing the tab pauses browser uploads, not already-queued server verification. Resume from the server list with the same file. This uploader does not store access tokens or signed URLs in upload checkpoints. A 100 GiB policy ceiling is not a promise that every analysis supports that size.</p>
-  {overview&&<LargePairPanel key={project} project={project} sources={overview.uploads} call={call}/>}
+  {overview&&<LargePairPanel key={project} project={project} sources={overview.uploads} call={call} download={download}/>}
   {overview?.uploads.map(item=><article key={item.id} className="genithm-disclosure">
    <h3>{item.original_filename}</h3><p>{size(item.expected_bytes)} · {item.state.replaceAll("_"," ")}{item.error_code?" · "+item.error_code.replaceAll("_"," "):""}</p>
    {item.state==="uploading"&&<button className="button" disabled={busy} onClick={()=>{setCurrent(item);requestId.current=null;}}>Select to resume</button>}
    {item.state==="ready"&&item.summary?.metrics&&<p>Server QC: {item.summary.metrics.read_count.toLocaleString()} reads · {item.summary.metrics.base_count.toLocaleString()} bases · mean Phred {item.summary.metrics.mean_phred.toFixed(2)}. Complete data scanned, not sampled.</p>}
+   {item.state==="ready"&&item.summary?.metrics&&(item.summary.metrics.quality_profile_available?
+    <QualityReportViewer path={"/uploads/"+item.id+"/quality-report"} call={call} download={download}/>:
+    <p className="genithm-note">Detailed profiles were not recorded by this result's verifier. Existing aggregate results are unchanged.</p>)}
    {item.state==="ready"&&item.summary?.scientific_scope==="bytes_only"&&<p>All file bytes verified. No biological analysis has been performed.</p>}
    {!['aborted','verifying','completing'].includes(item.state)&&<details><summary>Remove upload and stored bytes</summary><p>Quota is released only after confirmed cleanup. Active upload links must expire first.</p><button disabled={busy} className="button" onClick={()=>void cleanup(item)}>Confirm removal</button></details>}
   </article>)}
