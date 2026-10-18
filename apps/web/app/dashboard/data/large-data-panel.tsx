@@ -3,6 +3,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {createClient} from "@/lib/supabase/client";
 import {LargePairPanel} from "./large-pair-panel";
 import {QualityReportViewer} from "./quality-report-viewer";
+import qualityStyles from "./quality-report.module.css";
 
 type Project={id:string;name:string};
 type Upload={id:string;project_id:string;original_filename:string;expected_bytes:number;expected_sha256:string;
@@ -115,7 +116,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  }
  async function cleanup(item:Upload){setError("");try{await call("/uploads/"+item.id+"/abort",{});if(current?.id===item.id)setCurrent(null);setOverview(await call<Overview>("/projects/"+project));}
   catch(e){setError(e instanceof Error?e.message:"Cleanup not confirmed; storage remains reserved.");}}
- return <section className="genithm-page" aria-label="Managed large-file uploads">
+ return <section className={"genithm-page "+qualityStyles.controls} aria-label="Managed large-file uploads">
   <h2>Large research files</h2><p>Resumable private uploads and server-side verification. FASTQ and FASTQ.gz receive complete aggregate read QC; other formats receive byte-integrity checks only.</p>
   <label>Research project <select value={project} disabled={busy} onChange={e=>{setProject(e.target.value);requestId.current=null;setFile(null);}}>
    {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>

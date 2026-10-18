@@ -17,3 +17,6 @@
 .tableScroll th:first-child,.tableScroll td:first-child{text-align:left}.tableScroll thead{background:var(--g-soft)}
 .hash{font-size:11px!important;color:var(--g-muted);margin-bottom:0}.hash code{display:block;overflow-wrap:anywhere;white-space:normal;line-height:1.7;font-size:11px}
 @media(max-width:780px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mate{padding:14px}.heading{align-items:flex-start}.heading span{text-align:right}}
+/* Do not fade between a gradient and a solid primary-button background:
+   intermediate frames can make white text fail contrast during hover. */
+.controls :global(.button.primary){transition:border-color 160ms ease}

@@ -146,7 +146,7 @@ try{
  });
  await check('Detailed read profiles are lazy, export authenticated JSON/TSV, and preserve legacy results',async()=>{
    await page.setViewportSize({width:1440,height:1000});await visit('/dashboard/data');
-   const profileRequests=()=>requests.filter(r=>r.path.endsWith('/quality-report'));
+   const profileRequests=()=>requests.filter(r=>r.method==='GET'&&r.path.endsWith('/quality-report'));
    const before=profileRequests().length;
    await page.getByText('Large files: resumable private upload',{exact:true}).click();
    await page.getByText('Explore read-quality profiles',{exact:true}).waitFor();
@@ -154,7 +154,7 @@ try{
    await page.getByText('Explore read-quality profiles',{exact:true}).click();
    const panel=page.getByRole('region',{name:'Detailed read-quality report'});
    await panel.getByRole('article',{name:'Single file quality profile'}).waitFor();
-   assert.equal(profileRequests().length,before+1);
+   assert.ok(profileRequests().length>=before+1&&profileRequests().length<=before+2,'One fetch per mount, allowing development StrictMode replay');
    assert.ok(profileRequests().at(-1).authenticated);
    await panel.getByText('Exact profile data',{exact:true}).click();
    assert.ok(await panel.getByRole('rowheader',{name:'61-70',exact:true}).isVisible());
