@@ -27,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 ROOT=Path(__file__).resolve().parents[2]
-MIGRATION=ROOT/'supabase/migrations/20261018093000_managed_large_data_v44.sql'
+MIGRATION=ROOT/'supabase/migrations/20261018100826_managed_large_data_v44.sql'
 
 
 def connect():return psycopg.connect(DSN,autocommit=True)
