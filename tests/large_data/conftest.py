@@ -73,8 +73,7 @@ def env(database):
     config=LargeDataConfig('http://127.0.0.1:9000','http://127.0.0.1:9000','genithm-large-data-ci-'+project[:8],
                           'genithm-ci','temporary-private-test-password',region="us-east-1",allow_loopback=True)
     storage=MultipartStorage(config)
-    try:storage.client.create_bucket(Bucket=config.bucket)
-    except Exception:pass
+    storage.client.create_bucket(Bucket=config.bucket)
     with connect() as db:
         db.execute('insert into public.organizations values(%s)',[org])
         for actor in (owner,other,viewer,outsider):db.execute('insert into auth.users values(%s)',[actor])
@@ -97,6 +96,19 @@ def env(database):
     c.rpc('heartbeat',p_worker=str(uuid4()),p_storage=config.identity)
     app=FastAPI();app.include_router(router);app.add_middleware(LargeDataBodyLimit)
     app.dependency_overrides[clients]=lambda:c
-    yield dict(c=c,api=TestClient(app),owner=owner,other=other,viewer=viewer,outsider=outsider,project=project,org=org,
-               headers={'Authorization':'Bearer owner-token'})
-    auth.shutdown();auth.server_close();thread.join()
+    api=TestClient(app)
+    try:
+        yield dict(c=c,api=api,owner=owner,other=other,viewer=viewer,outsider=outsider,project=project,org=org,
+                   headers={'Authorization':'Bearer owner-token'})
+    finally:
+        api.close()
+        auth.shutdown();auth.server_close();thread.join()
+        # This fixture is hard-bound to loopback and a unique synthetic bucket.
+        # Release actual 1/5 GiB objects between cases; no live research data is touched.
+        for page in storage.client.get_paginator('list_multipart_uploads').paginate(Bucket=config.bucket):
+            for item in page.get('Uploads',[]):
+                storage.client.abort_multipart_upload(Bucket=config.bucket,Key=item['Key'],UploadId=item['UploadId'])
+        for page in storage.client.get_paginator('list_objects_v2').paginate(Bucket=config.bucket):
+            for item in page.get('Contents',[]):
+                storage.client.delete_object(Bucket=config.bucket,Key=item['Key'])
+        storage.client.delete_bucket(Bucket=config.bucket)
