@@ -8,7 +8,8 @@ type Upload={id:string;project_id:string;original_filename:string;expected_bytes
  summary?:{scientific_scope:string;metrics?:{read_count:number;base_count:number;mean_phred:number;q30_bases:number;gc_percent:number|null}|null};
  parts?:{number:number;size:number}[]};
 type Overview={limits:{enabled:boolean;capacity_bytes:number;charged_bytes:number;max_file_bytes:number;verifier_ready:boolean};uploads:Upload[]};
-const API=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"http://localhost:8000").replace(/\/$/,"")+"/api/v1/large-data";
+const API_BASE=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"").replace(/\/$/,"");
+const API=API_BASE+"/api/v1/large-data";
 const size=(n:number)=>(n/1024**3).toFixed(2)+" GiB";
 const explain=(code:string)=>({large_data_not_enabled:"Large-file storage has not been enabled on this server.",
  quota_not_configured:"Your project needs an administrator-approved storage allowance.",quota_exceeded:"This file exceeds the project's available storage allowance.",
@@ -22,9 +23,10 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  const [project,setProject]=useState(projects[0]?.id||"");const [overview,setOverview]=useState<Overview|null>(null);
  const [file,setFile]=useState<File|null>(null);const [current,setCurrent]=useState<Upload|null>(null);
  const [busy,setBusy]=useState(false);const [stage,setStage]=useState("");const [bytes,setBytes]=useState(0);
- const [error,setError]=useState("");const paused=useRef(false);const hashWorker=useRef<Worker|null>(null);
+ const [error,setError]=useState("");const paused=useRef(false);const hashWorker=useRef<Worker|null>(null);const cancelHash=useRef<(()=>void)|null>(null);
  const inFlight=useRef(new Set<AbortController>());const requestId=useRef<string|null>(null);
  async function call<T>(path:string,body?:unknown,method?:string):Promise<T>{
+  if(!API_BASE)throw new Error("The private large-data API has not been configured.");
   const {data,error:authError}=await db.auth.getSession();const token=data.session?.access_token;
   if(authError||!token)throw new Error("Sign in again before using private storage.");
   const response=await fetch(API+path,{method:method||(body===undefined?"GET":"POST"),cache:"no-store",
@@ -43,16 +45,17 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  // Project switching resets all selection state; explicit refresh avoids polling hidden panels.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[project]);
- useEffect(()=>()=>{paused.current=true;hashWorker.current?.terminate();for(const c of inFlight.current)c.abort();},[]);
+ useEffect(()=>()=>{paused.current=true;cancelHash.current?.();hashWorker.current?.terminate();for(const c of inFlight.current)c.abort();},[]);
  async function fingerprint(source:File){
   return new Promise<string>((resolve,reject)=>{
    const worker=new Worker(new URL("./large-data-hash.worker.ts",import.meta.url));hashWorker.current=worker;
-   worker.onmessage=e=>{if(e.data.bytes)setBytes(e.data.bytes);if(e.data.sha256||e.data.error){worker.terminate();hashWorker.current=null;
+   cancelHash.current=()=>{worker.terminate();hashWorker.current=null;cancelHash.current=null;reject(new Error("Source hashing paused."));};
+   worker.onmessage=e=>{if(e.data.bytes)setBytes(e.data.bytes);if(e.data.sha256||e.data.error){worker.terminate();hashWorker.current=null;cancelHash.current=null;
      if(e.data.error)reject(new Error(e.data.error));else resolve(e.data.sha256);}};
-   worker.onerror=()=>{worker.terminate();hashWorker.current=null;reject(new Error("Source fingerprinting failed."));};worker.postMessage(source);
+   worker.onerror=()=>{worker.terminate();hashWorker.current=null;cancelHash.current=null;reject(new Error("Source fingerprinting failed."));};worker.postMessage(source);
   });
  }
- function pause(){paused.current=true;for(const c of inFlight.current)c.abort();}
+ function pause(){paused.current=true;cancelHash.current?.();for(const c of inFlight.current)c.abort();}
  async function transfer(){
   if(!file||!overview||busy)return;setBusy(true);setError("");paused.current=false;
   let session=current;
@@ -93,10 +96,10 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
    setStage("Finalizing upload; verification runs in the background");
    setCurrent(await call<Upload>("/uploads/"+uploadId+"/complete",{}));setStage("Uploaded. Not yet verified; refresh status for the server result.");
    setOverview(await call<Overview>("/projects/"+project));
-  }catch(e){setError(e instanceof Error?e.message:"Upload interrupted.");setStage("Stopped; refresh status before retrying.");}
+  }catch(e){if(paused.current){setError("");setStage("Paused. Confirmed parts remain on the server.");}else{setError(e instanceof Error?e.message:"Upload interrupted.");setStage("Stopped; refresh status before retrying.");}}
   finally{setBusy(false);}
  }
- async function cleanup(item:Upload){setError("");try{await call("/uploads/"+item.id+"/abort",{});if(current?.id===item.id)setCurrent(null);await refresh();}
+ async function cleanup(item:Upload){setError("");try{await call("/uploads/"+item.id+"/abort",{});if(current?.id===item.id)setCurrent(null);setOverview(await call<Overview>("/projects/"+project));}
   catch(e){setError(e instanceof Error?e.message:"Cleanup not confirmed; storage remains reserved.");}}
  return <section className="genithm-page" aria-label="Managed large-file uploads">
   <h2>Large research files</h2><p>Resumable private uploads and server-side verification. FASTQ and FASTQ.gz receive complete aggregate read QC; other formats receive byte-integrity checks only.</p>

@@ -25,6 +25,7 @@ test('frontend bounded hashing, direct storage transfer and real session resume 
  const panel=read('../app/dashboard/data/large-data-panel.tsx');
  const worker=read('../app/dashboard/data/large-data-hash.worker.ts');
  const page=read('../app/dashboard/data/page.tsx');
+ const disclosure=read('../app/dashboard/data/large-data-disclosure.tsx');
  assert.match(worker,/file\.slice\(start,start\+chunk\)\.arrayBuffer/);
  assert.doesNotMatch(worker,/file\.arrayBuffer\(\)/);
  assert.match(panel,/new Worker\(new URL/);
@@ -34,7 +35,10 @@ test('frontend bounded hashing, direct storage transfer and real session resume 
  assert.match(panel,/credentials:"omit"/);
  assert.match(panel,/getSession\(\)/);
  assert.doesNotMatch(panel,/localStorage|sessionStorage|SECRET_KEY/);
- assert.match(page,/LargeDataPanel projects=/);
+ assert.match(page,/LargeDataDisclosure projects=/);
+ assert.match(disclosure,/open\?<LargeDataPanel/);
+ assert.doesNotMatch(panel,/http:\/\/localhost:8000/);
+ assert.match(panel,/cancelHash\.current=\(\)=>/);
 });
 
 test('SHA-256 handles the 32-bit bit-length carry with bounded buffers',()=>{

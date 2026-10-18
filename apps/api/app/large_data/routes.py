@@ -185,9 +185,9 @@ class LargeDataBodyLimit:
             headers = dict(scope.get("headers", []))
             raw = headers.get(b"content-length", b"")
             if not raw.isdigit() or b"transfer-encoding" in headers:
-                await JSONResponse({"detail":"bounded_content_length_required"},411)(scope,receive,send)
+                await JSONResponse({"detail":"bounded_content_length_required"},411,headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})(scope,receive,send)
                 return
             if int(raw) > 16384:
-                await JSONResponse({"detail":"large_data_control_request_too_large"},413)(scope,receive,send)
+                await JSONResponse({"detail":"large_data_control_request_too_large"},413,headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})(scope,receive,send)
                 return
         await self.app(scope,receive,send)
