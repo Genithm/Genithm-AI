@@ -12,12 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
+          ref: aa08584b669abea741888ff775600c215aee8323
           persist-credentials: false
       - run: |
           mkdir snapshot
-          git archive --format=zip aa08584b669abea741888ff775600c215aee8323 > snapshot/source.zip
+          git archive --format=zip HEAD > snapshot/source.zip
           sha256sum snapshot/source.zip > snapshot/source.sha256
-          printf '%s\n' aa08584b669abea741888ff775600c215aee8323 > snapshot/revision.txt
+          git rev-parse HEAD > snapshot/revision.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: genithm-v45-source-review
