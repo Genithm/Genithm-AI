@@ -73,3 +73,13 @@ No arbitrary uploaded BAM/CRAM/VCF file is routed to an existing small-input sci
 Opaque inputs receive byte verification only. FASTQ/gzip receives full aggregate QC (Phred+33
 assumed, four-line layout, A/C/G/T/N). Paired-read matching, alignment, variant calling, DE analysis,
 and downstream use require their own versioned executor integration and resource admission.
+
+
+## Optional paired-end extension (V45)
+
+After applying the reviewed V45 migration, set `GENITHM_LARGE_DATA_PAIRS_ENABLED=true`
+on the API and a separate paired worker. Start `python -m app.large_data.paired_worker`
+with the same private bucket/auth settings. No worker is automatically provisioned.
+The existing verifier and original six workers remain separate. See
+`docs/managed-paired-fastq-v45.md` for admission, cancellation, source-retention and
+complete-pair scientific limits. Matching two files is not RNA alignment or DE.

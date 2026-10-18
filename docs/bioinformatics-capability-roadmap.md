@@ -16,9 +16,9 @@ provenance, and a working end-to-end execution path.
 
 | Domain | Current implementation | Expansion work, not yet shipped |
 |---|---|---|
-| Sequence data | FASTA validation/statistics; V42 single-pass streaming ingestion | Resumable multipart imports, compressed/large-file policies, cohort manifests |
+| Sequence data | FASTA validation/statistics; V42 streaming ingestion; V44 managed multipart imports and verified FASTQ/gzip | Broader compressed-file policies, cohort manifests, target-provider capacity qualification |
 | Sequence research | Approved pairwise alignment, multiple alignment, phylogeny, nucleotide insights, protein properties and BLAST pathways | Larger-scale similarity search, assemblies, richer annotations |
-| Read and variant QC | Bounded local FASTQ/VCF inspection and optional aggregate history | Server-side cohort read QC, trimming, BAM/CRAM processing |
+| Read and variant QC | Local FASTQ/VCF inspection; V44 managed whole-file FASTQ QC; V45 complete paired identifier checks | Trimming, BAM/CRAM processing, cohort QC and representative large-data deployment qualification |
 | Bulk RNA-seq | No complete alignment-to-differential-expression pipeline | Sample design, alignment/quantification, counts, statistical contrasts, enrichment |
 | Genomics | VCF QC is not variant calling | Germline/somatic workflows, reference consistency, annotation and cohort analysis |
 | Single-cell/spatial | Not implemented | Assay-aware QC, normalization, integration, clustering, annotation and spatial analysis |
@@ -84,3 +84,5 @@ must still preserve Genithm's tenant isolation, permissions and provenance.
 
 No new RNA-seq, Sarek, Nextflow, single-cell or GPU executor is claimed as shipped
 by this roadmap. V42 ships the measured FASTA-ingestion improvement only.
+
+V45 adds managed complete R1/R2 identity/order validation and separately reported QC. It does not add alignment, sample design, quantification, or differential expression.

@@ -24,6 +24,9 @@ const payload=encode({alg:'ES256',kid,typ:'JWT'})+'.'+encode({sub:userId,email:u
 const token=payload+'.'+sign('sha256',Buffer.from(payload),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 const cookie='base64-'+encode({access_token:token,refresh_token:'fixture-only',token_type:'bearer',expires_in:3600,expires_at:now+3600,user});
 const requests=[];let mode='normal';
+const pairIds=['60000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000002'];
+const pairId='70000000-0000-4000-8000-000000000001';let pairedFixture=null;
+
 const api=createServer((req,res)=>{
  const url=new URL(req.url,backend),authenticated=req.headers.authorization==='Bearer '+token;
  requests.push({method:req.method,path:url.pathname,query:url.search,authenticated});
@@ -34,6 +37,26 @@ const api=createServer((req,res)=>{
  if(url.pathname==='/auth/v1/logout'&&authenticated)return json(200,{});
  if(url.pathname==='/rest/v1/rpc/is_platform_admin')return json(200,false);
  if(!authenticated)return json(401,{message:'Fixture authorization required'});
+ if(url.pathname.startsWith('/api/v1/large-data')){
+  if(mode!=='paired-fixture')return json(503,{detail:'paired_data_not_enabled'});
+  const uploads=pairIds.map((id,i)=>({id,project_id:projectId,original_filename:`fixture-R${i+1}.fastq`,expected_bytes:256,expected_sha256:String(i+1).repeat(64),data_format:'fastq',state:'ready',checked_bytes:256}));
+  if(url.pathname===`/api/v1/large-data/projects/${projectId}`)return json(200,{uploads,limits:{enabled:true,capacity_bytes:1024,charged_bytes:512,max_file_bytes:1024,verifier_ready:true}});
+  if(url.pathname===`/api/v1/large-data/pairs/projects/${projectId}`)return json(200,{worker_ready:true,jobs:pairedFixture?[pairedFixture]:[]});
+  if(url.pathname==='/api/v1/large-data/pairs'&&req.method==='POST'){
+   let text='';req.on('data',x=>text+=x);req.on('end',()=>{const body=JSON.parse(text);assert.equal(body.read1_id,pairIds[0]);assert.equal(body.read2_id,pairIds[1]);
+    pairedFixture={id:pairId,title:body.title,state:'queued',read1_id:pairIds[0],read2_id:pairIds[1],read1_bytes:256,read2_bytes:256,checked_read1_bytes:0,checked_read2_bytes:0,error_code:null};json(202,pairedFixture);});return;
+  }
+  if(url.pathname===`/api/v1/large-data/pairs/${pairId}`&&pairedFixture){
+   const metrics={read_count:2,base_count:200,mean_phred:40,q20_bases:200,q30_bases:200,gc_percent:50};
+   pairedFixture={...pairedFixture,state:'ready',checked_read1_bytes:256,checked_read2_bytes:256,
+    result:{matched_pairs:2,both_mate_annotations_checked:2,identifier_order_only_pairs:0,identical_source_bytes:false,r1:{sha256:'1'.repeat(64),metrics},r2:{sha256:'2'.repeat(64),metrics}},result_sha256:'3'.repeat(64)};
+   return json(200,pairedFixture);
+  }
+  if(url.pathname===`/api/v1/large-data/pairs/${pairId}/report`&&pairedFixture?.state==='ready'){
+   res.writeHead(200,{'Content-Type':'text/tab-separated-values','Access-Control-Allow-Origin':base,'Cache-Control':'no-store'});return res.end('Synthetic browser interaction fixture\nMatched ordered pairs\t2\n');
+  }
+  return json(404,{detail:'not_found'});
+ }
  if(req.method!=='GET'&&req.method!=='HEAD')return json(405,{message:'Fixture is read-only'});
  const table=url.pathname.split('/').at(-1);
  if(table==='projects'&&mode==='project-error')return json(503,{message:'Fixture project query failure'});
@@ -46,7 +69,7 @@ const api=createServer((req,res)=>{
 });
 await new Promise(resolve=>api.listen(3198,'127.0.0.1',resolve));
 const env={...process.env};for(const key of Object.keys(env))if(/SUPABASE|OPENROUTER|GENITHM|CODESPACE/i.test(key))delete env[key];
-Object.assign(env,{NEXT_PUBLIC_SUPABASE_URL:backend,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-not-a-secret',GENITHM_APP_URL:base,GENITHM_SCIENCE_V22_ENABLED:'false',NEXT_TELEMETRY_DISABLED:'1'});
+Object.assign(env,{NEXT_PUBLIC_SUPABASE_URL:backend,NEXT_PUBLIC_GENITHM_API_URL:backend,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-not-a-secret',GENITHM_APP_URL:base,GENITHM_SCIENCE_V22_ENABLED:'false',NEXT_TELEMETRY_DISABLED:'1'});
 const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3199'],{cwd:resolve('apps/web'),env,stdio:['ignore','pipe','pipe'],detached:true});
 let serverLog='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{serverLog+=chunk;});
 const results=[],runtimeErrors=[],externalRequests=[];let browser,page;
@@ -88,6 +111,25 @@ try{
        assert.equal(await phone.locator('input[type=file],textarea').count(),0);
      }}finally{await mobile.close();}
    }
+ });
+ await check('Paired data controls, opt-in networking and report download against isolated API fixture',async()=>{
+  mode='paired-fixture';pairedFixture=null;
+  try{
+   await page.setViewportSize({width:1440,height:1000});const before=requests.filter(r=>r.path.startsWith('/api/v1/large-data')).length;
+   await visit('/dashboard/data');assert.equal(requests.filter(r=>r.path.startsWith('/api/v1/large-data')).length,before);
+   await page.locator('summary').filter({hasText:'Large files: resumable private upload'}).click();
+   await page.locator('summary').filter({hasText:'Check paired-end data (R1 + R2)'}).click();
+   await page.getByLabel('Read 1',{exact:true}).selectOption(pairIds[0]);
+   await page.getByLabel('Read 2',{exact:true}).selectOption(pairIds[1]);
+   await page.getByLabel('Analysis title',{exact:true}).fill('Paired browser fixture');
+   const run=page.getByRole('button',{name:'Approve and run paired QC',exact:true});await run.waitFor();
+   await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Approve and run paired QC'&&!b.disabled));
+   await run.click();await page.getByRole('button',{name:'Cancel paired check',exact:true}).waitFor();
+   await page.getByRole('button',{name:'Refresh paired status',exact:true}).click();
+   await page.getByText('2 ordered pairs matched.',{exact:true}).waitFor();
+   const report=await downloadText(page.getByRole('button',{name:'Download paired QC report',exact:true}));
+   assert.match(report,/Matched ordered pairs\t2/);await scan('paired-controls');
+  }finally{mode='normal';await visit('/dashboard/data');}
  });
  await check('No uncaught browser errors or external service requests',async()=>{assert.deepEqual(runtimeErrors,[]);assert.deepEqual(externalRequests,[]);});
 }finally{
