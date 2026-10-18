@@ -65,9 +65,9 @@ jobs:
       - name: Verify parser, privacy, API guards, and browser hashing
         run: |
           mkdir -p artifacts/large-data
-          pytest apps/api/tests/test_large_data_v44.py --junitxml=artifacts/large-data/unit.xml
+          pytest apps/api/tests/test_large_data_v44.py apps/api/tests/test_large_data_hardening_v44.py --junitxml=artifacts/large-data/unit.xml
           node --experimental-strip-types --test apps/web/tests/large-data-v44.test.mjs > artifacts/large-data/browser-hash-tests.txt
-      - name: Exercise auth, atomic quotas, signatures, resume, fencing and full 1 GiB FASTQ
+      - name: Exercise auth, atomic quotas, signatures, resume, fencing and complete 1 and 5 GiB FASTQ
         run: pytest -v tests/large_data --junitxml=artifacts/large-data/integration.xml
       - name: Upload acceptance evidence
         if: always()
