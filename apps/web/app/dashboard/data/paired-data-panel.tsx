@@ -70,10 +70,10 @@ function PairedDataPanel({project,uploads}:{project:string;uploads:Input[]}){
   <h3>Verify paired-end inputs</h3>
   <p>Choose two ready FASTQ or FASTQ.gz uploads. The worker rechecks both complete files and every ordered read identifier, then reports QC separately for R1 and R2. This does not align, merge, or quantify reads.</p>
   <p className="genithm-note">Requires the dedicated paired worker. Two active checks per project; ten new submissions per researcher per hour. This creates compute work, not another file copy.</p>
-  <label htmlFor={id+"-r1"}>Read 1 <select id={id+"-r1"} value={r1} disabled={busy} onChange={e=>{setR1(e.target.value);requestId.current=null;}}>
-   <option value="">Select R1</option>{available.map(x=><option key={x.id} value={x.id}>{x.original_filename} ({bytes(x.expected_bytes)})</option>)}</select></label>
-  <label htmlFor={id+"-r2"}>Read 2 <select id={id+"-r2"} value={r2} disabled={busy} onChange={e=>{setR2(e.target.value);requestId.current=null;}}>
-   <option value="">Select R2</option>{available.filter(x=>x.id!==r1).map(x=><option key={x.id} value={x.id}>{x.original_filename} ({bytes(x.expected_bytes)})</option>)}</select></label>
+  <div><label htmlFor={id+"-r1"}>Read 1</label><select id={id+"-r1"} value={r1} disabled={busy} onChange={e=>{setR1(e.target.value);requestId.current=null;}}>
+   <option value="">Select R1</option>{available.map(x=><option key={x.id} value={x.id}>{x.original_filename} ({bytes(x.expected_bytes)})</option>)}</select></div>
+  <div><label htmlFor={id+"-r2"}>Read 2</label><select id={id+"-r2"} value={r2} disabled={busy} onChange={e=>{setR2(e.target.value);requestId.current=null;}}>
+   <option value="">Select R2</option>{available.filter(x=>x.id!==r1).map(x=><option key={x.id} value={x.id}>{x.original_filename} ({bytes(x.expected_bytes)})</option>)}</select></div>
   <label htmlFor={id+"-title"}>Analysis title <input id={id+"-title"} value={title} maxLength={160} disabled={busy}
    onChange={e=>{setTitle(e.target.value);requestId.current=null;}}/></label>
   <div className="genithm-page-links">
