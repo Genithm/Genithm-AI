@@ -1,0 +1,32 @@
+name: Prepare RNA-seq review environment
+on:
+  push:
+    branches: [feat/bulk-rnaseq-count-analysis-v43]
+    paths: [.github/workflows/prepare-rnaseq-review-v43.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: 11b83abcaa5a390b73f8ac0b3b2bd1114890c73f
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Archive exact source and download binary dependencies
+        run: |
+          mkdir -p artifacts/review/wheels
+          git archive --format=zip -o artifacts/review/source.zip HEAD
+          git rev-parse HEAD > artifacts/review/revision.txt
+          python -m pip download --only-binary=:all: pydeseq2==0.5.4 threadpoolctl==3.6.0 --dest artifacts/review/wheels
+          sha256sum artifacts/review/wheels/* > artifacts/review/wheel-sha256.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-rnaseq-review-environment
+          path: artifacts/review
+          retention-days: 3
+          if-no-files-found: error
