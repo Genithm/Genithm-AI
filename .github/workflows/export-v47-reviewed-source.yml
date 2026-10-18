@@ -1,0 +1,27 @@
+name: Export V47 reviewed source
+on:
+  push:
+    branches: [chore/v47-verified-source-export]
+    paths: [.github/workflows/export-v47-reviewed-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+          ref: ec0e8a13527d945b1a1d01bd721e552957382bba
+      - name: Export only tracked reviewed source
+        run: |
+          mkdir /tmp/genithm-source
+          git archive --format=zip HEAD > /tmp/genithm-source/source.zip
+          git rev-parse HEAD > /tmp/genithm-source/revision.txt
+          git rev-parse HEAD^{tree} > /tmp/genithm-source/tree.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-v47-reviewed-source
+          path: /tmp/genithm-source
+          retention-days: 2
