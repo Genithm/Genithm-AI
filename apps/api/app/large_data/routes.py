@@ -175,19 +175,63 @@ def abort(upload_id: UUID, authorization: str | None = Header(default=None), c: 
 
 
 class LargeDataBodyLimit:
-    """Control-plane JSON only. Never let a GB file become an API request body."""
+    """Bound the actual ASGI body, not just a caller-controlled Content-Length."""
+    MAX_BODY = 16384
+
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and scope.get("path", "").startswith("/api/v1/large-data") and scope.get("method") == "POST":
-            from starlette.responses import JSONResponse
-            headers = dict(scope.get("headers", []))
-            raw = headers.get(b"content-length", b"")
-            if not raw.isdigit() or b"transfer-encoding" in headers:
-                await JSONResponse({"detail":"bounded_content_length_required"},411,headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})(scope,receive,send)
+        if (scope["type"] != "http" or not scope.get("path", "").startswith("/api/v1/large-data")
+                or scope.get("method") != "POST"):
+            await self.app(scope, receive, send)
+            return
+        from starlette.responses import JSONResponse
+        async def reject(status, detail):
+            await JSONResponse({"detail": detail}, status, headers={
+                "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            })(scope, receive, send)
+
+        length_headers = [v for k, v in scope.get("headers", []) if k.lower() == b"content-length"]
+        transfer_encoding = any(k.lower() == b"transfer-encoding" for k, _ in scope.get("headers", []))
+        if len(length_headers) != 1 or transfer_encoding:
+            await reject(411, "bounded_content_length_required")
+            return
+        raw = length_headers[0]
+        if not raw.isdigit() or len(raw) > 10:
+            await reject(411, "bounded_content_length_required")
+            return
+        declared = int(raw)
+        if declared > self.MAX_BODY:
+            await reject(413, "large_data_control_request_too_large")
+            return
+        # This is metadata only (at most 16 KiB). File bytes MUST go directly to S3.
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
                 return
-            if int(raw) > 16384:
-                await JSONResponse({"detail":"large_data_control_request_too_large"},413,headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})(scope,receive,send)
+            if message["type"] != "http.request":
+                await reject(400, "invalid_control_request")
                 return
-        await self.app(scope,receive,send)
+            block = message.get("body", b"")
+            if len(body) + len(block) > self.MAX_BODY:
+                await reject(413, "large_data_control_request_too_large")
+                return
+            if len(body) + len(block) > declared:
+                await reject(400, "control_request_length_mismatch")
+                return
+            body.extend(block)
+            if not message.get("more_body", False):
+                break
+        if len(body) != declared:
+            await reject(400, "control_request_length_mismatch")
+            return
+        delivered = False
+        async def bounded_receive():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+            return await receive()
+        await self.app(scope, bounded_receive, send)
