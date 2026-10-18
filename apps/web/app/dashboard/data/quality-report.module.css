@@ -1,0 +1,22 @@
+.report{margin-top:18px;min-width:0;color:var(--g-ink)}
+.report p{font-size:13px;line-height:1.7}
+.mate{margin:20px 0;padding:22px;border:1px solid var(--g-line);border-radius:14px;background:var(--g-surface);min-width:0}
+.heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.heading h4{margin:0;font-size:17px}.heading span{font-size:11px;letter-spacing:.04em;color:var(--g-muted)}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin:0 0 22px}
+.metrics dt{font-size:12px;color:var(--g-muted);margin-bottom:7px}.metrics dd{font-size:20px;font-weight:650;margin:0;color:var(--g-ink);font-variant-numeric:tabular-nums}
+.select{max-width:330px;margin-bottom:18px}.select select{width:100%}
+.figure{margin:0 0 18px}.figure svg{width:100%;height:auto;color:var(--g-blue);overflow:visible}
+.figure text{font-size:12px;fill:var(--g-muted)}.figure circle,.figure rect{fill:currentColor}
+.grid{stroke:var(--g-line);stroke-width:1}.band{fill:currentColor;opacity:.14}.mean{stroke:currentColor;stroke-width:2.5;fill:none}
+.figure figcaption{font-size:12px;color:var(--g-muted);line-height:1.65;margin-top:8px}
+.tableScroll{overflow:auto;max-height:400px;margin-top:14px;border:1px solid var(--g-line);border-radius:8px}
+.tableScroll table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.tableScroll caption{text-align:left;padding:12px;font-weight:600;color:var(--g-ink)}
+.tableScroll th,.tableScroll td{text-align:right;padding:9px 12px;border-bottom:1px solid var(--g-line);white-space:nowrap;color:var(--g-ink)}
+.tableScroll th:first-child,.tableScroll td:first-child{text-align:left}.tableScroll thead{background:var(--g-soft)}
+.hash{font-size:11px!important;color:var(--g-muted);margin-bottom:0}.hash code{display:block;overflow-wrap:anywhere;white-space:normal;line-height:1.7;font-size:11px}
+@media(max-width:780px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mate{padding:14px}.heading{align-items:flex-start}.heading span{text-align:right}}
+/* Do not fade between a gradient and a solid primary-button background:
+   intermediate frames can make white text fail contrast during hover. */
+.controls :global(.button.primary){transition:border-color 160ms ease}

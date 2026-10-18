@@ -45,11 +45,19 @@ def test_gib_actual_fastq_through_auth_quota_s3_resume_and_worker(env,tmp_path,g
     metrics=result['summary']['metrics']
     assert metrics['read_count']==read_count and metrics['base_count']==read_count*60
     assert metrics['q30_bases']==read_count*60 and metrics['mean_phred']==40 and metrics['gc_percent']==50
+    response=e['api'].get('/api/v1/large-data/uploads/'+sid+'/quality-report',headers=e['headers'])
+    assert response.status_code==200,response.text
+    envelope=response.json();profile=envelope['report']['metrics']['quality_profile']
+    assert sum(row[2] for row in profile['positions'])==read_count*60
+    assert all(row[3]==40*row[2] and row[11:]==[40]*5 for row in profile['positions'])
+    assert profile['read_mean_phred_counts'][40]==read_count
+    assert profile['read_gc_percent_counts'][50]==read_count
+    assert profile['read_lengths']==[[51,60,read_count]]
     assert measured['peak_worker_rss_kib']<256*1024
     evidence={'source_bytes':size,'read_count':read_count,'source_sha256':sha.hexdigest(),
       'server_sha256':result['actual_sha256'],'source_physically_allocated':True,'parts':size//chunk,'parts_reused':4,
       'source_generation':'synthetic uncompressed 60-base FASTQ, Q40; not patient data',
-      'upload_and_resume_seconds':upload_seconds,**measured,'result':result['summary'],
+      'upload_and_resume_seconds':upload_seconds,**measured,'result':result['summary'],'quality_report':envelope,
       'scope':'loopback real S3-compatible container and PostgreSQL; Auth is an isolated HTTP fixture, not live Supabase Auth'}
     out=Path(os.getenv('GENITHM_LARGE_DATA_EVIDENCE_DIR','artifacts/large-data'));out.mkdir(parents=True,exist_ok=True)
     (out/(str(gib)+'-gib-e2e.json')).write_text(json.dumps(evidence,indent=2))

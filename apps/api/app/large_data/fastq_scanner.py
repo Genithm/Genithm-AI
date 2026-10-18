@@ -1,15 +1,17 @@
-"""Bounded paired-read scanner, reference-tested against the existing single-file path."""
+"""Shared bounded FASTQ scanner for single-source and paired verification."""
 from .policy import LargeDataError
+from .quality_profile import QualityProfile
 from .verify import MAX_READ_BYTES, MAX_HEADER_BYTES, VALID_BASE, INVALID_QUAL, Q20, Q30
 
 
 class FastqScanner:
-    """Paired scanner: retain aggregates, not reads; old single-source path is unchanged."""
+    """Retain only aggregates and a bounded batch; never retain read identifiers."""
     def __init__(self, stream, max_expanded_bytes, tick=lambda: None):
         self.stream, self.limit, self.tick = stream, max_expanded_bytes, tick
         self.records = self.bases = self.quality_sum = self.q20 = self.q30 = self.expanded = 0
         self.counts = {base: 0 for base in "ACGTN"}
         self.minimum, self.maximum = MAX_READ_BYTES + 1, 0
+        self.profile = QualityProfile()
 
     def _line(self, limit):
         data = self.stream.readline(limit + 2)
@@ -41,9 +43,12 @@ class FastqScanner:
         self.records += 1
         self.bases += len(seq)
         self.minimum, self.maximum = min(self.minimum, len(seq)), max(self.maximum, len(seq))
+        record_counts = {base: seq.count(base.encode()) for base in self.counts}
         for base in self.counts:
-            self.counts[base] += seq.count(base.encode())
-        self.quality_sum += sum(qual) - 33 * len(qual)
+            self.counts[base] += record_counts[base]
+        phred_sum = sum(qual) - 33 * len(qual)
+        self.quality_sum += phred_sum
+        self.profile.add(seq, qual, phred_sum, record_counts["G"] + record_counts["C"], len(seq) - record_counts["N"])
         self.q20 += qual.translate(Q20).count(b"\x01")
         self.q30 += qual.translate(Q30).count(b"\x01")
         return header
@@ -57,4 +62,4 @@ class FastqScanner:
             "gc_percent": 100 * (self.counts["G"] + self.counts["C"]) / canonical if canonical else None,
             "min_length": self.minimum, "max_length": self.maximum, "mean_length": self.bases / self.records,
             "expanded_bytes": self.expanded, "quality_encoding": "phred33_assumed",
-            "sampling": False, "paired_identifiers_checked": False}
+            "sampling": False, "paired_identifiers_checked": False, "quality_profile": self.profile.result()}

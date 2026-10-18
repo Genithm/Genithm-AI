@@ -12,6 +12,7 @@ from ..settings import get_settings
 from ..supabase_gateway import SupabaseGateway, SupabaseGatewayError
 from .policy import LargeDataConfig, LargeDataError, MAX_BYTES, PART_BYTES, URL_TTL, part_size
 from .storage import MultipartStorage
+from .quality_report import brief_summary, report_response
 
 log = logging.getLogger("genithm.large-data")
 router = APIRouter(prefix="/api/v1/large-data", tags=["large-data"])
@@ -72,7 +73,9 @@ def clients():
 
 
 def public(row):
-    return {k: row.get(k) for k in PUBLIC_FIELDS}
+    result = {k: row.get(k) for k in PUBLIC_FIELDS}
+    result["summary"] = brief_summary(row.get("summary"))
+    return result
 
 
 def operation(fn):
@@ -92,7 +95,7 @@ def operation(fn):
 def overview(project_id: UUID, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
     owner = c.auth(authorization)
     return operation(lambda: {"limits": c.rpc("limits", p_owner=owner,p_project=str(project_id),p_storage=c.storage.config.identity),
-        "uploads": c.rpc("list",p_owner=owner,p_project=str(project_id)), "part_bytes":PART_BYTES,
+        "uploads": [public(r) for r in c.rpc("list",p_owner=owner,p_project=str(project_id))], "part_bytes":PART_BYTES,
         "formats":["fastq","fastq.gz","opaque"]})
 
 
@@ -128,6 +131,13 @@ def status(upload_id: UUID, authorization: str | None = Header(default=None), c:
         # Provider receipts are size/ordering checks only, NOT source verification.
         return result
     return operation(run)
+
+
+@router.get("/uploads/{upload_id}/quality-report")
+def quality_report(upload_id: UUID, format: Literal["json", "tsv"] = "json",
+                   authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    return operation(lambda: report_response(c.rpc("get", p_owner=owner, p_id=str(upload_id)), format))
 
 
 @router.post("/uploads/{upload_id}/parts/{number}")

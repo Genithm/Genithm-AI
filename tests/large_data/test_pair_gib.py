@@ -61,10 +61,19 @@ def test_complete_two_gib_paired_inputs(env,tmp_path,monkeypatch):
     for metrics in summary['mates']:
         assert metrics['read_count']==records and metrics['base_count']==records*53
         assert metrics['q30_bases']==records*53 and metrics['mean_phred']==40
+    response=e['api'].get('/api/v1/large-data/pairs/'+pid+'/quality-report',headers=e['headers'])
+    assert response.status_code==200,response.text
+    envelope=response.json()
+    for metric in envelope['report']['mates']:
+        profile=metric['quality_profile']
+        assert sum(row[2] for row in profile['positions'])==records*53
+        assert all(row[3]==40*row[2] and row[11:]==[40]*5 for row in profile['positions'])
+        assert profile['read_mean_phred_counts'][40]==records
+        assert profile['read_lengths']==[[51,53,records]]
     assert measured['peak_pair_worker_rss_kib']<256*1024
     evidence={'input_bytes':[size,size],'fully_allocated':True,'pairs':records,'source_sha256':hashes,
         'distinct_ordered_identifiers':True,'input_description':'Synthetic 53-base Q40 reads with unique numeric read IDs, not patient data',
-        'application_path_seconds':time.perf_counter()-started,**measured,'result':summary,
+        'application_path_seconds':time.perf_counter()-started,**measured,'result':summary,'quality_report':envelope,
         'scope':'Real API routes/PostgreSQL/S3 on GitHub loopback; fixture authentication. Not live-provider or browser memory/latency.'}
     target=Path(os.getenv('GENITHM_LARGE_DATA_EVIDENCE_DIR','artifacts/large-data'));target.mkdir(exist_ok=True,parents=True)
     (target/'paired-2-gib-e2e.json').write_text(json.dumps(evidence,indent=2))

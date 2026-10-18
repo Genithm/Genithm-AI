@@ -119,7 +119,7 @@ def verify_pair(sources, rows, max_expanded_bytes, progress=lambda _n, _pairs: N
             progress(sum(r.count for r in readers), pairs)
             for metric in metrics:
                 metric["paired_identifiers_checked"] = True
-            return {"schema": PAIR_SCHEMA, "verifier_version": PAIR_VERSION,
+            result = {"schema": PAIR_SCHEMA, "verifier_version": PAIR_VERSION,
                 "verification": "both_whole_object_sha256", "scientific_scope": "ordered_paired_fastq_qc",
                 "source_ids": [row["id"] for row in rows], "source_sha256": digests,
                 "source_bytes": [r.count for r in readers], "pair_count": pairs,
@@ -128,5 +128,7 @@ def verify_pair(sources, rows, max_expanded_bytes, progress=lambda _n, _pairs: N
                 "sampling": False, "unique_identifiers_checked": False,
                 "biological_pairing_proven": False, "mates": metrics,
                 "elapsed_seconds": round(monotonic() - started, 3)}
+            from .quality_report import seal_report
+            return seal_report(result)
         except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
             raise LargeDataError("format_invalid") from exc

@@ -18,7 +18,7 @@ provenance, and a working end-to-end execution path.
 |---|---|---|
 | Sequence data | FASTA validation/statistics; V42 single-pass streaming ingestion | Resumable multipart imports, compressed/large-file policies, cohort manifests |
 | Sequence research | Approved pairwise alignment, multiple alignment, phylogeny, nucleotide insights, protein properties and BLAST pathways | Larger-scale similarity search, assemblies, richer annotations |
-| Read and variant QC | Bounded local FASTQ/VCF inspection and optional aggregate history | V44/V45 add managed full-file and paired-input verification (separately enabled). Cohort QC, trimming, BAM/CRAM processing remain planned |
+| Read and variant QC | Bounded local FASTQ/VCF inspection and optional aggregate history | V44/V45 add managed full-file and paired-input verification (separately enabled). V46 adds bounded complete-file read-quality profiles and authorized exports. Cohort QC, trimming, BAM/CRAM processing remain planned |
 | Bulk RNA-seq | No complete alignment-to-differential-expression pipeline | Sample design, alignment/quantification, counts, statistical contrasts, enrichment |
 | Genomics | VCF QC is not variant calling | Germline/somatic workflows, reference consistency, annotation and cohort analysis |
 | Single-cell/spatial | Not implemented | Assay-aware QC, normalization, integration, clustering, annotation and spatial analysis |

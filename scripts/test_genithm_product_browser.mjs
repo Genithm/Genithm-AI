@@ -25,6 +25,7 @@ const token=payload+'.'+sign('sha256',Buffer.from(payload),{key:privateKey,dsaEn
 const cookie='base64-'+encode({access_token:token,refresh_token:'fixture-only',token_type:'bearer',expires_in:3600,expires_at:now+3600,user});
 const requests=[];let mode='normal';
 const pairR1='61000000-0000-4000-8000-000000000001',pairR2='61000000-0000-4000-8000-000000000002';
+const {default:qualityFixture}=await import("./fixtures/quality-profiles-v46.mjs");
 const pairJobs=[]; // Synthetic browser control-plane fixture, never real biological output.
 
 const api=createServer((req,res)=>{
@@ -38,8 +39,19 @@ const api=createServer((req,res)=>{
  if(url.pathname==='/rest/v1/rpc/is_platform_admin')return json(200,false);
  if(!authenticated)return json(401,{message:'Fixture authorization required'});
  if(url.pathname==='/api/v1/large-data/projects/'+projectId)return json(200,{limits:{enabled:true,capacity_bytes:10737418240,charged_bytes:200,max_file_bytes:10737418240,verifier_ready:true},uploads:[
-  {id:pairR1,project_id:projectId,original_filename:'UI fixture R1.fastq',expected_bytes:100,expected_sha256:'a'.repeat(64),data_format:'fastq',state:'ready',checked_bytes:100,error_code:null},
-  {id:pairR2,project_id:projectId,original_filename:'UI fixture R2.fastq.gz',expected_bytes:100,expected_sha256:'b'.repeat(64),data_format:'fastq.gz',state:'ready',checked_bytes:100,error_code:null}]});
+  {id:pairR1,project_id:projectId,original_filename:'UI fixture R1.fastq',expected_bytes:100,expected_sha256:'a'.repeat(64),data_format:'fastq',state:'ready',checked_bytes:100,error_code:null,summary:qualityFixture.single_summary},
+  {id:pairR2,project_id:projectId,original_filename:'UI fixture R2.fastq.gz',expected_bytes:100,expected_sha256:'b'.repeat(64),data_format:'fastq.gz',state:'ready',checked_bytes:100,error_code:null,summary:{...qualityFixture.single_summary,metrics:{...qualityFixture.single_summary.metrics,quality_profile_available:false}}}]});
+ if(url.pathname.endsWith('/quality-report')){
+  if(mode==='quality-error')return json(409,{detail:'quality_report_integrity_failed'});
+  const paired=url.pathname.includes('/pairs/');
+  const expected='/api/v1/large-data/'+(paired?'pairs/'+qualityFixture.paired.record_id:'uploads/'+pairR1)+'/quality-report';
+  if(url.pathname!==expected)return json(404,{detail:'not_found'});
+  if(url.searchParams.get('format')==='tsv'){
+   res.writeHead(200,{'Content-Type':'text/tab-separated-values','Access-Control-Allow-Origin':base,'Access-Control-Allow-Credentials':'true','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+   res.end(paired?qualityFixture.pair_tsv:qualityFixture.tsv);return;
+  }
+  return json(200,paired?qualityFixture.paired:qualityFixture.single);
+ }
  if(url.pathname==='/api/v1/large-data/projects/'+projectId+'/pairs')return json(200,{worker_ready:mode!=='pair-offline',pairs:pairJobs});
  if(url.pathname==='/api/v1/large-data/pairs'&&req.method==='POST'){
   let body='';req.on('data',chunk=>{body+=chunk;if(body.length>4096)req.destroy();});req.on('end',()=>{
@@ -131,6 +143,60 @@ try{
     assert.ok(await section.getByRole('button',{name:'Validate full pair',exact:true}).isDisabled());
    }finally{mode='normal';}
    await page.screenshot({path:resolve(output,'large-pair-controls.png'),fullPage:true});
+ });
+ await check('Detailed read profiles are lazy, export authenticated JSON/TSV, and preserve legacy results',async()=>{
+   await page.setViewportSize({width:1440,height:1000});await visit('/dashboard/data');
+   const profileRequests=()=>requests.filter(r=>r.method==='GET'&&r.path.endsWith('/quality-report'));
+   const before=profileRequests().length;
+   await page.getByText('Large files: resumable private upload',{exact:true}).click();
+   await page.getByText('Explore read-quality profiles',{exact:true}).waitFor();
+   assert.equal(profileRequests().length,before);
+   await page.getByText('Explore read-quality profiles',{exact:true}).click();
+   const panel=page.getByRole('region',{name:'Detailed read-quality report'});
+   await panel.getByRole('article',{name:'Single file quality profile'}).waitFor();
+   assert.ok(profileRequests().length>=before+1&&profileRequests().length<=before+2,'One fetch per mount, allowing development StrictMode replay');
+   assert.ok(profileRequests().at(-1).authenticated);
+   await panel.getByText('Exact profile data',{exact:true}).click();
+   assert.ok(await panel.getByRole('rowheader',{name:'61-70',exact:true}).isVisible());
+   assert.ok(await panel.getByRole('cell',{name:'20.00',exact:true}).count()>0);
+   const metric=panel.getByRole('article',{name:'Single file quality profile'});
+   for(const value of ['length','read-quality','gc','quality']){
+    await metric.getByLabel('Profile view').selectOption(value);
+    assert.ok(await metric.getByRole('img').isVisible());
+   }
+   const downloaded=JSON.parse(await downloadText(panel.getByRole('button',{name:'Download full JSON report',exact:true})));
+   assert.equal(downloaded.report.report_sha256,qualityFixture.single.report.report_sha256);
+   const tsv=await downloadText(panel.getByRole('button',{name:'Download profile TSV',exact:true}));
+   assert.match(tsv,/nearest rank/);assert.doesNotMatch(tsv,/PRIVATE_PROFILE_FIXTURE|ACGTACGT/);
+   assert.ok(profileRequests().every(r=>r.authenticated&& !r.query.includes('token')));
+   await page.getByText(/Detailed profiles were not recorded/).waitFor();
+   await scan('read-quality-single');
+   await page.screenshot({path:resolve(output,'read-quality-single.png'),fullPage:true});
+ });
+ await check('Quality report integrity errors are visible and retry fetches a fresh authorized report',async()=>{
+   await visit('/dashboard/data');await page.getByText('Large files: resumable private upload',{exact:true}).click();
+   mode='quality-error';try{
+    await page.getByText('Explore read-quality profiles',{exact:true}).click();
+    const panel=page.getByRole('region',{name:'Detailed read-quality report'});
+    await panel.getByRole('alert').waitFor();assert.equal(await panel.getByRole('article').count(),0);
+   }finally{mode='normal';}
+   await page.getByRole('button',{name:'Retry report',exact:true}).click();
+   await page.getByRole('article',{name:'Single file quality profile'}).waitFor();
+ });
+ await check('Paired profiles show distinct mates and historical source status without new navigation',async()=>{
+   pairJobs.push({id:qualityFixture.paired.record_id,project_id:projectId,title:'UI fixture historical pair',r1_id:pairR1,r2_id:pairR2,state:'ready',expected_bytes:500,checked_bytes:500,checked_pairs:1,sources_available:false,summary:qualityFixture.pair_summary,error_code:null});
+   await visit('/dashboard/data');await page.getByText('Large files: resumable private upload',{exact:true}).click();
+   await page.getByText('Paired-end verification for large FASTQ files',{exact:true}).click();
+   const section=page.getByRole('region',{name:'Server-side paired FASTQ validation'});
+   await section.getByRole('heading',{name:'UI fixture historical pair',exact:true}).waitFor();
+   await section.getByText('Explore read-quality profiles',{exact:true}).click();
+   await section.getByRole('article',{name:'R1 quality profile'}).waitFor();
+   await section.getByRole('article',{name:'R2 quality profile'}).waitFor();
+   await section.getByText(/Historical result: one or both sources/).waitFor();
+   assert.match(await section.getByRole('article',{name:'R1 quality profile'}).innerText(),/30.00/);
+   assert.match(await section.getByRole('article',{name:'R2 quality profile'}).innerText(),/20.00/);
+   await scan('read-quality-paired');
+   await page.screenshot({path:resolve(output,'read-quality-paired.png'),fullPage:true});
  });
  await check('No uncaught browser errors or external service requests',async()=>{assert.deepEqual(runtimeErrors,[]);assert.deepEqual(externalRequests,[]);});
 }finally{
