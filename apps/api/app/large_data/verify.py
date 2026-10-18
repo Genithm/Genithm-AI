@@ -4,6 +4,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+import zlib
 from time import monotonic
 from .policy import CHUNK_BYTES, LargeDataError
 
@@ -77,7 +78,8 @@ def scan_fastq(stream, max_expanded_bytes, tick=lambda: None):
         seq, a = line(MAX_READ_BYTES)
         plus, b = line(MAX_HEADER_BYTES)
         qual, c = line(MAX_READ_BYTES)
-        if (not header.startswith(b"@") or len(header) < 2 or not (a and b and c) or
+        if (not header.startswith(b"@") or len(header) < 2 or not header[1:].strip() or
+            any(ch < 32 or ch == 127 for ch in header) or not (a and b and c) or
             not plus.startswith(b"+") or (len(plus) > 1 and plus[1:] != header[1:]) or
             not seq or len(seq) != len(qual)):
             raise LargeDataError("format_invalid")
@@ -147,7 +149,7 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
                 "format":row["data_format"],"verifier_version":"genithm-large-data/1.0.0",
                 "verification":"whole_object_sha256","scientific_scope":"full_fastq_aggregate_qc" if metrics else "bytes_only",
                 "metrics":metrics,"elapsed_seconds":round(monotonic()-start,3)}
-    except (gzip.BadGzipFile,EOFError) as exc:
+    except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
         raise LargeDataError("format_invalid") from exc
     finally:
         if reader is None:
