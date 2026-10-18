@@ -64,6 +64,7 @@ def database():
            $$select exists(select 1 from public.organization_members where organization_id=org and user_id=auth.uid())$$;
         ''')
         db.execute(MIGRATION.read_text())
+        db.execute((ROOT/'supabase/migrations/20261018183000_managed_paired_fastq_v45.sql').read_text())
     yield
 
 

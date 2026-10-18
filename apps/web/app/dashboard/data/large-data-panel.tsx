@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {createClient} from "@/lib/supabase/client";
+import {PairedDataDisclosure} from "./paired-data-panel";
 
 type Project={id:string;name:string};
 type Upload={id:string;project_id:string;original_filename:string;expected_bytes:number;expected_sha256:string;
@@ -15,6 +16,7 @@ const explain=(code:string)=>({large_data_not_enabled:"Large-file storage has no
  quota_not_configured:"Your project needs an administrator-approved storage allowance.",quota_exceeded:"This file exceeds the project's available storage allowance.",
  verifier_not_ready:"The large-file verification worker is offline. Upload admission is paused.",
  upload_links_still_active:"Pause the upload and wait seven minutes before cleanup. Existing upload links must expire first.",
+ source_in_active_pair:"Cancel the active paired check before removing either of its sources.",
  operation_in_progress:"The server is finishing an operation. Refresh its status; do not start a duplicate upload.",
  large_data_operation_uncertain_retry_status_first:"The operation outcome is uncertain. Refresh status before retrying."}[code]||code.replaceAll("_"," "));
 
@@ -125,5 +127,6 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
    {item.state==="ready"&&item.summary?.scientific_scope==="bytes_only"&&<p>All file bytes verified. No biological analysis has been performed.</p>}
    {!['aborted','verifying','completing'].includes(item.state)&&<details><summary>Remove upload and stored bytes</summary><p>Quota is released only after confirmed cleanup. Active upload links must expire first.</p><button disabled={busy} className="button" onClick={()=>void cleanup(item)}>Confirm removal</button></details>}
   </article>)}
+  {overview&&<PairedDataDisclosure key={project} project={project} uploads={overview.uploads}/>}
  </section>;
 }
