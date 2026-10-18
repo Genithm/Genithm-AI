@@ -11,6 +11,7 @@ from starlette.responses import Response
 
 from .settings import get_settings
 from .storage_routes import router as storage_router
+from .large_data.pair_routes import router as pair_router
 from .large_data.routes import router as large_data_router, LargeDataBodyLimit
 
 settings = get_settings()
@@ -44,6 +45,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(storage_router)
+app.include_router(pair_router)
 app.include_router(large_data_router)
 app.add_middleware(LargeDataBodyLimit)
 

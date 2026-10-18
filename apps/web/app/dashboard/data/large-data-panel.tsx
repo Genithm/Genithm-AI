@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {createClient} from "@/lib/supabase/client";
+import {LargePairPanel} from "./large-pair-panel";
 
 type Project={id:string;name:string};
 type Upload={id:string;project_id:string;original_filename:string;expected_bytes:number;expected_sha256:string;
@@ -12,6 +13,11 @@ const API_BASE=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"").replace(/\/$/,"");
 const API=API_BASE+"/api/v1/large-data";
 const size=(n:number)=>(n/1024**3).toFixed(2)+" GiB";
 const explain=(code:string)=>({large_data_not_enabled:"Large-file storage has not been enabled on this server.",
+ pairing_not_enabled:"Paired-read processing has not been enabled on this server.",
+ pair_worker_not_ready:"The paired-read verifier is offline. Existing uploads are unchanged.",
+ pair_source_in_use:"This file is used by a queued or running paired validation. Cancel that job before removing the source.",
+ pair_source_invalid:"Choose two different, ready FASTQ files from your project.",
+ pair_queue_full:"Two paired checks are already queued or running for this project. Wait or cancel one.",
  quota_not_configured:"Your project needs an administrator-approved storage allowance.",quota_exceeded:"This file exceeds the project's available storage allowance.",
  verifier_not_ready:"The large-file verification worker is offline. Upload admission is paused.",
  upload_links_still_active:"Pause the upload and wait seven minutes before cleanup. Existing upload links must expire first.",
@@ -118,6 +124,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
   {stage&&<p role="status">{stage} {file&&busy?`${size(bytes)} / ${size(file.size)} in this phase`:""}</p>}
   {error&&<p role="alert" className="error">{error}</p>}
   <p className="genithm-note">Closing the tab pauses browser uploads, not already-queued server verification. Resume from the server list with the same file. This uploader does not store access tokens or signed URLs in upload checkpoints. A 100 GiB policy ceiling is not a promise that every analysis supports that size.</p>
+  {overview&&<LargePairPanel key={project} project={project} sources={overview.uploads} call={call}/>}
   {overview?.uploads.map(item=><article key={item.id} className="genithm-disclosure">
    <h3>{item.original_filename}</h3><p>{size(item.expected_bytes)} · {item.state.replaceAll("_"," ")}{item.error_code?" · "+item.error_code.replaceAll("_"," "):""}</p>
    {item.state==="uploading"&&<button className="button" disabled={busy} onClick={()=>{setCurrent(item);requestId.current=null;}}>Select to resume</button>}

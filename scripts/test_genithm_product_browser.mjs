@@ -24,16 +24,33 @@ const payload=encode({alg:'ES256',kid,typ:'JWT'})+'.'+encode({sub:userId,email:u
 const token=payload+'.'+sign('sha256',Buffer.from(payload),{key:privateKey,dsaEncoding:'ieee-p1363'}).toString('base64url');
 const cookie='base64-'+encode({access_token:token,refresh_token:'fixture-only',token_type:'bearer',expires_in:3600,expires_at:now+3600,user});
 const requests=[];let mode='normal';
+const pairR1='61000000-0000-4000-8000-000000000001',pairR2='61000000-0000-4000-8000-000000000002';
+const pairJobs=[]; // Synthetic browser control-plane fixture, never real biological output.
+
 const api=createServer((req,res)=>{
  const url=new URL(req.url,backend),authenticated=req.headers.authorization==='Bearer '+token;
  requests.push({method:req.method,path:url.pathname,query:url.search,authenticated});
- const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Access-Control-Allow-Origin':base,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Credentials':'true'});res.end(JSON.stringify(value));};
+ const json=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Access-Control-Allow-Origin':base,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Credentials':'true','Access-Control-Allow-Methods':'GET,POST,OPTIONS'});res.end(JSON.stringify(value));};
  if(req.method==='OPTIONS')return json(200,{});
  if(url.pathname==='/auth/v1/.well-known/jwks.json')return json(200,{keys:[jwk]});
  if(url.pathname==='/auth/v1/user')return json(authenticated?200:401,authenticated?user:{message:'Invalid fixture token'});
  if(url.pathname==='/auth/v1/logout'&&authenticated)return json(200,{});
  if(url.pathname==='/rest/v1/rpc/is_platform_admin')return json(200,false);
  if(!authenticated)return json(401,{message:'Fixture authorization required'});
+ if(url.pathname==='/api/v1/large-data/projects/'+projectId)return json(200,{limits:{enabled:true,capacity_bytes:10737418240,charged_bytes:200,max_file_bytes:10737418240,verifier_ready:true},uploads:[
+  {id:pairR1,project_id:projectId,original_filename:'UI fixture R1.fastq',expected_bytes:100,expected_sha256:'a'.repeat(64),data_format:'fastq',state:'ready',checked_bytes:100,error_code:null},
+  {id:pairR2,project_id:projectId,original_filename:'UI fixture R2.fastq.gz',expected_bytes:100,expected_sha256:'b'.repeat(64),data_format:'fastq.gz',state:'ready',checked_bytes:100,error_code:null}]});
+ if(url.pathname==='/api/v1/large-data/projects/'+projectId+'/pairs')return json(200,{worker_ready:mode!=='pair-offline',pairs:pairJobs});
+ if(url.pathname==='/api/v1/large-data/pairs'&&req.method==='POST'){
+  let body='';req.on('data',chunk=>{body+=chunk;if(body.length>4096)req.destroy();});req.on('end',()=>{
+   const b=JSON.parse(body);assert.equal(b.project_id,projectId);assert.equal(b.r1_id,pairR1);assert.equal(b.r2_id,pairR2);
+   assert.deepEqual(Object.keys(b).sort(),['project_id','r1_id','r2_id','request_id','title']);
+   const job={id:randomUUID(),title:b.title,r1_id:b.r1_id,r2_id:b.r2_id,state:'queued',expected_bytes:200,checked_bytes:0,checked_pairs:0,summary:null,error_code:null};pairJobs.push(job);json(201,job);
+  });return;
+ }
+ if(url.pathname.startsWith('/api/v1/large-data/pairs/')&&url.pathname.endsWith('/cancel')&&req.method==='POST'){
+  const id=url.pathname.split('/').at(-2),job=pairJobs.find(x=>x.id===id);if(!job)return json(404,{});job.state='cancelled';return json(200,job);
+ }
  if(req.method!=='GET'&&req.method!=='HEAD')return json(405,{message:'Fixture is read-only'});
  const table=url.pathname.split('/').at(-1);
  if(table==='projects'&&mode==='project-error')return json(503,{message:'Fixture project query failure'});
@@ -46,7 +63,7 @@ const api=createServer((req,res)=>{
 });
 await new Promise(resolve=>api.listen(3198,'127.0.0.1',resolve));
 const env={...process.env};for(const key of Object.keys(env))if(/SUPABASE|OPENROUTER|GENITHM|CODESPACE/i.test(key))delete env[key];
-Object.assign(env,{NEXT_PUBLIC_SUPABASE_URL:backend,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-not-a-secret',GENITHM_APP_URL:base,GENITHM_SCIENCE_V22_ENABLED:'false',NEXT_TELEMETRY_DISABLED:'1'});
+Object.assign(env,{NEXT_PUBLIC_GENITHM_API_URL:backend,NEXT_PUBLIC_SUPABASE_URL:backend,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-not-a-secret',GENITHM_APP_URL:base,GENITHM_SCIENCE_V22_ENABLED:'false',NEXT_TELEMETRY_DISABLED:'1'});
 const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3199'],{cwd:resolve('apps/web'),env,stdio:['ignore','pipe','pipe'],detached:true});
 let serverLog='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{serverLog+=chunk;});
 const results=[],runtimeErrors=[],externalRequests=[];let browser,page;
@@ -88,6 +105,32 @@ try{
        assert.equal(await phone.locator('input[type=file],textarea').count(),0);
      }}finally{await mobile.close();}
    }
+ });
+ await check('Managed paired-file controls are opt-in, submit authorized IDs and cancel queued work',async()=>{
+   await page.setViewportSize({width:1440,height:1000});await visit('/dashboard/data');
+   const count=()=>requests.filter(r=>r.path.startsWith('/api/v1/large-data')).length;
+   const before=count();await page.waitForTimeout(100);assert.equal(count(),before);
+   await page.getByText('Large files: resumable private upload',{exact:true}).click();
+   await page.getByText('Paired-end verification for large FASTQ files',{exact:true}).waitFor();
+   assert.equal(requests.filter(r=>r.path.endsWith('/pairs')).length,0);
+   await page.getByText('Paired-end verification for large FASTQ files',{exact:true}).click();
+   const section=page.getByRole('region',{name:'Server-side paired FASTQ validation'});
+   await section.getByLabel('Study label').fill('Browser fixture paired inputs');
+   await section.getByLabel('R1 upload').selectOption(pairR1);
+   await section.getByLabel('R2 upload').selectOption(pairR1);
+   assert.ok(await section.getByRole('button',{name:'Validate full pair',exact:true}).isDisabled());
+   await section.getByLabel('R2 upload').selectOption(pairR2);
+   await section.getByRole('button',{name:'Validate full pair',exact:true}).click();
+   await section.getByRole('heading',{name:'Browser fixture paired inputs',exact:true}).waitFor();
+   assert.equal(pairJobs.length,1);assert.equal(pairJobs[0].state,'queued');
+   await scan('large-pair-controls');
+   await section.getByRole('button',{name:'Cancel pair validation',exact:true}).click();
+   await section.getByText('cancelled',{exact:true}).waitFor();assert.equal(pairJobs[0].state,'cancelled');
+   mode='pair-offline';try{await section.getByRole('button',{name:'Refresh pair status',exact:true}).click();
+    await section.getByText(/Pair verifier: offline/).waitFor();
+    assert.ok(await section.getByRole('button',{name:'Validate full pair',exact:true}).isDisabled());
+   }finally{mode='normal';}
+   await page.screenshot({path:resolve(output,'large-pair-controls.png'),fullPage:true});
  });
  await check('No uncaught browser errors or external service requests',async()=>{assert.deepEqual(runtimeErrors,[]);assert.deepEqual(externalRequests,[]);});
 }finally{
