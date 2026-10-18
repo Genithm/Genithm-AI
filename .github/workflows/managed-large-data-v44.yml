@@ -1,0 +1,82 @@
+name: Managed large data acceptance
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/web/lib/streaming-sha256.ts'
+      - 'apps/web/app/dashboard/data/**'
+      - 'apps/web/tests/large-data-v44.test.mjs'
+      - 'supabase/migrations/*managed_large_data*'
+      - 'tests/large_data/**'
+      - '.github/workflows/managed-large-data-v44.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/app/large_data/**'
+      - 'supabase/migrations/*managed_large_data*'
+      - 'tests/large_data/**'
+      - '.github/workflows/managed-large-data-v44.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-full-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.11
+        env:
+          POSTGRES_DB: genithm_large_data_ci
+          POSTGRES_PASSWORD: ephemeral-ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      GENITHM_LARGE_DATA_TEST_DSN: postgresql://postgres:ephemeral-ci-only-password@127.0.0.1:5432/genithm_large_data_ci
+      GENITHM_RUN_GIB_E2E: '1'
+      GENITHM_LARGE_DATA_EVIDENCE_DIR: artifacts/large-data
+      PYTHONPATH: apps/api
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install pinned API and isolated test driver
+        run: python -m pip install -e 'apps/api[dev]' 'psycopg[binary]==3.2.10'
+      - name: Start real private S3-compatible test storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name genithm-large-s3 -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER=genithm-ci \
+            -e MINIO_ROOT_PASSWORD=temporary-private-test-password \
+            docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46 \
+            server /data --address :9000
+          for n in $(seq 1 60); do
+            if docker exec genithm-large-s3 silo healthcheck ready; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Verify parser, privacy, API guards, and browser hashing
+        run: |
+          mkdir -p artifacts/large-data
+          pytest apps/api/tests/test_large_data_v44.py apps/api/tests/test_large_data_hardening_v44.py --junitxml=artifacts/large-data/unit.xml
+          node --experimental-strip-types --test apps/web/tests/large-data-v44.test.mjs > artifacts/large-data/browser-hash-tests.txt
+      - name: Exercise auth, atomic quotas, signatures, resume, fencing and complete 1 and 5 GiB FASTQ
+        run: pytest -v tests/large_data --junitxml=artifacts/large-data/integration.xml
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-managed-large-data-evidence
+          path: artifacts/large-data
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove isolated storage
+        if: always()
+        run: docker rm -f genithm-large-s3 || true

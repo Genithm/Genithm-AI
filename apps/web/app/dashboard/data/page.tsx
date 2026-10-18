@@ -2,6 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "@/lib/supabase/server";
 import {SequenceUploadPanel} from "../sequence-upload-panel";
+import {LargeDataDisclosure} from "./large-data-disclosure";
 export const dynamic="force-dynamic";
 export default async function DataPage(){
   const db=await createClient();const {data:auth,error:authError}=await db.auth.getClaims();const owner=auth?.claims?.sub;
@@ -16,6 +17,7 @@ export default async function DataPage(){
       {projects?.length?<details className="genithm-disclosure"><summary>Upload a FASTA file</summary><SequenceUploadPanel projects={projects} userId={owner}/></details>:<p className="genithm-note">Create a project before uploading FASTA. Local FASTQ and VCF inspection remain available.</p>}
       {uploads?.length?<div className="genithm-table-scroll"><table className="genithm-table"><caption className="genithm-sr-only">Your recent FASTA uploads</caption><thead><tr><th scope="col">File</th><th scope="col">Project</th><th scope="col">Size</th><th scope="col">Status</th></tr></thead><tbody>{uploads.map(file=><tr key={file.id}><td>{file.original_filename}</td><td>{names.get(file.project_id)||"Research project"}</td><td>{(file.file_size_bytes/1024/1024).toFixed(2)} MiB</td><td><span className="genithm-state">{file.status.replaceAll("_"," ")}</span></td></tr>)}</tbody></table></div>:<div className="genithm-empty">No uploaded FASTA files in your active projects yet.</div>}
       <p className="genithm-note">Showing up to 100 of your recent uploads. FASTA upload and validation need the API, storage, and scientific services. The FASTQ and VCF labs process files in your browser; they do not upload the original files.</p>
+      {projects?.length?<LargeDataDisclosure projects={projects}/>:null}
     </>}
   </main>;
 }
