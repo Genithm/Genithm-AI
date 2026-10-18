@@ -1,0 +1,55 @@
+name: Stage reviewed large-data transport
+on:
+  push:
+    branches: [feat/large-dataset-transport-v44]
+    paths: [.github/workflows/stage-reviewed-transfer-v44.yml]
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify fixed data bundle and stage only approved file blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          root = 'https://api.github.com/repos/Genithm/Genithm-AI/git/blobs'
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'genithm-reviewed-source-staging'}
+          shas = ['c07b994f4f30b165f908ea53c914b5691bf19db5', 'f3b0a57b32315cff67736d146fe1ad61dcab8587', 'dc0044454eeef1fcf5cd622d937541aae17bd6ee', '474c3384adf4ddfff34edc47842169c34f7ba510', 'd310b60113507fbfe3517ec4c45ea832cffcea6b', '2ffa15fa73e93e665e52a1f3cc3e711585ffaa83', '5e07c6352f6b38762111cfc87d9606f7fda70e68', '8444cd92d78feaf03a9af412ee0fa3ecea402434']
+          chunks = []
+          for sha in shas:
+              with urlopen(Request(root + '/' + sha, headers=headers), timeout=30) as response:
+                  value = json.load(response)
+              block = base64.b64decode(value['content'])
+              assert hashlib.sha1(b'blob ' + str(len(block)).encode() + b'\0' + block).hexdigest() == sha
+              chunks.append(block)
+          data = b''.join(chunks)
+          assert len(data) == 16102
+          assert hashlib.sha256(data).hexdigest() == 'add713fb4a37abb0d8b5dacda8422a94b725cbe880a264f864d32c93eacc77f1'
+          files = json.loads(gzip.decompress(data))
+          allowed = {'apps/api/app/bulk_transfer.py', 'apps/api/app/bulk_s3.py', 'apps/api/tests/test_bulk_transfer.py', 'apps/api/tests/test_bulk_s3.py', 'apps/api/tests/benchmark_bulk_transfer.py', '.github/workflows/large-dataset-capacity-v44.yml', 'docs/large-dataset-transport-v44.md'}
+          assert len(files) == 7 and {entry['path'] for entry in files} == allowed
+          manifest = []
+          for entry in files:
+              assert entry['mode'] == '100644' and isinstance(entry['content'], str)
+              payload = json.dumps({'encoding': 'utf-8', 'content': entry['content']}).encode()
+              with urlopen(Request(root, data=payload, headers=headers, method='POST'), timeout=30) as response:
+                  created = json.load(response)
+              encoded = entry['content'].encode()
+              expected = hashlib.sha1(b'blob ' + str(len(encoded)).encode() + b'\0' + encoded).hexdigest()
+              assert created['sha'] == expected
+              manifest.append({'path': entry['path'], 'mode': '100644', 'type': 'blob', 'sha': created['sha']})
+          Path('reviewed-blobs.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          print('Seven verified unreferenced blobs staged. No branch, tree, or commit was changed by this job.')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-v44-reviewed-blobs
+          path: reviewed-blobs.json
+          retention-days: 3
