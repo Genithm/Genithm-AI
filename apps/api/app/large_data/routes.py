@@ -13,15 +13,17 @@ from ..supabase_gateway import SupabaseGateway, SupabaseGatewayError
 from .policy import LargeDataConfig, LargeDataError, MAX_BYTES, PART_BYTES, URL_TTL, part_size
 from .storage import MultipartStorage
 from .quality_report import brief_summary, report_response
+from .file_registry import catalog
 
 log = logging.getLogger("genithm.large-data")
 router = APIRouter(prefix="/api/v1/large-data", tags=["large-data"])
 SAFE_CODES = {"not_found":404,"quota_not_configured":409,"quota_exceeded":409,"file_size_limit":413,
  "too_many_active_uploads":429,"verifier_not_ready":503,"idempotency_conflict":409,
+ "file_verifier_not_ready":503,"batch_path_conflict":409,"invalid_relative_path":422,"invalid_filename":422,"invalid_intake_mode":422,"invalid_cursor":422,
  "pair_source_invalid":409,"pair_queue_full":429,"pair_worker_not_ready":503,"pair_source_in_use":409,
  "operation_in_progress":409,"upload_links_still_active":409,"lease_lost":409,"invalid_part":422}
 PUBLIC_FIELDS = ("id","project_id","original_filename","expected_bytes","expected_sha256","data_format","state",
-                 "part_bytes","checked_bytes","actual_sha256","summary","error_code","created_at","updated_at")
+                 "part_bytes","checked_bytes","actual_sha256","summary","error_code","created_at","updated_at","intake_mode","relative_path","batch_id")
 
 
 class Reserve(BaseModel):
@@ -73,6 +75,9 @@ def clients():
 
 
 def public(row):
+    if row.get("intake_mode", "legacy") in {"auto", "preserve"} and row.get("state") == "ready":
+        from .file_intake import file_report
+        file_report(row)  # Validate full evidence before reducing it for the UI.
     result = {k: row.get(k) for k in PUBLIC_FIELDS}
     result["summary"] = brief_summary(row.get("summary"))
     return result
@@ -96,7 +101,7 @@ def overview(project_id: UUID, authorization: str | None = Header(default=None),
     owner = c.auth(authorization)
     return operation(lambda: {"limits": c.rpc("limits", p_owner=owner,p_project=str(project_id),p_storage=c.storage.config.identity),
         "uploads": [public(r) for r in c.rpc("list",p_owner=owner,p_project=str(project_id))], "part_bytes":PART_BYTES,
-        "formats":["fastq","fastq.gz","opaque"]})
+        "formats":["fastq","fastq.gz","opaque"], "file_catalog":catalog()})
 
 
 @router.post("/uploads", status_code=201)
@@ -246,3 +251,66 @@ class LargeDataBodyLimit:
                 return {"type": "http.request", "body": bytes(body), "more_body": False}
             return await receive()
         await self.app(scope, bounded_receive, send)
+
+
+class ReserveFile(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    project_id: str
+    request_id: str
+    filename: str = Field(min_length=1, max_length=255)
+    relative_path: str | None = Field(default=None, min_length=1, max_length=1024)
+    batch_id: str | None = None
+    expected_bytes: StrictInt = Field(ge=1, le=MAX_BYTES)
+    expected_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    mode: Literal["auto", "preserve"] = "auto"
+
+
+@router.post("/files", status_code=201)
+def reserve_file(payload: ReserveFile, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    def run():
+        from .file_registry import validate_path, storage_format
+        try:
+            project, request = str(UUID(payload.project_id)), str(UUID(payload.request_id))
+            batch = str(UUID(payload.batch_id)) if payload.batch_id is not None else None
+        except ValueError:
+            raise LargeDataError("invalid_identifier", 422) from None
+        path = validate_path(payload.filename, payload.relative_path)
+        row = c.rpc("reserve_file_v47", p_owner=owner, p_project=project, p_request=request,
+            p_filename=payload.filename, p_path=path, p_batch=batch, p_mode=payload.mode,
+            p_bytes=payload.expected_bytes, p_sha256=payload.expected_sha256,
+            p_format=storage_format(payload.filename, payload.mode), p_storage=c.storage.config.identity)
+        if row["state"] != "reserved":
+            return public(row)
+        row = c.rpc("acquire", p_owner=owner, p_id=row["id"], p_operation="initialize")
+        provider_id = c.storage.create(row)
+        return public(c.rpc("finish_operation", p_id=row["id"], p_token=row["operation_token"],
+            p_operation="initialize", p_provider_id=provider_id))
+    return operation(run)
+
+
+@router.get("/projects/{project_id}/files")
+def file_page(project_id: UUID, before: UUID | None = None, batch: UUID | None = None,
+              limit: int = 25, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    def run():
+        if not 1 <= limit <= 100:
+            raise LargeDataError("invalid_page_limit", 422)
+        result = c.rpc("files_page_v47", p_owner=owner, p_project=str(project_id),
+            p_before=str(before) if before else None, p_batch=str(batch) if batch else None, p_limit=limit)
+        return {**result, "files": [public(row) for row in result["files"]]}
+    return operation(run)
+
+
+@router.get("/uploads/{upload_id}/file-report")
+def intake_report(upload_id: UUID, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    def run():
+        from .file_intake import file_report
+        from .quality_report import canonical
+        from starlette.responses import Response
+        report = file_report(c.rpc("get", p_owner=owner, p_id=str(upload_id)))
+        return Response(canonical(report), media_type="application/json", headers={
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'attachment; filename="genithm-file-{upload_id}.json"'})
+    return operation(run)

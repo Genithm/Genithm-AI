@@ -65,6 +65,7 @@ def database():
         ''')
         db.execute(MIGRATION.read_text())
         db.execute((ROOT/"supabase/migrations/20261018193000_large_data_pairs_v45.sql").read_text())
+        db.execute((ROOT/"supabase/migrations/20261018205630_universal_file_intake_v47.sql").read_text())
     yield
 
 

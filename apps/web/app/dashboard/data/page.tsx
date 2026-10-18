@@ -11,7 +11,7 @@ export default async function DataPage(){
   const ids=(projects??[]).map(p=>p.id);
   const {data:uploads,error:uploadError}=!projectError&&ids.length?await db.from("sequence_uploads").select("id,project_id,original_filename,file_size_bytes,status,created_at").eq("created_by",owner).in("project_id",ids).order("created_at",{ascending:false}).limit(100):{data:[],error:null};
   const names=new Map((projects??[]).map(p=>[p.id,p.name]));
-  return <main className="genithm-page"><header className="genithm-page-heading"><div><div className="genithm-page-kicker">RESEARCH FILES</div><h1>Data</h1><p>Upload FASTA for scientific workflows, or inspect FASTQ and VCF locally.</p></div></header>
+  return <main className="genithm-page"><header className="genithm-page-heading"><div><div className="genithm-page-kicker">RESEARCH FILES</div><h1>Data</h1><p>Upload research files of any format, including folders and large datasets. FASTA workflow inputs and local FASTQ/VCF inspection remain separate tools.</p></div></header>
     <div className="genithm-page-links"><Link href="/dashboard/fastq-qc">Analyze local FASTQ</Link><Link href="/dashboard/variant-qc">Analyze local VCF</Link><Link href="/dashboard/projects">Manage projects</Link></div>
     {projectError||uploadError?<p role="alert" className="error">Your file list could not be loaded securely. Refresh before uploading.</p>:<>
       {projects?.length?<details className="genithm-disclosure"><summary>Upload a FASTA file</summary><SequenceUploadPanel projects={projects} userId={owner}/></details>:<p className="genithm-note">Create a project before uploading FASTA. Local FASTQ and VCF inspection remain available.</p>}

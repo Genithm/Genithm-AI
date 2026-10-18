@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { LargeDataPanel } from "@/app/dashboard/data/large-data-panel";
 import styles from "./ai-chat-composer.module.css";
 
 type ProjectOption = {
@@ -133,6 +134,7 @@ export function AiChatComposer({
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [researchFilesOpen, setResearchFilesOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [liveUserMessage, setLiveUserMessage] = useState<string | null>(null);
   const [liveAssistantMessage, setLiveAssistantMessage] = useState<string | null>(null);
@@ -593,6 +595,7 @@ export function AiChatComposer({
               <span aria-hidden="true">＋</span>
               Attach
             </button>
+            <button className={styles.attachButton} type="button" disabled={!projectId || sending} aria-expanded={researchFilesOpen} aria-controls={researchFilesOpen ? "genithm-chat-research-files" : undefined} onClick={() => setResearchFilesOpen(value => !value)}>Research files</button>
             <span className={styles.hint}>FASTA, DNA, protein, images · drag &amp; drop</span>
           </div>
           <button
@@ -606,6 +609,10 @@ export function AiChatComposer({
         </div>
       </div>
 
+      {researchFilesOpen && projectId ? <section id="genithm-chat-research-files" aria-label="Project files in chat">
+        <p className="genithm-note">Upload any research file or folder to this project. These stored files are not automatically sent to the language model or attached to this message. Switching projects or closing this panel pauses browser transfers; completed uploads remain in Data.</p>
+        <LargeDataPanel key={projectId} projects={projects.filter(project => project.id === projectId)} />
+      </section> : null}
       {error ? <div className="error" role="alert">{error}</div> : null}
     </div>
   );

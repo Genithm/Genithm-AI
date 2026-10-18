@@ -4,10 +4,13 @@ on:
     paths:
       - 'apps/api/**'
       - 'apps/web/lib/streaming-sha256.ts'
+      - 'apps/web/lib/file-batch-transfer.ts'
+      - 'apps/web/tests/file-intake-v47.test.mjs'
       - 'apps/web/app/dashboard/data/**'
       - 'apps/web/tests/large-data-v44.test.mjs'
       - 'supabase/migrations/*managed_large_data*'
       - 'supabase/migrations/*large_data_pairs*'
+      - 'supabase/migrations/*universal_file_intake*'
       - 'tests/large_data/**'
       - '.github/workflows/managed-large-data-v44.yml'
   push:
@@ -16,6 +19,7 @@ on:
       - 'apps/api/app/large_data/**'
       - 'supabase/migrations/*managed_large_data*'
       - 'supabase/migrations/*large_data_pairs*'
+      - 'supabase/migrations/*universal_file_intake*'
       - 'tests/large_data/**'
       - '.github/workflows/managed-large-data-v44.yml'
 permissions:
@@ -67,8 +71,8 @@ jobs:
       - name: Verify parser, privacy, API guards, and browser hashing
         run: |
           mkdir -p artifacts/large-data
-          pytest apps/api/tests/test_large_data_v44.py apps/api/tests/test_large_data_hardening_v44.py apps/api/tests/test_large_pair_v45.py apps/api/tests/test_quality_profiles_v46.py --junitxml=artifacts/large-data/unit.xml
-          node --experimental-strip-types --test apps/web/tests/large-data-v44.test.mjs apps/web/tests/large-pair-v45.test.mjs apps/web/tests/quality-report-v46.test.mjs > artifacts/large-data/browser-hash-tests.txt
+          pytest apps/api/tests/test_large_data_v44.py apps/api/tests/test_large_data_hardening_v44.py apps/api/tests/test_large_pair_v45.py apps/api/tests/test_quality_profiles_v46.py apps/api/tests/test_file_intake_v47.py --junitxml=artifacts/large-data/unit.xml
+          node --experimental-strip-types --test apps/web/tests/large-data-v44.test.mjs apps/web/tests/large-pair-v45.test.mjs apps/web/tests/quality-report-v46.test.mjs apps/web/tests/file-intake-v47.test.mjs > artifacts/large-data/browser-hash-tests.txt
       - name: Exercise auth, atomic quotas, signatures, resume, fencing and complete single-file and 2 GiB paired FASTQ
         run: pytest -v tests/large_data --junitxml=artifacts/large-data/integration.xml
       - name: Upload acceptance evidence
