@@ -2,8 +2,8 @@
   "schema_version": "genithm-v1-candidate/1",
   "release_target": "v1.0.0",
   "stage": "deployment_candidate",
-  "candidate_generation": 9,
-  "refresh_reason": "streaming_sequence_ingest_v42",
+  "candidate_generation": 10,
+  "refresh_reason": "managed_large_data_v44",
   "repository": "Genithm/Genithm-AI",
   "platforms": [
     "linux/amd64",
