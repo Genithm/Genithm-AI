@@ -1,0 +1,30 @@
+name: Prepare file evidence migration
+on:
+  push:
+    branches: [feat/chat-file-evidence-v48]
+    paths: [.github/workflows/prepare-file-evidence-v48.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520
+        with:
+          version: 2.117.0
+      - name: Generate new migration filename
+        run: |
+          supabase --version
+          supabase migration new --help
+          supabase migration new chat_file_evidence_v48
+          mkdir -p /tmp/v48-preparation
+          cp supabase/migrations/*chat_file_evidence_v48.sql /tmp/v48-preparation/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: genithm-v48-migration-template
+          path: /tmp/v48-preparation
+          retention-days: 2
