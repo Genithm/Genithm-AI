@@ -129,9 +129,9 @@ export async function POST(request: Request) {
   // Migration-aware: ordinary V47 chat continues to work during database rollout.
   const { data: prepared, error: prepareError } = researchFileIds.length
     ? await supabase.rpc("request_ai_chat_turn_with_files_v48", {
-        project_id: projectId, conversation_id: conversationId,
-        user_message: recordedUserMessage, attachment_upload_ids: attachmentIds,
-        research_file_ids: researchFileIds,
+        p_project_id: projectId, p_conversation_id: conversationId,
+        p_user_message: recordedUserMessage, p_attachment_upload_ids: attachmentIds,
+        p_research_file_ids: researchFileIds,
       })
     : await supabase.rpc("request_ai_chat_turn", {
         project_id: projectId, conversation_id: conversationId,
