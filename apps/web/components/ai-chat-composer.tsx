@@ -619,7 +619,7 @@ export function AiChatComposer({
       </div>
 
       {researchFilesOpen && projectId ? <section id="genithm-chat-research-files" aria-label="Project files in chat">
-        <p className="genithm-note">Upload any research file or folder to this project. Stored files are not automatically shared with the AI model; explicitly select verified results below. Switching projects or closing this panel pauses browser transfers; completed uploads remain in Data.</p>
+        <p className="genithm-note">Upload any research file or folder to this project. Stored files are not automatically sent to the language model; explicitly select verified results below. Switching projects or closing this panel pauses browser transfers; completed uploads remain in Data.</p>
         <ResearchFileSelector projectId={projectId} selected={selectedResearchFiles} onChange={setSelectedResearchFiles} disabled={sending || busyUploading} />
         <LargeDataPanel key={projectId} projects={projects.filter(project => project.id === projectId)} />
       </section> : null}
