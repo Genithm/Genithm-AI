@@ -10,7 +10,7 @@ BEGIN
   RAISE EXCEPTION 'V48 grants do not isolate authenticated chat users';
  END IF;
  IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=fn) OR
-    NOT (SELECT 'search_path='=ANY(proconfig) FROM pg_proc WHERE oid=fn) THEN
+    NOT (SELECT array_to_string(proconfig,',') LIKE '%search_path=%' FROM pg_proc WHERE oid=fn) THEN
   RAISE EXCEPTION 'V48 function security context invalid';
  END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='public.ai_messages'::regclass
