@@ -1,0 +1,92 @@
+/** Explicit V48 chat evidence: checks the privately authenticated API's *verified* file report.
+ * The model receives a bounded aggregate only. Raw file bodies are never downloaded here. */
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+const HEX = /^[a-f0-9]{64}$/;
+const SCOPES = new Set(["bytes_only", "full_fastq_aggregate_qc", "full_fasta_structural_summary"]);
+const MAX_REPORT = 80_000;
+type RecordValue = Record<string, unknown>;
+function object(x: unknown): RecordValue {
+  if (!x || typeof x !== "object" || Array.isArray(x)) throw new Error("Research file evidence is invalid.");
+  return x as RecordValue;
+}
+function uint(x: unknown): number {
+  if (!Number.isSafeInteger(x) || (x as number) < 0) throw new Error("Invalid file evidence count.");
+  return x as number;
+}
+export type VerifiedResearchFile = {
+  id: string; project_id: string; source_sha256: string; report_sha256: string;
+  source_bytes: number; format: string; scientific_scope: string; inspection: string;
+};
+export function parseVerifiedResearchFile(input: unknown, id: string, project: string): VerifiedResearchFile {
+  const envelope = object(input), report = object(envelope.report);
+  if (!UUID.test(id) || !UUID.test(project) || envelope.record_id !== id || envelope.project_id !== project ||
+      report.schema !== "genithm-large-data-result/1" || report.verification !== "whole_object_sha256" ||
+      typeof report.source_sha256 !== "string" || !HEX.test(report.source_sha256) ||
+      typeof report.report_sha256 !== "string" || !HEX.test(report.report_sha256) ||
+      typeof report.format !== "string" || !["fastq", "fastq.gz", "opaque"].includes(report.format) ||
+      typeof report.scientific_scope !== "string" || !SCOPES.has(report.scientific_scope)) {
+    throw new Error("Research file evidence is missing or does not match this project.");
+  }
+  const size = uint(report.source_bytes);
+  if (size < 1) throw new Error("Invalid source size in the verified report.");
+  let inspection = "legacy";
+  if (report.intake !== undefined) {
+    inspection = String(object(report.intake).inspection || "");
+    if (!["complete_fastq", "complete_fasta", "integrity_only"].includes(inspection)) throw new Error("Invalid inspection status.");
+  }
+  if (report.scientific_scope === "full_fastq_aggregate_qc") {
+    const metrics = object(report.metrics);
+    if (uint(metrics.read_count) < 1 || uint(metrics.base_count) < 1) throw new Error("Missing FASTQ evidence.");
+    if (inspection !== "legacy" && inspection !== "complete_fastq") throw new Error("Conflicting FASTQ inspection.");
+  } else if (report.scientific_scope === "full_fasta_structural_summary") {
+    const fasta = object(object(report.intake).fasta);
+    if (uint(fasta.record_count) < 1 || uint(fasta.symbol_count) < 1 || inspection !== "complete_fasta")
+      throw new Error("Missing complete FASTA inspection.");
+  } else if (report.metrics !== null || (inspection !== "legacy" && inspection !== "integrity_only")) {
+    throw new Error("Bytes-only evidence cannot claim a scientific result.");
+  }
+  return {id, project_id: project, source_sha256: report.source_sha256, report_sha256: report.report_sha256,
+    source_bytes: size, format: report.format, scientific_scope: report.scientific_scope, inspection};
+}
+
+export function assertMatchingEvidence(snapshot: unknown, verified: VerifiedResearchFile[]) {
+  if (!Array.isArray(snapshot) || snapshot.length !== verified.length) throw new Error("Recorded file evidence is incomplete.");
+  snapshot.forEach((item, i) => {
+    const row = object(item), source = verified[i];
+    if (row.id !== source.id || row.source_sha256 !== source.source_sha256 ||
+        row.report_sha256 !== source.report_sha256 || row.source_bytes !== source.source_bytes ||
+        row.format !== source.format || row.scientific_scope !== source.scientific_scope ||
+        row.inspection !== source.inspection) throw new Error("Research file evidence changed before chat authorization.");
+    if (row.scientific_scope === "bytes_only" && (row.fasta !== null || row.fastq !== null))
+      throw new Error("An uninspected file was misrepresented as scientifically analyzed.");
+  });
+}
+
+export async function loadVerifiedResearchFiles(ids: string[], project: string, token: string, signal: AbortSignal): Promise<VerifiedResearchFile[]> {
+  if (ids.length > 4 || new Set(ids).size !== ids.length || ids.some(id => !UUID.test(id)))
+    throw new Error("Choose no more than four distinct research files.");
+  if (!ids.length) return [];
+  if (!token || !UUID.test(project)) throw new Error("Research file authorization unavailable.");
+  const configured = process.env.GENITHM_API_INTERNAL_URL || process.env.NEXT_PUBLIC_GENITHM_API_URL;
+  if (!configured) throw new Error("Research-file API has not been configured.");
+  const endpoint = new URL(configured);
+  if ((endpoint.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && endpoint.hostname === "localhost" && endpoint.protocol === "http:")) ||
+      endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error("Research-file API endpoint is invalid.");
+  const base = endpoint.href.replace(/\/$/, "");
+  const results: VerifiedResearchFile[] = [];
+  for (const id of ids) {
+    const response = await fetch(`${base}/api/v1/large-data/uploads/${id}/file-report`, {
+      headers: {Authorization: `Bearer ${token}`, Accept: "application/json"},
+      cache: "no-store", redirect: "error", signal,
+    });
+    if (!response.ok) throw new Error("Selected file is not accessible or has not completed verification.");
+    if (Number(response.headers.get("content-length") || 0) > MAX_REPORT)
+      throw new Error("File report exceeded the permitted evidence size.");
+    const data = await response.text();
+    if (data.length > MAX_REPORT) throw new Error("File report exceeded the permitted evidence size.");
+    let parsed: unknown;
+    try { parsed = JSON.parse(data); } catch { throw new Error("Invalid verified file report."); }
+    results.push(parseVerifiedResearchFile(parsed, id, project));
+  }
+  return results;
+}

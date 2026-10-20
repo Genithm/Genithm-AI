@@ -73,6 +73,15 @@ function BatchWorkspace({project,limits,catalog,api,blocked,onBusy,onResume,down
   catch(e){if(mounted.current)setError(e instanceof Error?e.message:"Could not load file library.");}
   finally{if(mounted.current)setLoading(false);}
  }
+ async function downloadOriginal(id:string){setError("");try{
+   const result=await api<{url:string;method:string;expires_seconds:number;source_sha256:string;source_bytes:number}>("/uploads/"+id+"/download");
+   const url=new URL(result.url);
+   if(!["https:","http:"].includes(url.protocol)||url.username||url.password||result.method!=="GET"||result.expires_seconds>120)
+     throw new Error("Unexpected download authorization.");
+   const link=document.createElement("a");link.href=url.href;link.rel="noreferrer noopener";link.target="_blank";
+   document.body.appendChild(link);link.click();link.remove();
+   setError("Download authorized. Compare the downloaded SHA-256 with "+result.source_sha256+" ("+result.source_bytes+" bytes). Do not treat stored files as malware-scanned.");
+  }catch(e){setError(e instanceof Error?e.message:"Original download unavailable.");}}
  async function exportReport(id:string){setError("");try{await download("/uploads/"+id+"/file-report","json");}catch(e){setError(e instanceof Error?e.message:"File report unavailable.");}}
  const complete=entries.filter(e=>["uploaded","verifying","ready"].includes(e.state)).length;
  const matching=(catalog?.formats||[]).filter(f=>[f.label,f.category,...f.extensions].join(" ").toLowerCase().includes(filter.toLowerCase()));
@@ -112,6 +121,7 @@ function BatchWorkspace({project,limits,catalog,api,blocked,onBusy,onResume,down
    {record.summary?.intake&&<p>Inspection: {record.summary.intake.inspection.replaceAll("_"," ")}. Observed header: {record.summary.intake.observed_header.replaceAll("_"," ")} (bounded hint).</p>}
    {record.summary?.intake?.fasta&&<p>Complete FASTA scan: {record.summary.intake.fasta.record_count.toLocaleString()} records, {record.summary.intake.fasta.symbol_count.toLocaleString()} sequence symbols. Alphabet was not inferred.</p>}
    {record.state==="ready"&&<button className="button" onClick={()=>void exportReport(record.id)}>Download verified file report</button>}
+   {record.state==="ready"&&<button className="button" onClick={()=>void downloadOriginal(record.id)}>Download original file (private link)</button>}
    {record.state==="uploading"&&<button className="button" disabled={busy} onClick={()=>void onResume(record.id).catch(e=>setError(e instanceof Error?e.message:"Could not select upload."))}>Select this file to resume above</button>}
   </article>)}
   {next&&<button className="button" disabled={loading} onClick={()=>void load(true)}>Load more files</button>}

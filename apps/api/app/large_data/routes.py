@@ -145,6 +145,29 @@ def quality_report(upload_id: UUID, format: Literal["json", "tsv"] = "json",
     return operation(lambda: report_response(c.rpc("get", p_owner=owner, p_id=str(upload_id)), format))
 
 
+@router.get("/uploads/{upload_id}/download")
+def download_original(upload_id: UUID, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
+    owner = c.auth(authorization)
+    def run():
+        from .file_intake import file_report
+        row = c.rpc("get", p_owner=owner, p_id=str(upload_id))
+        # The report validator proves that the published worker result belongs to
+        # exactly this source. HEAD also confirms the quarantined S3 object still
+        # has the verified size, metadata and the stored immutable ETag.
+        file_report(row)
+        stored = c.storage.head(row)
+        if stored is None or stored["etag"] != row["object_etag"]:
+            raise LargeDataError("source_changed", 409)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"url": c.storage.sign_download(row), "method": "GET",
+                "expires_seconds": 120, "source_sha256": row["expected_sha256"],
+                "source_bytes": row["expected_bytes"],
+                "filename": row["original_filename"],
+                "integrity_note": "SHA-256 is the original verified source digest; clients must independently verify downloaded bytes."},
+                headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
+    return operation(run)
+
+
 @router.post("/uploads/{upload_id}/parts/{number}")
 def sign(upload_id: UUID, number: int, authorization: str | None = Header(default=None), c: Clients = Depends(clients)):
     owner = c.auth(authorization)
