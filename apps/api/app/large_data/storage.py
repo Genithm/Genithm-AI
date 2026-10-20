@@ -44,6 +44,13 @@ class MultipartStorage:
         return self.signer.generate_presigned_url("upload_part", Params=params, ExpiresIn=URL_TTL,
                                                    HttpMethod="PUT")
 
+    def sign_download(self, row):
+        """A short-lived, browser-direct private GET; never stream source through API."""
+        return self.signer.generate_presigned_url("get_object", Params={
+            **self._target(row), "ResponseContentType": "application/octet-stream",
+            "ResponseContentDisposition": "attachment",
+        }, ExpiresIn=120, HttpMethod="GET")
+
     def parts(self, row):
         result = []
         for page in self.client.get_paginator("list_parts").paginate(

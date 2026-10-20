@@ -39,6 +39,7 @@ type AiMessage = {
     message_kind: string;
     plan_request_id: string | null;
     attachment_upload_ids: string[];
+    file_evidence_v48: Json;
     protocol_input_scope: "text_only" | "with_attachments" | null;
     research_pipeline_run_id: string | null;
     created_at: string;
@@ -54,6 +55,7 @@ type AiMessage = {
     message_kind?: string;
     plan_request_id?: string | null;
     attachment_upload_ids?: string[];
+    file_evidence_v48?: Json;
     protocol_input_scope?: "text_only" | "with_attachments" | null;
     research_pipeline_run_id?: string | null;
     created_at?: string;
@@ -301,6 +303,10 @@ type AiFunctions = LivePublic["Functions"] & {
   request_ai_plan_inline: {
     Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[] };
     Returns: { conversation_id: string; plan_request_id: string; user_message: string; authorized_context: Json }[];
+  };
+  request_ai_chat_turn_with_files_v48: {
+    Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[]; research_file_ids?: string[] };
+    Returns: { conversation_id: string; user_message_id: string; user_message: string; authorized_context: Json }[];
   };
   request_ai_chat_turn: {
     Args: { project_id: string; conversation_id: string | null; user_message: string; attachment_upload_ids?: string[] };

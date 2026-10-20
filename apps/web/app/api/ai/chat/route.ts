@@ -1,5 +1,6 @@
 import type { Json } from "@/lib/ai-database.types";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
+import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { fixedResearchProposalReply, offlineResearchReply } from "@/lib/offline-research-response";
 import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
@@ -20,6 +21,7 @@ type ChatRequest = {
   conversation_id?: string | null;
   user_message?: string;
   attachment_upload_ids?: string[];
+  research_file_ids?: string[];
   media_attachments?: Array<{ filename?: string; mime_type?: string; data_url?: string }>;
 };
 
@@ -67,6 +69,13 @@ export async function POST(request: Request) {
   const attachmentIds = Array.isArray(body.attachment_upload_ids)
     ? [...new Set(body.attachment_upload_ids.map((value) => String(value).trim()).filter(Boolean))]
     : [];
+  const researchFileIds = Array.isArray(body.research_file_ids)
+    ? body.research_file_ids.map(value => String(value).trim()) : [];
+  const fileIdsInvalid = body.research_file_ids !== undefined &&
+    (!Array.isArray(body.research_file_ids) ||
+      body.research_file_ids.some(value => typeof value !== "string") ||
+      researchFileIds.length > 4 || new Set(researchFileIds).size !== researchFileIds.length ||
+      researchFileIds.some(value => !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)));
   const mediaAttachments = Array.isArray(body.media_attachments)
     ? body.media_attachments.map((attachment) => ({
         filename: String(attachment.filename ?? "").trim().slice(0, 255),
@@ -87,6 +96,8 @@ export async function POST(request: Request) {
     !projectId ||
     userMessage.length > 8000 ||
     attachmentIds.length > 10 ||
+    fileIdsInvalid ||
+    (researchFileIds.length > 0 && !userMessage) ||
     mediaAttachments.length > 4 ||
     mediaInvalid ||
     totalMediaLength > 44_000_000 ||
@@ -104,12 +115,28 @@ export async function POST(request: Request) {
       : ""
   );
 
-  const { data: prepared, error: prepareError } = await supabase.rpc("request_ai_chat_turn", {
-    project_id: projectId,
-    conversation_id: conversationId,
-    user_message: recordedUserMessage,
-    attachment_upload_ids: attachmentIds,
-  });
+  // File IDs alone are never sufficient: fetch the authenticated, checksummed
+  // full report through Genithm's verifier API before starting a chat turn.
+  // A stale/foreign/unverified source fails closed with no model call.
+  let verifiedFiles;
+  try {
+    const token = researchFileIds.length ? (await supabase.auth.getSession()).data.session?.access_token || "" : "";
+    verifiedFiles = await loadVerifiedResearchFiles(researchFileIds, projectId, token, request.signal);
+  } catch {
+    return Response.json({ error: "Selected research file is inaccessible or not fully verified." }, { status: 409 });
+  }
+
+  // Migration-aware: ordinary V47 chat continues to work during database rollout.
+  const { data: prepared, error: prepareError } = researchFileIds.length
+    ? await supabase.rpc("request_ai_chat_turn_with_files_v48", {
+        project_id: projectId, conversation_id: conversationId,
+        user_message: recordedUserMessage, attachment_upload_ids: attachmentIds,
+        research_file_ids: researchFileIds,
+      })
+    : await supabase.rpc("request_ai_chat_turn", {
+        project_id: projectId, conversation_id: conversationId,
+        user_message: recordedUserMessage, attachment_upload_ids: attachmentIds,
+      });
   const row = prepared?.[0];
 
   if (prepareError || !row?.conversation_id || !row?.user_message_id) {
@@ -117,6 +144,14 @@ export async function POST(request: Request) {
       { error: prepareError?.message || "Could not start the AI response." },
       { status: 400 },
     );
+  }
+
+  try {
+    const context = prepared?.[0]?.authorized_context;
+    if (!context || typeof context !== "object" || Array.isArray(context)) throw new Error("Missing authorized context.");
+    if (researchFileIds.length) assertMatchingEvidence((context as Record<string,unknown>).selected_verified_research_files, verifiedFiles);
+  } catch {
+    return Response.json({ error: "Verified file evidence was not recorded consistently. No AI request was sent." }, { status: 409 });
   }
 
   const stream = new ReadableStream<Uint8Array>({
@@ -214,6 +249,7 @@ export async function POST(request: Request) {
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
+            if (buffer.length > 65536) throw new Error("AI provider stream exceeded the permitted chunk size.");
 
             let separator = buffer.indexOf("\n");
             while (separator >= 0) {
@@ -244,11 +280,13 @@ export async function POST(request: Request) {
                 for (const call of delta.tool_calls) {
                   if (call.function?.name) toolName = call.function.name;
                   if (call.function?.arguments) toolArguments += call.function.arguments;
+                if (toolArguments.length > 30000) throw new Error("Scientific tool arguments too large.");
                 }
               }
 
               if (!toolSeen && typeof delta.content === "string" && delta.content) {
                 const remaining = 2000 - partialVisible.length;
+                if (researchFileIds.length && delta.content.length > remaining) throw new Error("AI response exceeded safe evidence response length.");
                 if (remaining <= 0) {
                   await reader.cancel();
                   providerDone = true;
@@ -256,11 +294,16 @@ export async function POST(request: Request) {
                 }
                 const piece = delta.content.slice(0, remaining);
                 partialVisible += piece;
-                controller.enqueue(sse("delta", { text: piece }));
+                if (!researchFileIds.length) controller.enqueue(sse("delta", { text: piece }));
               }
             }
           }
 
+          // Evidence turns cannot invent executable use of a stored raw file.
+          // Require a complete provider stream before showing/persisting its reply.
+          if (researchFileIds.length && (!providerDone || toolSeen || !partialVisible.trim())) {
+            throw new Error("AI did not finish a non-executable research-file evidence response.");
+          }
           if (toolSeen) {
             if (toolName !== "propose_scientific_action") {
               throw new Error("AI provider returned an unsupported tool call.");
@@ -313,6 +356,7 @@ export async function POST(request: Request) {
               assistant_message: plan.summary,
             });
             if (finishError) throw new Error(finishError.message);
+            if (researchFileIds.length) controller.enqueue(sse("delta", { text: plan.summary }));
             controller.enqueue(sse("done", {
               conversation_id: row.conversation_id,
               status: "conversation",
