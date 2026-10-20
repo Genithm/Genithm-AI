@@ -8,11 +8,11 @@ ALTER TABLE public.ai_messages ADD CONSTRAINT ai_messages_file_evidence_v48_boun
     AND pg_column_size(file_evidence_v48) <= 8192);
 
 CREATE FUNCTION public.request_ai_chat_turn_with_files_v48(
-  project_id uuid,
-  conversation_id uuid,
-  user_message text,
-  attachment_upload_ids uuid[] DEFAULT '{}'::uuid[],
-  research_file_ids uuid[] DEFAULT '{}'::uuid[]
+  p_project_id uuid,
+  p_conversation_id uuid,
+  p_user_message text,
+  p_attachment_upload_ids uuid[] DEFAULT '{}'::uuid[],
+  p_research_file_ids uuid[] DEFAULT '{}'::uuid[]
 )
 RETURNS TABLE(conversation_id uuid, user_message_id uuid, user_message text, authorized_context jsonb)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
@@ -20,7 +20,7 @@ AS $$
 DECLARE
   owner_id uuid := auth.uid();
   org_id uuid;
-  ids uuid[] := coalesce(research_file_ids, '{}'::uuid[]);
+  ids uuid[] := coalesce(p_research_file_ids, '{}'::uuid[]);
   bound_files jsonb := '[]'::jsonb;
   turn record;
 BEGIN
@@ -29,9 +29,9 @@ BEGIN
     OR (SELECT count(*) FROM (SELECT DISTINCT unnest(ids) AS id) distinct_ids) <> cardinality(ids)
   THEN RAISE EXCEPTION 'invalid file evidence selection' USING errcode='22023'; END IF;
   IF cardinality(ids) > 0 THEN
-    IF length(btrim(coalesce(user_message,''))) = 0
+    IF length(btrim(coalesce(p_user_message,''))) = 0
     THEN RAISE EXCEPTION 'file evidence requires a message' USING errcode='22023'; END IF;
-    SELECT p.organization_id INTO org_id FROM public.projects p WHERE p.id = project_id;
+    SELECT p.organization_id INTO org_id FROM public.projects p WHERE p.id = p_project_id;
     IF org_id IS NULL OR NOT app_private.can_write_org(org_id)
     THEN RAISE EXCEPTION 'project access denied' USING errcode='42501'; END IF;
     -- Verify ready, owned, same-project objects; store only the worker's bounded, immutable
@@ -39,7 +39,7 @@ BEGIN
     -- serializes this binding against cleanup of the stored source during the turn.
     WITH authorized AS (
       SELECT u.* FROM public.large_data_uploads u
-      WHERE u.id = any(ids) AND u.created_by = owner_id AND u.project_id = project_id
+      WHERE u.id = any(ids) AND u.created_by = owner_id AND u.project_id = p_project_id
         AND u.organization_id = org_id AND u.state = 'ready'
         AND u.checked_bytes = u.expected_bytes AND u.expected_bytes > 0
         AND u.actual_sha256 = u.expected_sha256 AND u.object_etag IS NOT NULL
@@ -76,7 +76,7 @@ BEGIN
   -- The established V22+ chat RPC retains its own authentication, conversation,
   -- attachment, rate-limit and tenant checks. Its insertion shares this transaction.
   SELECT * INTO turn FROM app_private.request_ai_chat_turn(
-    project_id,conversation_id,user_message,coalesce(attachment_upload_ids,'{}'::uuid[]));
+    p_project_id,p_conversation_id,p_user_message,coalesce(p_attachment_upload_ids,'{}'::uuid[]));
   IF turn.user_message_id IS NULL THEN RAISE EXCEPTION 'chat turn was not recorded'; END IF;
   UPDATE public.ai_messages m SET file_evidence_v48=bound_files
     WHERE m.id=turn.user_message_id AND m.role='user' AND m.conversation_owner_id=owner_id;
