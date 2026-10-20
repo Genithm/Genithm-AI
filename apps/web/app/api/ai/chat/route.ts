@@ -188,8 +188,8 @@ export async function POST(request: Request) {
           // conversational model when scientific execution is unavailable.
           // Persist a truthful availability notice against the saved user
           // message. No attestation, queue, run, or approval is created.
-          const requestedFixedProtocol = attachmentIds.length === 0 &&
-            mediaAttachments.length === 0
+          const requestedFixedProtocol = researchFileIds.length === 0 &&
+            attachmentIds.length === 0 && mediaAttachments.length === 0
               ? parseChatResearchProtocol(row.user_message) : null;
           if (requestedFixedProtocol && !offerFixedResearch) {
             const reply = offlineResearchReply(requestedFixedProtocol);
