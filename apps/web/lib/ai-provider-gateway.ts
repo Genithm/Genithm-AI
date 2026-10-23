@@ -22,6 +22,15 @@ const ENDPOINTS = {
   groq: "https://api.groq.com/openai/v1/chat/completions",
 } as const;
 const encoder = new TextEncoder();
+// Groq ended standard access to Llama 3.3 on 2026-08-16. Migrate only
+// the former Genithm default; never rewrite arbitrary user model selections.
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
+const RETIRED_GROQ_DEFAULT = "llama-3.3-70b-versatile";
+function groqModel(value: string | undefined) {
+  const selected = model(value, DEFAULT_GROQ_MODEL);
+  return selected === RETIRED_GROQ_DEFAULT ? DEFAULT_GROQ_MODEL : selected;
+}
+
 
 export class ProviderFailure extends Error {
   readonly fallbackAllowed: boolean;
@@ -58,7 +67,7 @@ export function configuredProviders(env: Environment): [AiProvider, AiProvider |
   const secondary: AiProvider | null = secondaryKey ? {
     name: "groq", endpoint: ENDPOINTS.groq, supportsImages: false,
     apiKey: secondaryKey,
-    model: model(env.GENITHM_GROQ_MODEL, "llama-3.3-70b-versatile"),
+    model: groqModel(env.GENITHM_GROQ_MODEL),
   } : null;
   return [primary, secondary];
 }
@@ -77,9 +86,9 @@ export function gatewayLimits(env: Environment): GatewayLimits {
     return value;
   }
   const limits = {
-    firstOutputMs: integer("GENITHM_AI_FIRST_OUTPUT_TIMEOUT_MS", 8000, 1000, 30000),
-    idleMs: integer("GENITHM_AI_STREAM_IDLE_TIMEOUT_MS", 15000, 1000, 60000),
-    totalMs: integer("GENITHM_AI_TOTAL_TIMEOUT_MS", 60000, 10000, 180000),
+    firstOutputMs: integer("GENITHM_AI_FIRST_OUTPUT_TIMEOUT_MS", 20000, 1000, 30000),
+    idleMs: integer("GENITHM_AI_STREAM_IDLE_TIMEOUT_MS", 20000, 1000, 60000),
+    totalMs: integer("GENITHM_AI_TOTAL_TIMEOUT_MS", 90000, 10000, 180000),
   };
   if (limits.firstOutputMs >= limits.totalMs) throw new ProviderFailure("First-output timeout must be shorter than total timeout.", false);
   return limits;
@@ -187,9 +196,10 @@ export async function streamFromProviders(
   options: { signal?: AbortSignal; hasImages?: boolean; limits?: GatewayLimits; fetcher?: typeof fetch } = {},
 ): Promise<StreamingChatProvider> {
   const started = Date.now();
-  const limits = options.limits || { firstOutputMs: 8000, idleMs: 15000, totalMs: 60000 };
+  const limits = options.limits || { firstOutputMs: 20000, idleMs: 20000, totalMs: 90000 };
   const deadline = started + limits.totalMs;
   let lastError: unknown;
+  const safeFailures: string[] = [];
   if (providers[0]?.name !== "gemini" || (providers[1] && providers[1].name !== "groq"))
     throw new ProviderFailure("Provider order must be Gemini primary and Groq secondary.", false);
   for (const [index, provider] of providers.entries()) {
@@ -230,7 +240,12 @@ export async function streamFromProviders(
       responseBody = response.body;
       if (!response.ok || !response.body) {
         void response.body?.cancel().catch(() => undefined);
-        throw new ProviderFailure(`${provider.name} API request failed (HTTP ${response.status}).`, [401, 402, 403, 404, 408, 409, 425, 429, 500, 502, 503, 504].includes(response.status));
+        const cause = response.status === 404 ? "model unavailable, retired or not permitted by this account"
+          : [401, 403].includes(response.status) ? "API key or model permissions rejected"
+          : [402, 429].includes(response.status) ? "billing, quota or rate limit"
+          : response.status === 400 ? "request format or model feature rejected"
+          : response.status >= 500 ? "provider service failure" : "request rejected";
+        throw new ProviderFailure(`${provider.name} API request failed (HTTP ${response.status}: ${cause}).`, [401, 402, 403, 404, 408, 409, 425, 429, 500, 502, 503, 504].includes(response.status));
       }
       if (!response.headers.get("content-type")?.includes("text/event-stream")) throw new ProviderFailure("AI provider did not return a streaming response.");
       reader = response.body.getReader();
@@ -256,8 +271,16 @@ export async function streamFromProviders(
       cleanup();
       aborted(options.signal);
       lastError = error instanceof ProviderFailure ? error : new ProviderFailure(`${provider.name} API could not be reached.`);
-      if (lastError instanceof ProviderFailure && !lastError.fallbackAllowed) throw lastError;
+      const failureText = lastError.message.startsWith(provider.name + " ") ? lastError.message : `${provider.name}: ${lastError.message}`;
+      safeFailures.push(failureText);
+      // Do not log credentials, prompts, upstream error bodies or research content.
+      console.warn(JSON.stringify({ event: "ai_provider_attempt_failed", provider: provider.name,
+        model: provider.model, reason: failureText, fallback_permitted: lastError.fallbackAllowed }));
+      if (!lastError.fallbackAllowed) throw lastError;
     }
+  }
+  if (safeFailures.length > 1) {
+    throw new ProviderFailure(`Both AI providers failed. ${safeFailures.join(" | ")}. Check independent provider accounts: python3 scripts/check_ai_provider_models.py --inference`, false);
   }
   throw lastError instanceof ProviderFailure ? lastError : new ProviderFailure("No AI provider is configured.", false);
 }

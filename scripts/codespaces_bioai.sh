@@ -4,7 +4,7 @@
 set -euo pipefail
 umask 077
 export GENITHM_GEMINI_MODEL="${GENITHM_GEMINI_MODEL:-gemini-3.8-flash}"
-export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-llama-3.3-70b-versatile}"
+export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-openai/gpt-oss-120b}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

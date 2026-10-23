@@ -15,7 +15,7 @@ In repository **Settings → Secrets and variables → Codespaces**, store exact
 - `SUPABASE_SECRET_KEY`: the backend-only Supabase secret key for the existing project (`vowmjjgkjoxcvlfamukh`).
 - `GEMINI_API_KEY` and `GROQ_API_KEY`: Google AI Studio and Groq secret keys.
 
-Optional: `NCBI_API_KEY`, `NCBI_EMAIL`, `GENITHM_GEMINI_MODEL` (default `gemini-3.8-flash`) and `GENITHM_GROQ_MODEL` (default `llama-3.3-70b-versatile`).
+Optional: `NCBI_API_KEY`, `NCBI_EMAIL`, `GENITHM_GEMINI_MODEL` (default `gemini-3.8-flash`) and `GENITHM_GROQ_MODEL` (default `openai/gpt-oss-120b`).
 
 A **Supabase publishable key is not the backend secret key**. The public project URL and publishable key are configured automatically by the launcher; you must supply the named backend key. Never commit these credentials or paste them into chat, PRs, logs, or your browser.
 

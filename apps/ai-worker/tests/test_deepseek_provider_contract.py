@@ -11,7 +11,7 @@ def test_provider_wire_format(name,monkeypatch):
     monkeypatch.setattr("genithm_ai_worker.providers.JsonHttpClient.request",fake_request)
     provider=OpenAICompatibleProvider(
         ProviderConfig(name=name,api_key="test-fixture",endpoint=ENDPOINTS[name],
-                       model="gemini-3.8-flash" if name=="gemini" else "llama-3.3-70b-versatile",
+                       model="gemini-3.8-flash" if name=="gemini" else "openai/gpt-oss-120b",
                        protocol="chat_completions"),timeout_seconds=30)
     result=provider.structured_response(instructions="JSON only",input_text="test",
          schema_name="test_schema",schema={"type":"object","properties":{"status":{"const":"ok"}},"required":["status"],"additionalProperties":False})
