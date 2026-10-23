@@ -16,7 +16,7 @@ class DevelopmentReadiness(unittest.TestCase):
         self.root=Path(self.tmp.name)
         (self.root/'scripts').mkdir();(self.root/'apps/web/node_modules').mkdir(parents=True)
         self.bin=self.root/'bin';self.bin.mkdir()
-        for name in ('codespaces_preview.sh','codespaces_bioai.sh'):
+        for name in ('codespaces_preview.sh','codespaces_bioai.sh','stop_codespaces_web.py'):
             shutil.copyfile(ROOT/'scripts'/name,self.root/'scripts'/name)
         self.log=self.root/'commands.log'
         self.env={'PATH':str(self.bin)+':/usr/bin:/bin','HOME':str(self.root),'CALLS':str(self.log),
@@ -25,6 +25,7 @@ class DevelopmentReadiness(unittest.TestCase):
         programs={
             'git':f'case "$*" in *rev-parse*) echo {SHA};; esac\nexit 0',
             'docker':'echo "docker $*" >> "$CALLS"\ncase "$*" in "pull ghcr.io/"*) exit 1;; esac\nexit 0',
+            'node':'echo "node $*" >> "$CALLS"\nexit 0',
             'npm':'echo "npm $*" >> "$CALLS"\nexit 0',
             'python3':'echo "python3 $*" >> "$CALLS"\nexit 0',
             'curl':'''printf '%s\\n' '{"status":"ready","disable_signup":false,"external":{"email":true}}'\nexit 0''',

@@ -10,7 +10,10 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "predev": "node ../../scripts/check_web_runtime.mjs",
+    "prestart": "node ../../scripts/check_web_runtime.mjs",
+    "prebuild": "node ../../scripts/check_web_runtime.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.6",

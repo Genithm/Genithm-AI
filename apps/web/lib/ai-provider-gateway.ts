@@ -35,7 +35,7 @@ export class ProviderFailure extends Error {
 function key(value: string | undefined, name: string, required: boolean) {
   const result = (value || "").trim();
   if ((!result && required) || result.length > 4096 || /[\r\n]/.test(result)) {
-    throw new ProviderFailure(`${name} is missing or invalid in server configuration.`, false);
+    throw new ProviderFailure(`${name} is missing or invalid in server configuration. Set it in GitHub Settings > Secrets and variables > Codespaces (not Actions), stop and start the Codespace, then run bash scripts/codespaces_bioai.sh. Never paste API keys in chat.`, false);
   }
   return result;
 }

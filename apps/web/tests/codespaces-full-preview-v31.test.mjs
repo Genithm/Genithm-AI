@@ -34,7 +34,7 @@ test("V31 local fixture mode is clearly distinguished from the real Genithm app"
   assert.match(preview,/bash scripts\/codespaces_preview\.sh/);
   assert.doesNotMatch(preview,/Use a separate development Supabase project/);
   assert.match(devSetup,/Local SAMPLE workbench/);
-  assert.match(devStart,/Basic development web server/);
+  assert.match(devStart,/Explicit sample-only workbench/);
 });
 
 test("V31 no-Supabase Codespace shows real auth setup, never redirects to optional sample tools",()=>{
@@ -70,10 +70,9 @@ test("V31 full launcher requires secrets, avoids public leakage, and configures 
 test("V31 old Codespaces fixture server cannot silently absorb the configured full preview",()=>{
   assert.match(devStart,/WEB_PID="\$ROOT\/\.codespaces-web\.pid"/);
   assert.match(devStart,/echo \$! > "\$WEB_PID"/);
-  assert.match(launcher,/if \[\[ -f "\$WEB_PID" \]\] && kill -0/);
-  assert.match(launcher,/Replacing existing Codespaces development server/);
-  assert.match(launcher,/fuser -k 3000\/tcp/);
-  assert.match(launcher,/Port 3000 is still busy/);
+  assert.match(launcher,/stop_codespaces_web\.py/);
+  assert.ok(launcher.indexOf("stop_codespaces_web.py") < launcher.indexOf("npm ci"));
+  assert.doesNotMatch(launcher,/fuser -k/);
   assert.match(launcher,/WEB_LOG="\$ROOT_DIR\/\.codespaces-web\.log"/);
 });
 
