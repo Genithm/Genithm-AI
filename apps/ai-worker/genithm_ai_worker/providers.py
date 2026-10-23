@@ -125,7 +125,7 @@ class JsonHttpClient:
         except (URLError, TimeoutError, OSError):
             raise ProviderHttpError("network connection failed", retryable=True, fallback_allowed=True) from None
         if len(raw)>max_bytes:
-            raise ProviderHttpError("provider response exceeded the permitted size", retryable=False,fallback_allowed=True)
+            raise ProviderHttpError("response exceeded Genithm size limit", retryable=False,fallback_allowed=True)
         try:
             return strict_json(raw)
         except (ValueError,UnicodeError):
