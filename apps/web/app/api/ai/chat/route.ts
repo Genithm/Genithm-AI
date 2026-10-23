@@ -369,7 +369,7 @@ export async function POST(request: Request) {
         } catch (caught) {
           const stopped = request.signal.aborted || (caught instanceof Error && caught.name === "AbortError");
           if (stopped) {
-            const stoppedPlan = conversationalPlan(partialVisible || "Generation stopped.");
+            const stoppedPlan = conversationalPlan("Generation stopped before completion. No complete AI answer was saved.");
             await service.rpc("finish_ai_chat_turn", {
               user_message_id: row.user_message_id,
               expected_user_id: userId,

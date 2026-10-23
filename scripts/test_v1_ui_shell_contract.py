@@ -83,7 +83,8 @@ def main() -> int:
     assert 'signal: abortController.signal' in chat_composer
     assert 'request.signal' in chat_api
     assert 'signal?: AbortSignal' in chat_provider
-    assert 'partialVisible || "Generation stopped."' in chat_api
+    assert 'Generation stopped before completion. No complete AI answer was saved.' in chat_api
+    assert 'conversationalPlan(partialVisible ||' not in chat_api
     assert 'finish_ai_plan_inline_error' not in chat_api
     assert 'request_ai_chat_turn' in chat_api
     assert 'finish_ai_chat_turn' in chat_api

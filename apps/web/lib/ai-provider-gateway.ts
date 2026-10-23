@@ -204,6 +204,7 @@ export async function streamFromProviders(
     const totalTimer = setTimeout(() => controller.abort(new ProviderFailure("AI request exceeded its total deadline.", false)), deadline - Date.now());
     const firstTimer = setTimeout(() => controller.abort(new ProviderFailure(`${provider.name} did not start answering before the deadline.`)), limits.firstOutputMs);
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let responseBody: ReadableStream<Uint8Array> | null = null;
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let iterator: AsyncGenerator<Uint8Array> | undefined;
     let cleaned = false;
@@ -214,6 +215,7 @@ export async function streamFromProviders(
       options.signal?.removeEventListener("abort", cancel);
       controller.abort();
       void reader?.cancel().catch(() => undefined);
+      if (!reader) void responseBody?.cancel().catch(() => undefined);
     };
     const output = () => {
       clearTimeout(firstTimer); clearTimeout(idleTimer);
@@ -225,6 +227,7 @@ export async function streamFromProviders(
         headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ ...payload(provider), model: provider.model, stream: true }),
       }), controller.signal);
+      responseBody = response.body;
       if (!response.ok || !response.body) {
         void response.body?.cancel().catch(() => undefined);
         throw new ProviderFailure(`${provider.name} API request failed (HTTP ${response.status}).`, [401, 402, 403, 404, 408, 409, 425, 429, 500, 502, 503, 504].includes(response.status));

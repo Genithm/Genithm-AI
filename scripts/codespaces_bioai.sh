@@ -2,6 +2,7 @@
 # Launch the REAL authenticated Genithm BioAI chat independently from the
 # six-worker Docker science fleet. This is not the /preview sample workbench.
 set -euo pipefail
+umask 077
 export GENITHM_GEMINI_MODEL="${GENITHM_GEMINI_MODEL:-gemini-3.8-flash}"
 export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-llama-3.3-70b-versatile}"
 
@@ -23,12 +24,15 @@ if (( ${#missing[@]} > 0 )); then
   exit 2
 fi
 
-for binary in npm curl; do
+for binary in npm curl python3; do
   if ! command -v "$binary" >/dev/null 2>&1; then
     echo "Missing required program: $binary"
     exit 3
   fi
 done
+
+echo "Validating both AI accounts without displaying credentials..."
+python3 "$ROOT/scripts/check_ai_provider_models.py" --inference
 
 ORIGIN="https://${CODESPACE_NAME}-3000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 WEB_DIR="$ROOT/apps/web"
@@ -52,10 +56,9 @@ GENITHM_SCIENCE_V22_ENABLED=false
 EOF
 chmod 600 "$WEB_DIR/.env.local"
 
-if [[ ! -d "$WEB_DIR/node_modules" ]]; then
-  echo "Installing locked Genithm web dependencies..."
-  (cd "$WEB_DIR" && npm ci)
-fi
+# Existing Codespaces may still contain dependencies from an older lockfile.
+echo "Synchronizing locked Genithm web dependencies..."
+(cd "$WEB_DIR" && npm ci)
 
 # An automatically started /preview dev server must not retain old env vars.
 # Do not run two conflicting Next.js processes on the same Codespace port.

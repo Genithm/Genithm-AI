@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   light-workspace:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
@@ -51,7 +51,7 @@ jobs:
           path: artifacts/genithm-light/
           if-no-files-found: ignore
   regression-suite:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
