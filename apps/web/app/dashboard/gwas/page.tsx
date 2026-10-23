@@ -7,7 +7,7 @@ import styles from "./gwas.module.css";
 export const dynamic="force-dynamic";
 export default async function GwasPage(){
   const db=await createClient();const {data,error}=await db.auth.getClaims();
-  if(error||!data.claims?.sub)redirect("/login");
+  if(error||!data?.claims?.sub)redirect("/login");
   return <main className={styles.shell}>
     <nav className={styles.breadcrumbs} aria-label="GWAS navigation">
       <Link href="/dashboard/ai">← Genithm AI</Link><Link href="/dashboard/data">Research data</Link>
