@@ -46,20 +46,20 @@ test("V31 no-Supabase Codespace shows real auth setup, never redirects to option
     assert.match(page,/previewNeedsConfiguration/);
     assert.match(page,/Full Genithm sign-in is not running yet/);
     assert.match(page,/bash scripts\/codespaces_preview\.sh/);
-    assert.match(page,/SUPABASE_SECRET_KEY and OPENROUTER_API_KEY/);
+    assert.match(page,/SUPABASE_SECRET_KEY, GEMINI_API_KEY and GROQ_API_KEY/);
   }
 });
 
 test("V31 full launcher requires secrets, avoids public leakage, and configures server V22 runtime",()=>{
-  assert.match(launcher,/required=\(SUPABASE_SECRET_KEY OPENROUTER_API_KEY\)/);
+  assert.match(launcher,/required=\(SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY\)/);
   assert.match(launcher,/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=\$SUPABASE_PUBLISHABLE_KEY/);
   assert.match(launcher,/SUPABASE_SECRET_KEY=\$SUPABASE_SECRET_KEY/);
   assert.match(launcher,/GENITHM_SCIENCE_V22_ENABLED=true/);
   assert.match(launcher,/GENITHM_LOCAL_API_PROXY_TARGET=http:\/\/127\.0\.0\.1:8000/);
   assert.match(launcher,/chmod 600 "\$WEB_DIR\/\.env\.local"/);
   assert.doesNotMatch(launcher,/NEXT_PUBLIC_SUPABASE_SECRET_KEY/);
-  assert.doesNotMatch(launcher,/NEXT_PUBLIC_OPENROUTER_API_KEY/);
-  assert.match(launcher,/GENITHM_AI_PRIMARY_PROVIDER=openrouter/);
+  assert.doesNotMatch(launcher,/NEXT_PUBLIC_GEMINI_API_KEY/);
+  assert.match(launcher,/GEMINI_API_KEY=\\$GEMINI_API_KEY/);
   assert.match(launcher,/api\/v1\/health/);
   assert.match(launcher,/rest\/v1\/rpc\/get_release_readiness/);
   assert.match(launcher,/Genithm FULL preview is running and passed readiness checks/);
@@ -77,9 +77,9 @@ test("V31 old Codespaces fixture server cannot silently absorb the configured fu
   assert.match(launcher,/WEB_LOG="\$ROOT_DIR\/\.codespaces-web\.log"/);
 });
 
-test("V31 documentation matches the actual OpenRouter launcher and existing project, not obsolete DeepSeek-only instructions",()=>{
-  assert.match(guide,/OpenRouter/);
-  assert.match(guide,/OPENROUTER_API_KEY/);
+test("V31 documentation matches the actual Gemini launcher and existing project, not obsolete DeepSeek-only instructions",()=>{
+  assert.match(guide,/Gemini/);
+  assert.match(guide,/GEMINI_API_KEY/);
   assert.match(guide,/SUPABASE_SECRET_KEY/);
   assert.match(guide,/bash scripts\/codespaces_preview\.sh/);
   assert.match(guide,/\/login/);
