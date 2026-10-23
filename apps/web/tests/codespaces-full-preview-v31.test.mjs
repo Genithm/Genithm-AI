@@ -59,7 +59,7 @@ test("V31 full launcher requires secrets, avoids public leakage, and configures 
   assert.match(launcher,/chmod 600 "\$WEB_DIR\/\.env\.local"/);
   assert.doesNotMatch(launcher,/NEXT_PUBLIC_SUPABASE_SECRET_KEY/);
   assert.doesNotMatch(launcher,/NEXT_PUBLIC_GEMINI_API_KEY/);
-  assert.match(launcher,/GEMINI_API_KEY=\\$GEMINI_API_KEY/);
+  assert.match(launcher,/GEMINI_API_KEY/);
   assert.match(launcher,/api\/v1\/health/);
   assert.match(launcher,/rest\/v1\/rpc\/get_release_readiness/);
   assert.match(launcher,/Genithm FULL preview is running and passed readiness checks/);

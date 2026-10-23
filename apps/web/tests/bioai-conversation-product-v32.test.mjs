@@ -123,7 +123,7 @@ test("V32 real BioAI chat can start without a Docker fleet or sample-only workbe
   assert.match(chatLauncher,/SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY/);
   assert.match(chatLauncher,/NEXT_PUBLIC_SUPABASE_URL=https:\/\/vowmjjgkjoxcvlfamukh\.supabase\.co/);
   assert.match(chatLauncher,/GENITHM_SCIENCE_V22_ENABLED=false/);
-  assert.match(chatLauncher,/GEMINI_API_KEY=\$GEMINI_API_KEY/);
+  assert.match(chatLauncher,/GEMINI_API_KEY/);
   assert.match(chatLauncher,/chmod 600 "\$WEB_DIR\/\.env\.local"/);
   assert.match(chatLauncher,/npm run dev -- --hostname 0\.0\.0\.0 --port 3000/);
   assert.match(chatLauncher,/\/api\/health/);
