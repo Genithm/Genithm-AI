@@ -120,10 +120,10 @@ test("V32 full navigation prioritizes chat without deleting advanced research to
 });
 
 test("V32 real BioAI chat can start without a Docker fleet or sample-only workbench",()=>{
-  assert.match(chatLauncher,/SUPABASE_SECRET_KEY OPENROUTER_API_KEY/);
+  assert.match(chatLauncher,/SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY/);
   assert.match(chatLauncher,/NEXT_PUBLIC_SUPABASE_URL=https:\/\/vowmjjgkjoxcvlfamukh\.supabase\.co/);
   assert.match(chatLauncher,/GENITHM_SCIENCE_V22_ENABLED=false/);
-  assert.match(chatLauncher,/OPENROUTER_API_KEY=\$OPENROUTER_API_KEY/);
+  assert.match(chatLauncher,/GEMINI_API_KEY/);
   assert.match(chatLauncher,/chmod 600 "\$WEB_DIR\/\.env\.local"/);
   assert.match(chatLauncher,/npm run dev -- --hostname 0\.0\.0\.0 --port 3000/);
   assert.match(chatLauncher,/\/api\/health/);
@@ -131,5 +131,5 @@ test("V32 real BioAI chat can start without a Docker fleet or sample-only workbe
   assert.match(chatLauncher,/Sign in: \$ORIGIN\/login/);
   assert.match(chatLauncher,/Scientific jobs, NCBI retrieval and FASTA uploads are not started/);
   assert.doesNotMatch(chatLauncher,/docker compose.*up|docker pull|\.devcontainer\/start\.sh/);
-  assert.doesNotMatch(chatLauncher,/NEXT_PUBLIC_SUPABASE_SECRET_KEY|NEXT_PUBLIC_OPENROUTER_API_KEY/);
+  assert.doesNotMatch(chatLauncher,/NEXT_PUBLIC_SUPABASE_SECRET_KEY|NEXT_PUBLIC_GEMINI_API_KEY/);
 });

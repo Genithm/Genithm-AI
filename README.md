@@ -39,7 +39,7 @@ workbench**, not the Genithm AI product.
 Create a GitHub Codespace from `main`. In repository
 **Settings → Secrets and variables → Codespaces**, add backend-only
 `SUPABASE_SECRET_KEY` (for the existing Genithm Supabase project) and
-`OPENROUTER_API_KEY`. Restart the Codespace if the secrets were just added.
+`GEMINI_API_KEY` and `GROQ_API_KEY`. Restart the Codespace if the secrets were just added.
 
 **Fastest way to run real AI chat even while the six scientific workers are offline:**
 
@@ -47,7 +47,7 @@ Create a GitHub Codespace from `main`. In repository
 bash scripts/codespaces_bioai.sh
 ```
 
-It prints the actual `/login` URL. This starts **authenticated OpenRouter chat
+It prints the actual `/login` URL. This starts **authenticated Google AI Studio (Gemini) and Groq chat
 and project creation**, not the separate scientific API, storage or worker fleet.
 New scientific computations are honestly marked unavailable in that mode.
 

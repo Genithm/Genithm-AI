@@ -160,6 +160,8 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - name: Verify V49 direct Gemini/Groq streaming, failover and safety
+        run: node --experimental-strip-types --test tests/ai-provider-gateway-v49.test.mjs
       - name: Verify tenant-scoped scientific downloads and SHA-256 tamper rejection
         run: node --experimental-strip-types --test tests/scientific-result-integrity.test.mjs
       - name: Verify bounded scientific result interpretation, Newick trees, and alignment windows

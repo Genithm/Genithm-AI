@@ -33,9 +33,9 @@ from .planner import (
     extract_response_text,
     validate_plan_shape,
 )
-from .providers import JsonHttpClient, OpenAICompatibleProvider, ProviderConfig, ProviderHttpError, ProviderRouter
+from .providers import JsonHttpClient, OpenAICompatibleProvider, ProviderConfig, ProviderHttpError, ProviderRouter, provider_configs_from_env
 
-USER_AGENT = "genithm-ai-worker/0.5.0"
+USER_AGENT = "genithm-ai-worker/0.6.0"
 
 
 def _required_env(name: str) -> str:
@@ -52,8 +52,8 @@ class Settings:
     primary: ProviderConfig
     backup: ProviderConfig | None
     visibility_seconds: int = 300
-    poll_seconds: float = 2.0
-    request_timeout_seconds: float = 90.0
+    poll_seconds: float = 1.0
+    request_timeout_seconds: float = 30.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -64,27 +64,11 @@ class Settings:
         if not supabase_secret_key or supabase_secret_key.startswith("sb_publishable_"):
             raise ValueError("SUPABASE_SECRET_KEY must be a server-side secret key")
 
-        primary = ProviderConfig(
-            name=os.environ.get("GENITHM_AI_PRIMARY_PROVIDER", "qwen").strip().lower(),
-            api_key=_required_env("GENITHM_AI_PRIMARY_API_KEY"),
-            endpoint=_required_env("GENITHM_AI_PRIMARY_ENDPOINT"),
-            model=_required_env("GENITHM_AI_PRIMARY_MODEL"),
-            protocol=os.environ.get("GENITHM_AI_PRIMARY_PROTOCOL", "chat_completions").strip().lower(),
-        )
-        backup_enabled = os.environ.get("GENITHM_AI_BACKUP_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-        backup = None
-        if backup_enabled:
-            backup = ProviderConfig(
-                name=os.environ.get("GENITHM_AI_BACKUP_PROVIDER", "deepseek").strip().lower(),
-                api_key=_required_env("GENITHM_AI_BACKUP_API_KEY"),
-                endpoint=_required_env("GENITHM_AI_BACKUP_ENDPOINT"),
-                model=_required_env("GENITHM_AI_BACKUP_MODEL"),
-                protocol=os.environ.get("GENITHM_AI_BACKUP_PROTOCOL", "chat_completions").strip().lower(),
-            )
+        primary, backup = provider_configs_from_env()
 
         visibility = int(os.environ.get("GENITHM_AI_VISIBILITY_SECONDS", "300"))
-        poll = float(os.environ.get("GENITHM_AI_POLL_SECONDS", "2"))
-        timeout = float(os.environ.get("GENITHM_AI_REQUEST_TIMEOUT_SECONDS", "90"))
+        poll = float(os.environ.get("GENITHM_AI_POLL_SECONDS", "1"))
+        timeout = float(os.environ.get("GENITHM_AI_REQUEST_TIMEOUT_SECONDS", "30"))
         if visibility < 60 or visibility > 900:
             raise ValueError("GENITHM_AI_VISIBILITY_SECONDS must be 60..900")
         if poll < 0.25 or poll > 60:

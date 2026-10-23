@@ -9,14 +9,10 @@ MANIFEST = ROOT / "deploy" / "kubernetes" / "workers.yaml"
 AI_RUNTIME = ROOT / "apps" / "ai-worker" / "genithm_ai_worker" / "runtime.py"
 
 PRIMARY = (
-    "GENITHM_AI_PRIMARY_API_KEY",
-    "GENITHM_AI_PRIMARY_ENDPOINT",
-    "GENITHM_AI_PRIMARY_MODEL",
+    "GEMINI_API_KEY",
 )
 BACKUP = (
-    "GENITHM_AI_BACKUP_API_KEY",
-    "GENITHM_AI_BACKUP_ENDPOINT",
-    "GENITHM_AI_BACKUP_MODEL",
+    "GROQ_API_KEY",
 )
 
 
@@ -35,20 +31,19 @@ class AiKubernetesSettingsContractTests(unittest.TestCase):
 
     def test_required_provider_keys_exactly_match_runtime(self) -> None:
         for name in PRIMARY:
-            self.assertIn(f'_required_env("{name}")', self.runtime)
+            self.assertIn("provider_configs_from_env()", self.runtime)
             self.assertIn(f"name: {name}, valueFrom:", self.ai)
             self.assertIn(f"key: {name}}}}}", self.ai)
         self.assertNotIn("name: OPENAI_API_KEY,", self.ai)
         self.assertNotIn("name: GENITHM_AI_MODEL,", self.ai)
 
-    def test_backup_explicitly_opt_in_and_secret_refs_optional(self) -> None:
-        self.assertIn('GENITHM_AI_BACKUP_ENABLED: "false"', self.manifest)
+    def test_groq_backup_secret_is_required_in_development(self) -> None:
         for name in BACKUP:
             self.assertIn(f"name: {name}, valueFrom:", self.ai)
-            self.assertIn(f"key: {name}, optional: true", self.ai)
+            self.assertIn(f"key: {name}}}}}", self.ai)
 
     def test_ai_heartbeat_identifies_new_dispatch_version(self) -> None:
-        self.assertIn('USER_AGENT = "genithm-ai-worker/0.5.0"', self.runtime)
+        self.assertIn('USER_AGENT = "genithm-ai-worker/0.6.0"', self.runtime)
         self.assertIn("Settings.from_env()", (
             ROOT / "apps" / "ai-worker" / "genithm_ai_worker" / "entrypoint.py"
         ).read_text(encoding="utf-8"))

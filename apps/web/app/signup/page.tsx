@@ -64,9 +64,9 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
             <div className={`notice ${styles.feedback}`} role="status">
               <strong>Full Genithm sign-in is not running yet.</strong>
               <p>This Codespace is showing the sample-only workbench. To connect the existing Supabase project,
-              OpenRouter AI, scientific API and six workers, open the repository terminal and run:</p>
+              Gemini-primary/Groq-secondary AI, scientific API and six workers, open the repository terminal and run:</p>
               <code>bash scripts/codespaces_preview.sh</code>
-              <p>That launcher needs the Codespaces secrets named SUPABASE_SECRET_KEY and OPENROUTER_API_KEY.
+              <p>That launcher needs the Codespaces secrets named SUPABASE_SECRET_KEY, GEMINI_API_KEY and GROQ_API_KEY.
               Never paste your secret values into the page or source code.</p>
             </div>
           ) : (

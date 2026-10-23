@@ -15,6 +15,7 @@ def main() -> int:
     chat_composer = (ROOT / "apps/web/components/ai-chat-composer.tsx").read_text(encoding="utf-8")
     chat_api = (ROOT / "apps/web/app/api/ai/chat/route.ts").read_text(encoding="utf-8")
     chat_provider = (ROOT / "apps/web/lib/genithm-ai-chat.ts").read_text(encoding="utf-8")
+    gateway = (ROOT / "apps/web/lib/ai-provider-gateway.ts").read_text(encoding="utf-8")
 
     # V40 moved navigation into a shared frame without moving the auth boundary.
     assert "GenithmWorkspaceFrame" in layout
@@ -49,14 +50,17 @@ def main() -> int:
     assert 'response.body.getReader()' in chat_composer
     assert 'eventName === "delta"' in chat_composer
     assert 'stream: true' in chat_provider
-    assert 'openrouter/free' in chat_provider
-    assert 'https://openrouter.ai/api/v1/chat/completions' in chat_provider
-    assert 'OPENROUTER_API_KEY' in chat_provider
+    assert 'gemini-3.8-flash' in gateway
+    assert 'llama-3.3-70b-versatile' in gateway
+    assert 'GEMINI_API_KEY' in gateway
+    assert 'GROQ_API_KEY' in gateway
+    assert 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' in gateway
+    assert 'https://api.groq.com/openai/v1/chat/completions' in gateway
     assert 'provider: providerResult.provider' in chat_api
     assert 'model: providerResult.model' in chat_api
-    assert 'balance or free quota' in chat_provider
-    assert 'thinking: { type: "disabled" }' in chat_provider
-    assert 'reasoning_effort: "none"' in chat_provider
+    assert 'streamFromProviders' in chat_provider
+    assert 'reasoningEffort' in chat_provider
+    assert 'OPENROUTER_API_KEY' not in chat_provider
     assert 'propose_scientific_action' in chat_provider
     assert 'msa_phylogeny_workflow' in chat_provider
     assert 'ai_workflow_runs' in chat_conversation

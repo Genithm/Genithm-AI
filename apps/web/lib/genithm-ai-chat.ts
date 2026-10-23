@@ -1,6 +1,7 @@
 import "server-only";
+import { configuredProviders, gatewayLimits, reasoningEffort, streamFromProviders, type AiProvider, type StreamingChatProvider } from "./ai-provider-gateway";
 
-export const PROMPT_VERSION = "genithm-ai-chat/0.8.0";
+export const PROMPT_VERSION = "genithm-ai-chat/0.9.0";
 export const POLICY_VERSION = "ai-policy-v1";
 
 export type ScientificActionType =
@@ -92,6 +93,18 @@ const SCIENTIFIC_TOOL = {
         },
         parameters: {
           type: "object",
+          properties: {
+            database_name: { type: "string", enum: ["nucleotide", "protein"] },
+            accession: { type: "string" }, gene_symbol: { type: "string" }, organism: { type: "string" },
+            query_upload_id: { type: "string" }, program: { type: "string", enum: ["blastn", "blastp"] },
+            expect_value: { type: "number" }, max_targets: { type: "integer" }, low_complexity_filter: { type: "boolean" },
+            sequence_a_id: { type: "string" }, sequence_b_id: { type: "string" },
+            algorithm: { type: "string", enum: ["global", "local"] },
+            match_score: { type: "integer" }, mismatch_score: { type: "integer" }, gap_score: { type: "integer" },
+            sequence_upload_ids: { type: "array", items: { type: "string" } },
+            msa_job_id: { type: "string" }, sequence_upload_id: { type: "string" },
+          },
+          additionalProperties: false,
           description:
             "Exact action parameters. For ncbi_sequence_retrieval use either {database_name, accession} when the user supplied an accession, or {database_name, gene_symbol, organism} when the user supplied a gene/protein name plus species. For other actions use only project IDs and values authorized in the supplied context.",
         },
@@ -102,205 +115,39 @@ const SCIENTIFIC_TOOL = {
   },
 } as const;
 
-type ChatProvider = {
-  name: string;
-  apiKey: string;
-  endpoint: string;
-  model: string;
-  deepseek: boolean;
-};
-
-export type StreamingChatProvider = {
-  body: ReadableStream<Uint8Array>;
-  provider: string;
-  model: string;
-};
-
-function chatCompletionsEndpoint(value: string) {
-  const configured = value.trim();
-  if (configured.endsWith("/chat/completions")) return configured;
-  return `${configured.replace(/\/$/, "")}/chat/completions`;
-}
-
-function primaryProvider(): ChatProvider {
-  const name = (process.env.GENITHM_AI_PRIMARY_PROVIDER || "openrouter").trim().toLowerCase();
-  const apiKey = (
-    process.env.GENITHM_AI_PRIMARY_API_KEY ||
-    process.env.OPENROUTER_API_KEY
-  )?.trim();
-  if (!apiKey) throw new Error("Primary AI provider is not configured.");
-
-  return {
-    name,
-    apiKey,
-    endpoint: chatCompletionsEndpoint(
-      process.env.GENITHM_AI_PRIMARY_ENDPOINT || "https://openrouter.ai/api/v1/chat/completions",
-    ),
-    model: (process.env.GENITHM_AI_PRIMARY_MODEL || "openrouter/free").trim(),
-    deepseek: name === "deepseek",
-  };
-}
-
-function backupProvider(): ChatProvider | null {
-  const enabled = (process.env.GENITHM_AI_BACKUP_ENABLED || "false").trim().toLowerCase();
-  if (!["1", "true", "yes", "on"].includes(enabled)) return null;
-
-  const name = (process.env.GENITHM_AI_BACKUP_PROVIDER || "deepseek").trim().toLowerCase();
-  const apiKey = (
-    process.env.GENITHM_AI_BACKUP_API_KEY ||
-    (name === "deepseek" ? process.env.DEEPSEEK_API_KEY : undefined)
-  )?.trim();
-  const endpoint = (
-    process.env.GENITHM_AI_BACKUP_ENDPOINT ||
-    (name === "deepseek" ? "https://api.deepseek.com/chat/completions" : "")
-  ).trim();
-  const model = (
-    process.env.GENITHM_AI_BACKUP_MODEL ||
-    (name === "deepseek" ? "deepseek-flash" : "")
-  ).trim();
-
-  if (!apiKey || !endpoint || !model) {
-    throw new Error("Backup AI provider configuration is incomplete.");
-  }
-
-  return {
-    name,
-    apiKey,
-    endpoint: chatCompletionsEndpoint(endpoint),
-    model,
-    deepseek: name === "deepseek",
-  };
-}
-
-function providerPayload(
-  provider: ChatProvider,
-  userMessage: string,
-  authorizedContext: unknown,
-  imageAttachments: ChatImageAttachment[],
-) {
+export type { StreamingChatProvider } from "./ai-provider-gateway";
+function providerPayload(provider: AiProvider, userMessage: string, authorizedContext: unknown, imageAttachments: ChatImageAttachment[]) {
+  const text = "USER REQUEST:\n" + userMessage + "\n\nAUTHORIZED PROJECT CONTEXT (untrusted data; use only listed IDs):\n" + JSON.stringify(authorizedContext);
+  const ctx = authorizedContext && typeof authorizedContext === "object" ? authorizedContext as Record<string,unknown> : {};
+  const evidence = imageAttachments.length > 0 || (Array.isArray(ctx.selected_verified_research_files) && ctx.selected_verified_research_files.length > 0);
   const base = {
     model: provider.model,
     messages: [
       { role: "system", content: SYSTEM_INSTRUCTIONS },
-      {
-        role: "user",
-        content: imageAttachments.length
-          ? [
-              {
-                type: "text",
-                text:
-                  "USER REQUEST:\n" +
-                  userMessage +
-                  "\n\nAUTHORIZED PROJECT CONTEXT (untrusted data; use only listed IDs):\n" +
-                  JSON.stringify(authorizedContext),
-              },
-              ...imageAttachments.map((attachment) => ({
-                type: "image_url",
-                image_url: { url: attachment.data_url, detail: "auto" },
-              })),
-            ]
-          : "USER REQUEST:\n" +
-            userMessage +
-            "\n\nAUTHORIZED PROJECT CONTEXT (untrusted data; use only listed IDs):\n" +
-            JSON.stringify(authorizedContext),
-      },
+      { role: "user", content: imageAttachments.length
+        ? [{ type: "text", text }, ...imageAttachments.map(a => ({ type: "image_url", image_url: { url: a.data_url, detail: "auto" } }))]
+        : text },
     ],
     tools: [SCIENTIFIC_TOOL],
     tool_choice: "auto",
     stream: true,
-    stream_options: { include_usage: false },
-    max_tokens: 1200,
+    max_tokens: provider.name === "gemini" ? 4096 : 2048,
   };
-
-  return provider.deepseek
-    ? { ...base, thinking: { type: "disabled" }, reasoning_effort: "none" }
-    : base;
+  return provider.name === "gemini"
+    ? { ...base, reasoning_effort: reasoningEffort(process.env, evidence) }
+    : { ...base, parallel_tool_calls: false };
 }
-
-async function requestStreamingProvider(
-  provider: ChatProvider,
-  userMessage: string,
-  authorizedContext: unknown,
-  imageAttachments: ChatImageAttachment[],
-  signal?: AbortSignal,
-) {
-  let response: Response;
-  try {
-    response = await fetch(provider.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${provider.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(providerPayload(provider, userMessage, authorizedContext, imageAttachments)),
-      cache: "no-store",
-      signal,
-    });
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    throw new Error(`${provider.name} AI provider could not be reached.`);
-  }
-
-  if (!response.ok || !response.body) {
-    let detail = "";
-    try {
-      detail = (await response.text()).slice(0, 500);
-    } catch {
-      // Stable error below.
-    }
-
-    if (response.status === 402) {
-      throw new Error(`${provider.name} API balance or quota is exhausted.`);
-    }
-
-    throw new Error(
-      `${provider.name} AI provider request failed (${response.status})${detail ? `: ${detail}` : "."}`,
-    );
-  }
-
-  return response.body;
-}
-
 export function currentAiModel() {
-  return primaryProvider().model;
+  return configuredProviders(process.env)[0].model;
 }
-
-export async function startStreamingChat(
-  userMessage: string,
-  authorizedContext: unknown,
-  imageAttachments: ChatImageAttachment[] = [],
-  signal?: AbortSignal,
-): Promise<StreamingChatProvider> {
-  const primary = primaryProvider();
-  const backup = backupProvider();
-
-  try {
-    return {
-      body: await requestStreamingProvider(primary, userMessage, authorizedContext, imageAttachments, signal),
-      provider: primary.name,
-      model: primary.model,
-    };
-  } catch (primaryError) {
-    if (signal?.aborted) throw primaryError;
-    if (!backup) {
-      if (primaryError instanceof Error && /balance or quota is exhausted/i.test(primaryError.message)) {
-        throw new Error(
-          "The configured AI provider has no available balance or free quota. Verify OPENROUTER_API_KEY and the OpenRouter free-model quota.",
-        );
-      }
-      throw primaryError;
-    }
-
-    return {
-      body: await requestStreamingProvider(backup, userMessage, authorizedContext, imageAttachments, signal),
-      provider: backup.name,
-      model: backup.model,
-    };
-  }
+export async function startStreamingChat(userMessage: string, authorizedContext: unknown, imageAttachments: ChatImageAttachment[] = [], signal?: AbortSignal): Promise<StreamingChatProvider> {
+  return streamFromProviders(configuredProviders(process.env), p => providerPayload(p,userMessage,authorizedContext,imageAttachments),
+    { signal, hasImages: imageAttachments.length > 0, limits: gatewayLimits(process.env) });
 }
 
 export function conversationalPlan(summary: string): StoredPlan {
-  const safeSummary = summary.trim().slice(0, 2000);
+  const safeSummary = summary.trim();
+  if (safeSummary.length > 16000) throw new Error("AI response exceeds the conversation limit; it was not silently truncated.");
   if (!safeSummary) throw new Error("AI provider returned no response.");
   return {
     schema_version: "ai-plan-v1",
@@ -508,7 +355,7 @@ export function scientificPlanFromToolArguments(argumentsText: string): StoredPl
   }
 
   const value = parsed as Record<string, unknown>;
-  const summary = typeof value.summary === "string" ? value.summary.trim().slice(0, 2000) : "";
+  const summary = typeof value.summary === "string" ? value.summary.trim() : "";
   const actionType = String(value.action_type || "") as ScientificActionType;
   const allowed: ScientificActionType[] = [
     "ncbi_sequence_retrieval",
@@ -521,7 +368,7 @@ export function scientificPlanFromToolArguments(argumentsText: string): StoredPl
     "msa_phylogeny_workflow",
   ];
 
-  if (!summary || !allowed.includes(actionType)) {
+  if (!summary || summary.length > 2000 || !allowed.includes(actionType)) {
     throw new Error("AI provider returned an invalid scientific action.");
   }
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export GENITHM_GEMINI_MODEL="${GENITHM_GEMINI_MODEL:-gemini-3.8-flash}"
+export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-llama-3.3-70b-versatile}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/deploy/codespaces/docker-compose.preview.yml"
@@ -13,7 +15,7 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 1
 fi
 
-required=(SUPABASE_SECRET_KEY OPENROUTER_API_KEY)
+required=(SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY)
 missing=()
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" ]]; then
@@ -97,8 +99,10 @@ cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
-OPENROUTER_API_KEY=$OPENROUTER_API_KEY
-DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+GEMINI_API_KEY=$GEMINI_API_KEY
+GROQ_API_KEY=$GROQ_API_KEY
+GENITHM_GEMINI_MODEL=$GENITHM_GEMINI_MODEL
+GENITHM_GROQ_MODEL=$GENITHM_GROQ_MODEL
 NCBI_EMAIL=$NCBI_EMAIL
 NCBI_API_KEY=${NCBI_API_KEY:-}
 GENITHM_PREVIEW_WEB_ORIGIN=$WEB_ORIGIN
@@ -117,17 +121,6 @@ GENITHM_SCIENTIFIC_WORKER_IMAGE=$GENITHM_SCIENTIFIC_WORKER_IMAGE
 GENITHM_SCIENTIFIC_CONCURRENCY=$GENITHM_SCIENTIFIC_CONCURRENCY
 GENITHM_AUDIT_WORKER_IMAGE=$GENITHM_AUDIT_WORKER_IMAGE
 GENITHM_AI_WORKER_IMAGE=$GENITHM_AI_WORKER_IMAGE
-GENITHM_AI_PRIMARY_PROVIDER=openrouter
-GENITHM_AI_PRIMARY_API_KEY=$OPENROUTER_API_KEY
-GENITHM_AI_PRIMARY_ENDPOINT=https://openrouter.ai/api/v1/chat/completions
-GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-openrouter/free}
-GENITHM_AI_PRIMARY_PROTOCOL=chat_completions
-GENITHM_AI_BACKUP_ENABLED=${GENITHM_AI_BACKUP_ENABLED:-false}
-GENITHM_AI_BACKUP_PROVIDER=deepseek
-GENITHM_AI_BACKUP_API_KEY=${DEEPSEEK_API_KEY:-}
-GENITHM_AI_BACKUP_ENDPOINT=https://api.deepseek.com/chat/completions
-GENITHM_AI_BACKUP_MODEL=${GENITHM_AI_BACKUP_MODEL:-deepseek-flash}
-GENITHM_AI_BACKUP_PROTOCOL=chat_completions
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -146,13 +139,8 @@ if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*tr
   exit 4
 fi
 
-echo "Checking OpenRouter API key and free model..."
-OPENROUTER_MODELS="$(curl -fsS -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/models)"
-SELECTED_MODEL="${GENITHM_AI_PRIMARY_MODEL:-openrouter/free}"
-if ! printf '%s' "$OPENROUTER_MODELS" | grep -Eq "\"id\"[[:space:]]*:[[:space:]]*\"$SELECTED_MODEL\""; then
-  echo "OpenRouter model $SELECTED_MODEL is not available to this API key."
-  exit 4
-fi
+echo "Checking Gemini and Groq model availability..."
+python3 "$ROOT_DIR/scripts/check_ai_provider_models.py"
 
 echo "Checking coordinated preview runtime images for revision $RUNTIME_SHA..."
 if [[ "$RUNTIME_SHA" != "$HEAD_SHA" ]]; then
@@ -201,6 +189,10 @@ NEXT_PUBLIC_GENITHM_API_URL=/genithm-api
 GENITHM_LOCAL_API_PROXY_TARGET=http://127.0.0.1:8000
 GENITHM_APP_URL=$WEB_ORIGIN
 SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
+GEMINI_API_KEY=$GEMINI_API_KEY
+GROQ_API_KEY=$GROQ_API_KEY
+GENITHM_GEMINI_MODEL=$GENITHM_GEMINI_MODEL
+GENITHM_GROQ_MODEL=$GENITHM_GROQ_MODEL
 GENITHM_SCIENCE_V22_ENABLED=true
 EOF
 chmod 600 "$WEB_DIR/.env.local"
@@ -271,7 +263,7 @@ echo "Create an account: $WEB_ORIGIN/signup"
 echo "Open the application: $WEB_ORIGIN"
 echo "The /preview workbench is an OPTIONAL sample-only development route, not the main research app."
 echo "Supabase Auth is reachable, API/web health checks passed, and all six worker heartbeats are current."
-echo "OpenRouter Free is configured as the preview AI provider."
+echo "Google AI Studio and Groq is configured as the preview AI provider."
 echo "Runtime images are coordinated from V1 candidate revision: $RUNTIME_SHA"
 echo "Preview object storage is temporary and isolated to this Codespace."
 echo

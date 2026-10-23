@@ -118,17 +118,10 @@ jobs:
             'GENITHM_AI_WORKER_IMAGE=alpine:3.20' \
             'GENITHM_AUDIT_SIGNING_KEY_ID=ci-placeholder' \
             'GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64=ci-placeholder' \
-            'GENITHM_AI_PRIMARY_PROVIDER=ci' \
-            'GENITHM_AI_PRIMARY_API_KEY=ci-placeholder' \
-            'GENITHM_AI_PRIMARY_ENDPOINT=https://example.invalid' \
-            'GENITHM_AI_PRIMARY_MODEL=ci-placeholder' \
-            'GENITHM_AI_PRIMARY_PROTOCOL=ci-placeholder' \
-            'GENITHM_AI_BACKUP_ENABLED=false' \
-            'GENITHM_AI_BACKUP_PROVIDER=ci' \
-            'GENITHM_AI_BACKUP_API_KEY=ci-placeholder' \
-            'GENITHM_AI_BACKUP_ENDPOINT=https://example.invalid' \
-            'GENITHM_AI_BACKUP_MODEL=ci-placeholder' \
-            'GENITHM_AI_BACKUP_PROTOCOL=ci-placeholder' \
+            'GEMINI_API_KEY=synthetic-gemini-ci-key' \
+            'GROQ_API_KEY=synthetic-groq-ci-key' \
+            'GENITHM_GEMINI_MODEL=gemini-3.8-flash' \
+            'GENITHM_GROQ_MODEL=llama-3.3-70b-versatile' \
             > "$env_file"
           docker compose -p "$project" --env-file "$env_file" -f "$compose_file" config --quiet
           docker compose -p "$project" --env-file "$env_file" -f "$compose_file" up \

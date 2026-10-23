@@ -1,82 +1,39 @@
-from genithm_ai_worker.providers import OpenAICompatibleProvider, ProviderConfig
+"""Legacy filename kept for stable CI discovery; verify only approved V49 providers."""
+from genithm_ai_worker.providers import ENDPOINTS, OpenAICompatibleProvider, ProviderConfig
+import pytest
 
+@pytest.mark.parametrize("name",["gemini","groq"])
+def test_provider_wire_format(name,monkeypatch):
+    captured={}
+    def fake_request(url,*,method,headers,payload,timeout,max_bytes=2*1024*1024):
+        captured.update(url=url,headers=headers,payload=payload)
+        return {"choices":[{"finish_reason":"stop","message":{"content":'{"status":"ok"}'}}],"model":payload["model"]}
+    monkeypatch.setattr("genithm_ai_worker.providers.JsonHttpClient.request",fake_request)
+    provider=OpenAICompatibleProvider(
+        ProviderConfig(name=name,api_key="test-fixture",endpoint=ENDPOINTS[name],
+                       model="gemini-3.8-flash" if name=="gemini" else "llama-3.3-70b-versatile",
+                       protocol="chat_completions"),timeout_seconds=30)
+    result=provider.structured_response(instructions="JSON only",input_text="test",
+         schema_name="test_schema",schema={"type":"object","properties":{"status":{"const":"ok"}},"required":["status"],"additionalProperties":False})
+    assert captured["url"]==ENDPOINTS[name]
+    assert captured["headers"]["Authorization"]=="Bearer test-fixture"
+    assert captured["payload"]["response_format"]["type"]==("json_schema" if name=="gemini" else "json_object")
+    assert "status" in result["output"][0]["content"][0]["text"]
 
-def test_deepseek_chat_completions_uses_json_object_mode(monkeypatch):
-    captured = {}
+@pytest.mark.parametrize("name,endpoint",[
+    ("openrouter","https://openrouter.ai/api/v1/chat/completions"),
+    ("deepseek","https://api.deepseek.com/chat/completions"),
+    ("qwen","https://some.vendor.example/v1/chat/completions"),
+])
+def test_legacy_vendor_rejected(name,endpoint):
+    with pytest.raises(ValueError,match="Gemini|Groq"):
+        ProviderConfig(name=name,api_key="test",endpoint=endpoint,model="test",protocol="chat_completions")
 
-    def fake_request(url, *, method, headers, payload, timeout, max_bytes=2 * 1024 * 1024):
-        captured.update(
-            {
-                "url": url,
-                "method": method,
-                "headers": headers,
-                "payload": payload,
-                "timeout": timeout,
-                "max_bytes": max_bytes,
-            }
-        )
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": '{"schema_version":"ai-plan-v1","intent":"clarification_required","summary":"Which sequence should I use?","limitations":[],"action":null}'
-                    }
-                }
-            ]
-        }
-
-    monkeypatch.setattr("genithm_ai_worker.providers.JsonHttpClient.request", fake_request)
-
-    provider = OpenAICompatibleProvider(
-        ProviderConfig(
-            name="deepseek",
-            api_key="secret",
-            endpoint="https://api.deepseek.com/chat/completions",
-            model="deepseek-flash",
-            protocol="chat_completions",
-        ),
-        timeout_seconds=30,
-    )
-
-    result = provider.structured_response(
-        instructions="Return JSON only.",
-        input_text="Build a tree.",
-        schema_name="genithm_ai_plan_v1",
-        schema={"type": "object"},
-    )
-
-    assert captured["url"] == "https://api.deepseek.com/chat/completions"
-    assert captured["payload"]["model"] == "deepseek-flash"
-    assert captured["payload"]["response_format"] == {"type": "json_object"}
-    assert "json_schema" not in captured["payload"]["response_format"]
-    assert result["output"][0]["content"][0]["type"] == "output_text"
-
-
-def test_non_deepseek_chat_provider_keeps_strict_json_schema(monkeypatch):
-    captured = {}
-
-    def fake_request(_url, *, method, headers, payload, timeout, max_bytes=2 * 1024 * 1024):
-        captured["payload"] = payload
-        return {"choices": [{"message": {"content": "{}"}}]}
-
-    monkeypatch.setattr("genithm_ai_worker.providers.JsonHttpClient.request", fake_request)
-
-    provider = OpenAICompatibleProvider(
-        ProviderConfig(
-            name="openai",
-            api_key="secret",
-            endpoint="https://api.example.com/v1/chat/completions",
-            model="test-model",
-            protocol="chat_completions",
-        ),
-        timeout_seconds=30,
-    )
-    provider.structured_response(
-        instructions="Return JSON only.",
-        input_text="test",
-        schema_name="test_schema",
-        schema={"type": "object"},
-    )
-
-    assert captured["payload"]["response_format"]["type"] == "json_schema"
-    assert captured["payload"]["response_format"]["json_schema"]["strict"] is True
+def test_malformed_structured_answer_rejected(monkeypatch):
+    def fake_request(*a,**kw):
+        return {"choices":[{"finish_reason":"stop","message":{"content":'{"status":"bad"}'}}]}
+    monkeypatch.setattr("genithm_ai_worker.providers.JsonHttpClient.request",fake_request)
+    p=OpenAICompatibleProvider(ProviderConfig("gemini","test",ENDPOINTS["gemini"],"gemini-3.8-flash","chat_completions"),timeout_seconds=30)
+    with pytest.raises(Exception,match="integrity"):
+        p.structured_response(instructions="",input_text="",schema_name="x",
+           schema={"type":"object","properties":{"status":{"const":"ok"}},"required":["status"]})
