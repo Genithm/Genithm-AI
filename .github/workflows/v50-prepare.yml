@@ -1,0 +1,75 @@
+name: V50 dependency preparation
+on:
+  push:
+    branches: [fix/v50-development-readiness]
+    paths: [.github/workflows/v50-prepare.yml]
+permissions:
+  contents: write
+concurrency:
+  group: v50-dependency-preparation
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.repository == 'Genithm/Genithm-AI' && github.ref == 'refs/heads/fix/v50-development-readiness'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Resolve only the exact Next.js security patch
+        run: |
+          set -euo pipefail
+          npm --prefix apps/web install --save-exact --package-lock-only --ignore-scripts next@16.4.2
+          npm --prefix apps/web audit --audit-level=high
+          git diff --stat
+      - name: Commit only the reviewed dependency files to this work branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, json, os, subprocess, urllib.request
+          from pathlib import Path
+          expected = os.environ['GITHUB_SHA']
+          repo = 'Genithm/Genithm-AI'
+          branch = 'fix/v50-development-readiness'
+          headers = {'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'}
+          def api(path, data=None, method=None):
+              req=urllib.request.Request('https://api.github.com/repos/'+repo+'/'+path, data=json.dumps(data).encode() if data is not None else None, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=30) as resp: return json.load(resp)
+          files = subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()
+          if set(files)-{'apps/web/package.json','apps/web/package-lock.json'}: raise SystemExit('Unexpected mutation')
+          head=api('git/ref/heads/'+branch)['object']['sha']
+          if head != expected: raise SystemExit('Work branch moved; refusing overwrite')
+          if files:
+              base=api('git/commits/'+head)['tree']['sha']
+              elements=[]
+              for path in files:
+                  blob=api('git/blobs',{'encoding':'base64','content':base64.b64encode(Path(path).read_bytes()).decode()},'POST')['sha']
+                  elements.append({'path':path,'mode':'100644','type':'blob','sha':blob})
+              tree=api('git/trees',{'base_tree':base,'tree':elements},'POST')['sha']
+              commit=api('git/commits',{'message':'fix: pin Next.js 16.4.2 and regenerate audited lockfile','tree':tree,'parents':[head]},'POST')['sha']
+              if api('git/ref/heads/'+branch)['object']['sha'] != head: raise SystemExit('Work branch moved')
+              api('git/refs/heads/'+branch,{'sha':commit,'force':False},'PATCH')
+              print('Dependency commit:',commit)
+          PY
+      - name: Archive tracked source for offline review
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/v50-source
+          git archive HEAD > artifacts/v50-source/source.tar
+          cp apps/web/package.json artifacts/v50-source/package.json
+          cp apps/web/package-lock.json artifacts/v50-source/package-lock.json
+          git diff -- apps/web/package.json apps/web/package-lock.json > artifacts/v50-source/dependency.patch
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: genithm-v50-source-review
+          path: artifacts/v50-source/
+          retention-days: 3
+          if-no-files-found: error
