@@ -7,6 +7,7 @@ const tools=[
   {title:"Sequence analysis",icon:"data",description:"Upload FASTA, run alignments and BLAST, or explore protein properties.",kind:"Worker-backed tools",href:"/dashboard/tools"},
   {title:"FASTQ quality control",icon:"results",description:"Inspect read quality, GC content, and paired-end consistency locally.",kind:"Runs in your browser",href:"/dashboard/fastq-qc"},
   {title:"Variant quality control",icon:"results",description:"Inspect VCF record counts, quality scores, and variant distributions.",kind:"Runs in your browser",href:"/dashboard/variant-qc"},
+  {title:"GWAS association analysis",icon:"data",description:"Run quantitative or binary genotype–phenotype association on matched VCF/dosage and phenotype inputs, with plots and corrected P-values.",kind:"Real bounded analysis in your browser",href:"/dashboard/gwas"},
   {title:"Automated pipelines",icon:"pipelines",description:"Run supported reference-sequence workflows with explicit approval.",kind:"Worker-backed workflows",href:"/dashboard/pipelines"},
   {title:"Compare results",icon:"projects",description:"Compare compatible completed analyses and save research studies.",kind:"Uses your recorded results",href:"/dashboard/results"},
   {title:"Research notebook",icon:"notebook",description:"Keep observations, interpretations, and notes alongside your projects.",kind:"Private project notes",href:"/dashboard/notebook"},
