@@ -14,13 +14,16 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 2
 fi
 
+# Stop stale Next.js before any setup failure or node_modules replacement.
+python3 "$ROOT/scripts/stop_codespaces_web.py"
+
 missing=()
 for key in SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY; do
   if [[ -z "${!key:-}" ]]; then missing+=("$key"); fi
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing Codespaces secrets: ${missing[*]}"
-  echo "Add them under repository Settings > Secrets and variables > Codespaces, then restart your Codespace."
+  echo "Add them under repository Settings > Secrets and variables > Codespaces, then STOP and START your Codespace (not only the browser). Actions secrets are separate."
   exit 2
 fi
 
@@ -59,23 +62,8 @@ chmod 600 "$WEB_DIR/.env.local"
 # Existing Codespaces may still contain dependencies from an older lockfile.
 echo "Synchronizing locked Genithm web dependencies..."
 (cd "$WEB_DIR" && npm ci)
-
-# An automatically started /preview dev server must not retain old env vars.
-# Do not run two conflicting Next.js processes on the same Codespace port.
-if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-  kill "$(cat "$PID_FILE")" >/dev/null 2>&1 || true
-fi
-if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
-  if command -v fuser >/dev/null 2>&1; then
-    echo "Replacing an older Codespaces port-3000 web process..."
-    fuser -k 3000/tcp >/dev/null 2>&1 || true
-    sleep 2
-  fi
-fi
-if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
-  echo "Port 3000 is occupied. Stop the old web server, then rerun this command."
-  exit 4
-fi
+node "$ROOT/scripts/check_web_runtime.mjs"
+rm -rf -- "$WEB_DIR/.next"
 
 echo "Launching real Genithm BioAI chat..."
 (

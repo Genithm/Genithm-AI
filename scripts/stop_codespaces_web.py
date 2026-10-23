@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Stop only this checkout's owned Next.js dev/start processes, never arbitrary port users."""
+from __future__ import annotations
+import os
+import re
+from pathlib import Path
+import signal
+import socket
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def is_web_command(command: str) -> bool:
+    return bool(re.match(r"^(?:next-server(?: |$)|npm run (?:dev|start)(?: |$))", command) or
+                re.search(r"(?:^| )[^ ]*/next/dist/bin/next (?:dev|start)(?: |$)", command))
+
+
+def identity(pid: int, web: Path):
+    try:
+        proc = Path('/proc') / str(pid)
+        if proc.stat().st_uid != os.getuid() or (proc / 'cwd').resolve() != web.resolve():
+            return None
+        command = (proc / 'cmdline').read_bytes().replace(b'\0', b' ').decode('utf8', 'replace').strip()
+        if not is_web_command(command):
+            return None
+        fields = (proc / 'stat').read_text().rsplit(')', 1)[1].split()
+        if fields[0] == 'Z':
+            return None
+        return fields[19]  # Linux process start time: guard against PID reuse.
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def stop(root: Path = ROOT) -> None:
+    web = root / 'apps/web'
+    targets = {}
+    for proc in Path('/proc').iterdir():
+        if proc.name.isdigit():
+            pid = int(proc.name)
+            stamp = identity(pid, web)
+            if stamp is not None:
+                targets[pid] = stamp
+    for pid, stamp in targets.items():
+        if identity(pid, web) == stamp:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+    deadline = time.monotonic() + 5
+    while any(identity(pid, web) == stamp for pid, stamp in targets.items()):
+        if time.monotonic() >= deadline:
+            raise RuntimeError('The previous Genithm server did not stop. Stop it in the terminal and retry.')
+        time.sleep(0.1)
+    try:
+        with socket.create_connection(('127.0.0.1', 3000), timeout=0.5):
+            raise RuntimeError('Port 3000 is occupied by another process; it was not killed. Stop that process and retry.')
+    except OSError:
+        pass
+    (root / '.codespaces-web.pid').unlink(missing_ok=True)
+    print('[Genithm] Previous web runtime stopped; port 3000 is available.')
+
+
+if __name__ == '__main__':
+    try:
+        stop()
+    except (OSError, RuntimeError) as error:
+        print(f'[Genithm] {error}', file=sys.stderr)
+        raise SystemExit(4)

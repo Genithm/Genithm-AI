@@ -16,6 +16,9 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 1
 fi
 
+# Stop stale Next.js before any setup failure or node_modules replacement.
+python3 "$ROOT_DIR/scripts/stop_codespaces_web.py"
+
 required=(SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY)
 missing=()
 for name in "${required[@]}"; do
@@ -25,7 +28,7 @@ for name in "${required[@]}"; do
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing Codespaces secrets: ${missing[*]}"
-  echo "Add the required repository Codespaces secrets, restart the Codespace, then run this command again."
+  echo "Add the required repository Codespaces secrets, STOP and START the Codespace, then run this command again. Actions secrets are separate."
   exit 2
 fi
 
@@ -188,6 +191,8 @@ echo "Preparing web dependencies..."
   cd "$WEB_DIR"
   npm ci
 )
+node "$ROOT_DIR/scripts/check_web_runtime.mjs"
+rm -rf -- "$WEB_DIR/.next"
 
 echo "Starting Genithm API, six workers, and preview object storage..."
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
@@ -206,23 +211,6 @@ GENITHM_GROQ_MODEL=$GENITHM_GROQ_MODEL
 GENITHM_SCIENCE_V22_ENABLED=true
 EOF
 chmod 600 "$WEB_DIR/.env.local"
-
-# Codespaces autostarts a sample-only Next.js server on port 3000.
-# Replace it before starting the fully configured research application.
-if [[ -f "$WEB_PID" ]] && kill -0 "$(cat "$WEB_PID")" 2>/dev/null; then
-  kill "$(cat "$WEB_PID")" || true
-fi
-if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
-  if command -v fuser >/dev/null 2>&1; then
-    echo "Replacing existing Codespaces development server on port 3000..."
-    fuser -k 3000/tcp >/dev/null 2>&1 || true
-    sleep 2
-  fi
-fi
-if (echo >/dev/tcp/127.0.0.1/3000) >/dev/null 2>&1; then
-  echo "Port 3000 is still busy. Stop the old web preview process and rerun the full-preview launcher."
-  exit 4
-fi
 
 (
   cd "$WEB_DIR"
