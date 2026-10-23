@@ -2,6 +2,8 @@
 # Launch the REAL authenticated Genithm BioAI chat independently from the
 # six-worker Docker science fleet. This is not the /preview sample workbench.
 set -euo pipefail
+export GENITHM_GEMINI_MODEL="${GENITHM_GEMINI_MODEL:-gemini-3.8-flash}"
+export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-llama-3.3-70b-versatile}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -12,7 +14,7 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
 fi
 
 missing=()
-for key in SUPABASE_SECRET_KEY OPENROUTER_API_KEY; do
+for key in SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY; do
   if [[ -z "${!key:-}" ]]; then missing+=("$key"); fi
 done
 if (( ${#missing[@]} > 0 )); then
@@ -42,9 +44,10 @@ NEXT_PUBLIC_GENITHM_API_URL=/genithm-api
 GENITHM_LOCAL_API_PROXY_TARGET=http://127.0.0.1:8000
 GENITHM_APP_URL=$ORIGIN
 SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
-OPENROUTER_API_KEY=$OPENROUTER_API_KEY
-GENITHM_AI_PRIMARY_PROVIDER=openrouter
-GENITHM_AI_PRIMARY_MODEL=${GENITHM_AI_PRIMARY_MODEL:-openrouter/free}
+GEMINI_API_KEY=$GEMINI_API_KEY
+GROQ_API_KEY=$GROQ_API_KEY
+GENITHM_GEMINI_MODEL=$GENITHM_GEMINI_MODEL
+GENITHM_GROQ_MODEL=$GENITHM_GROQ_MODEL
 GENITHM_SCIENCE_V22_ENABLED=false
 EOF
 chmod 600 "$WEB_DIR/.env.local"
@@ -102,7 +105,7 @@ echo "Sign in: $ORIGIN/login"
 echo "Create account: $ORIGIN/signup"
 echo "Research conversations: $ORIGIN/dashboard/ai"
 echo
-echo "MODE: Real authenticated AI chat with OpenRouter and existing Supabase."
+echo "MODE: Real authenticated AI chat with Google AI Studio and Groq and existing Supabase."
 echo "Scientific jobs, NCBI retrieval and FASTA uploads are not started by this chat-only launcher."
 echo "For the full backend, API, sequence storage and six real workers, use:"
 echo "  bash scripts/codespaces_preview.sh"
