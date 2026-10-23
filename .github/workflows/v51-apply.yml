@@ -2,7 +2,7 @@ name: V51 reviewed patch preparation
 on:
   push:
     branches: [fix/v51-runtime-startup]
-    paths: [.github/v51-runtime.patch.b64]
+    paths: [.github/workflows/v51-apply.yml]
 permissions:
   contents: write
 jobs:
@@ -21,7 +21,8 @@ jobs:
           python3 - <<'PY'
           import base64, hashlib, subprocess, zlib
           from pathlib import Path
-          raw=zlib.decompress(base64.b64decode(Path('.github/v51-runtime.patch.b64').read_text().strip(),validate=True))
+          encoded=''.join(Path(f'.github/v51-part-{i}.b64').read_text().strip() for i in range(4))
+          raw=zlib.decompress(base64.b64decode(encoded,validate=True))
           if hashlib.sha256(raw).hexdigest() != '6ab7a6785551d99afb1e68f77e3ddc1e310e17d1efdbe83b3b36dddb2160edd3':
               raise SystemExit('Patch digest mismatch; no changes applied')
           patch=Path('/tmp/v51-reviewed.patch'); patch.write_bytes(raw)
