@@ -270,13 +270,14 @@ export async function streamFromProviders(
     } catch (error) {
       cleanup();
       aborted(options.signal);
-      lastError = error instanceof ProviderFailure ? error : new ProviderFailure(`${provider.name} API could not be reached.`);
-      const failureText = lastError.message.startsWith(provider.name + " ") ? lastError.message : `${provider.name}: ${lastError.message}`;
+      const failure: ProviderFailure = error instanceof ProviderFailure ? error : new ProviderFailure(`${provider.name} API could not be reached.`);
+      lastError = failure;
+      const failureText = failure.message.startsWith(provider.name + " ") ? failure.message : `${provider.name}: ${failure.message}`;
       safeFailures.push(failureText);
       // Do not log credentials, prompts, upstream error bodies or research content.
       console.warn(JSON.stringify({ event: "ai_provider_attempt_failed", provider: provider.name,
-        model: provider.model, reason: failureText, fallback_permitted: lastError.fallbackAllowed }));
-      if (!lastError.fallbackAllowed) throw lastError;
+        model: provider.model, reason: failureText, fallback_permitted: failure.fallbackAllowed }));
+      if (!failure.fallbackAllowed) throw failure;
     }
   }
   if (safeFailures.length > 1) {
