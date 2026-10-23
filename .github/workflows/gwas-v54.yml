@@ -1,0 +1,33 @@
+name: Genithm local GWAS science
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gwas-association:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Validate real association, model regression and safe GWAS routing
+        run: node --experimental-strip-types --test apps/web/tests/gwas-association-v54.test.mjs apps/web/tests/gwas-chat-v54.test.mjs
+      - name: Check for forbidden network or credential access in GWAS browser worker
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          worker=Path('apps/web/app/dashboard/gwas/gwas.worker.ts').read_text()
+          for item in ['fetch(', 'XMLHttpRequest', 'WebSocket(', 'SUPABASE_SECRET_KEY', 'GEMINI_API_KEY', 'GROQ_API_KEY']:
+              assert item not in worker, f'Forbidden private-data behavior: {item}'
+          assert 'calculateGwas(' in worker
+          assert 'crypto.subtle.digest("SHA-256"' in worker
+          PY

@@ -1,4 +1,5 @@
 import type { Json } from "@/lib/ai-database.types";
+import { isGwasExecutionRequest, gwasInputGuidance } from "@/lib/gwas-chat-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
@@ -183,6 +184,26 @@ export async function POST(request: Request) {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
           }));
+
+          // GWAS has a real authenticated browser-local execution path. Neither
+          // the LLM's eight server-side proposal types nor the science-worker
+          // fleet can run a GWAS from a chat text turn. Never fabricate a run.
+          if (isGwasExecutionRequest(row.user_message)) {
+            const reply = gwasInputGuidance();
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: reply,
+            });
+            if (finishError) throw new Error(finishError.message);
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              status: "gwas_inputs_required",
+              message: reply,
+              requires_confirmation: false,
+            }));
+            return;
+          }
 
           // Explicit NCBI execution requests must never be answered by the
           // conversational model when scientific execution is unavailable.

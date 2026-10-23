@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 CapabilityStatus = Literal["available", "planned"]
-ExecutionKind = Literal["direct", "workflow", "planned"]
+ExecutionKind = Literal["direct", "workflow", "local", "planned"]
 
 SCIENTIFIC_DOMAINS: tuple[str, ...] = (
     "sequences_annotation",
@@ -56,7 +56,7 @@ _CAPABILITIES: tuple[ScientificCapability, ...] = (
     ScientificCapability("pangenome_analysis", "genomics", "Pangenome analysis", "planned", "planned"),
     ScientificCapability("variant_calling", "variants_population", "Variant calling", "planned", "planned"),
     ScientificCapability("variant_annotation", "variants_population", "Variant annotation", "planned", "planned"),
-    ScientificCapability("gwas", "variants_population", "Genome-wide association analysis", "planned", "planned"),
+    ScientificCapability("gwas", "variants_population", "Genome-wide association analysis (bounded browser-local)", "available", "local"),
     ScientificCapability("population_genetics", "variants_population", "Population genetics analysis", "planned", "planned"),
     ScientificCapability("rna_seq_quantification", "transcriptomics", "RNA-seq quantification", "planned", "planned"),
     ScientificCapability("differential_expression", "transcriptomics", "Differential expression", "planned", "planned"),

@@ -63,3 +63,11 @@ def test_capability_lookup_rejects_unknown_id():
 
     with pytest.raises(ValueError):
         get_capability("unknown_capability")
+
+
+def test_gwas_local_execution_is_not_an_unapproved_server_side_job():
+    gwas = get_capability("gwas")
+    assert gwas.status == "available"
+    assert gwas.execution_kind == "local"
+    assert gwas.action_type is None
+    assert "gwas" not in executable_action_types()

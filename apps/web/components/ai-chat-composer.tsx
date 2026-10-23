@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/client";
 import { LargeDataPanel } from "@/app/dashboard/data/large-data-panel";
@@ -604,6 +605,7 @@ export function AiChatComposer({
               <span aria-hidden="true">＋</span>
               Attach
             </button>
+            <Link href="/dashboard/gwas" className={styles.attachButton} title="Open real local genome-wide association analysis">GWAS Lab</Link>
             <button className={styles.attachButton} type="button" disabled={!projectId || sending} aria-expanded={researchFilesOpen} aria-controls={researchFilesOpen ? "genithm-chat-research-files" : undefined} onClick={() => setResearchFilesOpen(value => !value)}>Research files</button>
             <span className={styles.hint}>FASTA, DNA, protein, images · drag &amp; drop</span>
           </div>
