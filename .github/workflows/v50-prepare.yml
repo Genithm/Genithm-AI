@@ -12,7 +12,7 @@ jobs:
   prepare:
     if: github.repository == 'Genithm/Genithm-AI' && github.ref == 'refs/heads/fix/v50-development-readiness'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
@@ -21,55 +21,81 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Resolve only the exact Next.js security patch
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Validate checksummed patch before applying
+        shell: bash
         run: |
           set -euo pipefail
-          npm --prefix apps/web install --save-exact --package-lock-only --ignore-scripts next@16.4.2
+          python3 - <<'PY'
+          import base64, hashlib, zlib
+          from pathlib import Path
+          text=Path('.github/v50-change-set.zlib.b64').read_text().strip()
+          # Repair a known transfer omission, then require the exact locally tested patch digest.
+          text=text.replace('EfpRcAlOaXLIC','EfpRcAlCJkWqQjRd3s2CP+fwTzIGlOaXLIC')
+          raw=zlib.decompress(base64.b64decode(text,validate=True))
+          if hashlib.sha256(raw).hexdigest() != 'df200cea7f10b0e7df3de27259db3865dd8213ed0ed9684ad3a1a18be6f19bc1':
+              raise SystemExit('Patch checksum mismatch; no source changes applied')
+          Path('/tmp/genithm-v50.patch').write_bytes(raw)
+          PY
+          git apply --check /tmp/genithm-v50.patch
+          git apply /tmp/genithm-v50.patch
+          git diff --check
+      - name: Run dependency security audit and executable regressions
+        shell: bash
+        run: |
+          set -euo pipefail
           npm --prefix apps/web audit --audit-level=high
-          git diff --stat
-      - name: Commit only the reviewed dependency files to this work branch
+          python -m pip install pytest==9.1.1
+          PYTHONPATH=apps/ai-worker python -m pytest -q apps/ai-worker/tests
+          python -m unittest discover -s scripts/tests -p test_ai_account_preflight.py
+          python -m unittest discover -s scripts/tests -p test_development_readiness_v50.py
+          python scripts/test_v1_ui_shell_contract.py
+          python scripts/test_v1_auth_entry_ui_contract.py
+          node --experimental-strip-types --test apps/web/tests/ai-provider-gateway-v49.test.mjs apps/web/tests/codespaces-full-preview-v31.test.mjs apps/web/tests/bioai-conversation-product-v32.test.mjs
+          bash -n scripts/codespaces_bioai.sh scripts/codespaces_preview.sh
+      - name: Prepare clean candidate Git objects for connector review
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          rm .github/v50-change-set.zlib.b64 .github/workflows/v50-prepare.yml
+          git add -A
+          python scripts/security_policy.py
           python3 - <<'PY'
           import base64, json, os, subprocess, urllib.request
           from pathlib import Path
-          expected = os.environ['GITHUB_SHA']
-          repo = 'Genithm/Genithm-AI'
-          branch = 'fix/v50-development-readiness'
-          headers = {'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'}
-          def api(path, data=None, method=None):
-              req=urllib.request.Request('https://api.github.com/repos/'+repo+'/'+path, data=json.dumps(data).encode() if data is not None else None, headers=headers, method=method)
-              with urllib.request.urlopen(req, timeout=30) as resp: return json.load(resp)
-          files = subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()
-          if set(files)-{'apps/web/package.json','apps/web/package-lock.json'}: raise SystemExit('Unexpected mutation')
-          head=api('git/ref/heads/'+branch)['object']['sha']
-          if head != expected: raise SystemExit('Work branch moved; refusing overwrite')
-          if files:
-              base=api('git/commits/'+head)['tree']['sha']
-              elements=[]
-              for path in files:
-                  blob=api('git/blobs',{'encoding':'base64','content':base64.b64encode(Path(path).read_bytes()).decode()},'POST')['sha']
-                  elements.append({'path':path,'mode':'100644','type':'blob','sha':blob})
-              tree=api('git/trees',{'base_tree':base,'tree':elements},'POST')['sha']
-              commit=api('git/commits',{'message':'fix: pin Next.js 16.4.2 and regenerate audited lockfile','tree':tree,'parents':[head]},'POST')['sha']
-              if api('git/ref/heads/'+branch)['object']['sha'] != head: raise SystemExit('Work branch moved')
-              api('git/refs/heads/'+branch,{'sha':commit,'force':False},'PATCH')
-              print('Dependency commit:',commit)
+          expected=os.environ['GITHUB_SHA']
+          branch='fix/v50-development-readiness'
+          repo='Genithm/Genithm-AI'
+          allowed={'.devcontainer/setup.sh','.github/workflows/ci.yml','.github/workflows/genithm-light-workspace.yml','.github/workflows/genithm-verification.yml','.gitignore','apps/web/app/api/ai/chat/route.ts','apps/web/lib/ai-provider-gateway.ts','apps/web/tests/ai-provider-gateway-v49.test.mjs','docs/deployment/CODESPACES_FULL_PREVIEW.md','docs/development-readiness-v50.md','scripts/check_ai_provider_models.py','scripts/codespaces_bioai.sh','scripts/codespaces_preview.sh','scripts/test_genithm_product_browser.mjs','scripts/test_v1_auth_entry_ui_contract.py','scripts/test_v1_ui_shell_contract.py','scripts/tests/test_ai_account_preflight.py','scripts/tests/test_development_readiness_v50.py','.github/v50-change-set.zlib.b64','.github/workflows/v50-prepare.yml'}
+          files=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          if set(files)!=allowed: raise SystemExit('Unexpected changed paths: '+str(set(files)^allowed))
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'}
+          def api(path,data=None):
+              req=urllib.request.Request('https://api.github.com/repos/'+repo+'/'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers)
+              with urllib.request.urlopen(req,timeout=30) as resp: return json.load(resp)
+          if api('git/ref/heads/'+branch)['object']['sha']!=expected: raise SystemExit('Branch moved; refusing stale candidate')
+          base=api('git/commits/'+expected)['tree']['sha']
+          elements=[]
+          for path in files:
+              if not Path(path).exists():
+                  elements.append({'path':path,'mode':'100644','type':'blob','sha':None})
+                  continue
+              mode=subprocess.check_output(['git','ls-files','-s','--',path],text=True).split()[0]
+              blob=api('git/blobs',{'encoding':'base64','content':base64.b64encode(Path(path).read_bytes()).decode()})['sha']
+              elements.append({'path':path,'mode':mode,'type':'blob','sha':blob})
+          tree=api('git/trees',{'base_tree':base,'tree':elements})['sha']
+          commit=api('git/commits',{'message':'V50: repair development startup, account preflight and stream completion safety','tree':tree,'parents':[expected]})['sha']
+          report={'parent':expected,'candidate_commit':commit,'tree':tree,'changed_files':files,'account_keys_tested':False}
+          Path('candidate.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
           PY
-      - name: Archive tracked source for offline review
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/v50-source
-          git archive HEAD > artifacts/v50-source/source.tar
-          cp apps/web/package.json artifacts/v50-source/package.json
-          cp apps/web/package-lock.json artifacts/v50-source/package-lock.json
-          git diff -- apps/web/package.json apps/web/package-lock.json > artifacts/v50-source/dependency.patch
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: genithm-v50-source-review
-          path: artifacts/v50-source/
+          name: genithm-v50-candidate
+          path: candidate.json
           retention-days: 3
           if-no-files-found: error
