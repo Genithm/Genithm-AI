@@ -1,0 +1,33 @@
+name: Runtime startup regression
+on:
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/**'
+      - 'apps/web/package*.json'
+      - 'apps/web/tests/runtime-version-v51.test.mjs'
+      - '.github/workflows/runtime-startup-v51.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/**'
+      - 'apps/web/package*.json'
+      - 'apps/web/tests/runtime-version-v51.test.mjs'
+      - '.github/workflows/runtime-startup-v51.yml'
+permissions:
+  contents: read
+jobs:
+  runtime-startup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - run: python3 -m unittest discover -s scripts/tests -p test_runtime_startup_v51.py
+      - run: python3 -m unittest discover -s scripts/tests -p test_development_readiness_v50.py
+      - run: node --test apps/web/tests/runtime-version-v51.test.mjs
+      - run: bash -n .devcontainer/start.sh scripts/codespaces_bioai.sh scripts/codespaces_preview.sh
