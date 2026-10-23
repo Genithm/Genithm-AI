@@ -15,7 +15,7 @@ def test_primary_gemini_and_secondary_groq(monkeypatch):
     assert (s.primary.name,s.primary.model)==("gemini","gemini-3.8-flash")
     assert s.primary.endpoint.startswith("https://generativelanguage.googleapis.com/")
     assert s.backup and s.backup.name=="groq"
-    assert s.backup.model=="llama-3.3-70b-versatile"
+    assert s.backup.model=="openai/gpt-oss-120b"
 
 def test_groq_unavailable_means_explicit_primary_only(monkeypatch):
     _base(monkeypatch)
@@ -33,6 +33,15 @@ def test_no_legacy_credential_fallback(monkeypatch):
 def test_custom_model_selection(monkeypatch):
     _base(monkeypatch)
     monkeypatch.setenv("GENITHM_GEMINI_MODEL","gemini-3.7-flash")
-    monkeypatch.setenv("GENITHM_GROQ_MODEL","llama-3.3-70b-versatile")
+    monkeypatch.setenv("GENITHM_GROQ_MODEL","openai/gpt-oss-120b")
     s=Settings.from_env()
-    assert s.primary.model=="gemini-3.7-flash" and s.backup.model=="llama-3.3-70b-versatile"
+    assert s.primary.model=="gemini-3.7-flash" and s.backup.model=="openai/gpt-oss-120b"
+
+
+def test_retired_groq_default_is_migrated(monkeypatch):
+    from genithm_ai_worker.providers import provider_configs_from_env
+    env = {"GEMINI_API_KEY": "test-gemini", "GROQ_API_KEY": "test-groq",
+           "GENITHM_GROQ_MODEL": "llama-3.3-70b-versatile"}
+    primary, secondary = provider_configs_from_env(env)
+    assert primary.name == "gemini"
+    assert secondary.model == "openai/gpt-oss-120b"

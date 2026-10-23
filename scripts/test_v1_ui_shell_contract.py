@@ -51,7 +51,7 @@ def main() -> int:
     assert 'eventName === "delta"' in chat_composer
     assert 'stream: true' in chat_provider
     assert 'gemini-3.8-flash' in gateway
-    assert 'llama-3.3-70b-versatile' in gateway
+    assert 'openai/gpt-oss-120b' in gateway
     assert 'GEMINI_API_KEY' in gateway
     assert 'GROQ_API_KEY' in gateway
     assert 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' in gateway

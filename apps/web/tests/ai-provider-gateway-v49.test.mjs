@@ -16,10 +16,12 @@ const read=r=>new Response(r.body).text();
 test("exactly Gemini primary and Groq secondary with no legacy environment fallback",()=>{
  const [g,r]=configuredProviders({...env,OPENROUTER_API_KEY:"legacy",DEEPSEEK_API_KEY:"legacy"});
  assert.equal(g.name,"gemini");assert.equal(r.name,"groq");
- assert.equal(g.model,"gemini-3.8-flash");assert.equal(r.model,"llama-3.3-70b-versatile");
+ assert.equal(g.model,"gemini-3.8-flash");assert.equal(r.model,"openai/gpt-oss-120b");
  assert.match(g.endpoint,/generativelanguage.googleapis.com/);assert.match(r.endpoint,/api.groq.com/);
  assert.throws(()=>configuredProviders({OPENROUTER_API_KEY:"old"}),/GEMINI_API_KEY/);
  assert.equal(configuredProviders({GEMINI_API_KEY:"g"})[1],null);
+ assert.equal(configuredProviders({...env,GENITHM_GROQ_MODEL:"llama-3.3-70b-versatile"})[1].model,"openai/gpt-oss-120b");
+ assert.equal(configuredProviders({...env,GENITHM_GROQ_MODEL:"custom/available-model"})[1].model,"custom/available-model");
 });
 
 test("reasoning protects evidence and invalid overrides fail closed",()=>{
@@ -47,7 +49,7 @@ test("HTTP 503 falls back exactly once with a separate Groq credential",async()=
    count++;
    if(count===1)return new Response("private error message",{status:503});
    assert.equal(options.headers.Authorization,"Bearer fixture-groq");
-   return reply(chunk("Recovered","llama-3.3-70b-versatile")+end());
+   return reply(chunk("Recovered","openai/gpt-oss-120b")+end());
  }});
  assert.match(await read(stream),/Recovered/);
  assert.equal(stream.provider,"groq");assert.equal(stream.fallbackUsed,true);assert.equal(count,2);
@@ -101,7 +103,7 @@ test("V50 non-streaming responses are cancelled before fallback",async()=>{
  let cancelled=false,calls=0;
  const stream=await streamFromProviders(providers(),payload,{limits,fetcher:async()=>{
    if(++calls===1)return new Response(new ReadableStream({cancel(){cancelled=true;}}),{headers:{"content-type":"application/json"}});
-   return reply(chunk("Recovered","llama-3.3-70b-versatile")+end());
+   return reply(chunk("Recovered","openai/gpt-oss-120b")+end());
  }});
  await read(stream);
  assert.equal(cancelled,true);assert.equal(calls,2);
@@ -111,7 +113,7 @@ test("V50 first-output timeout cancels primary before starting secondary",async(
  let firstAborted=false,calls=0;
  const stream=await streamFromProviders(providers(),payload,{limits:{firstOutputMs:20,idleMs:250,totalMs:1000},fetcher:async(_url,options)=>{
    if(++calls===1){options.signal.addEventListener("abort",()=>{firstAborted=true;});return new Response(new ReadableStream({}),{headers:{"content-type":"text/event-stream"}});}
-   return reply(chunk("Fallback","llama-3.3-70b-versatile")+end());
+   return reply(chunk("Fallback","openai/gpt-oss-120b")+end());
  }});
  assert.match(await read(stream),/Fallback/);
  assert.equal(firstAborted,true);assert.equal(stream.fallbackUsed,true);assert.equal(calls,2);
@@ -128,4 +130,39 @@ test("V50 incomplete scientific tool arguments never imply a completed action",a
  const data=frame({choices:[{delta:{tool_calls:[{index:0,id:"t",function:{name:"propose_scientific_action",arguments:'{"summary":'}}]}}]});
  const stream=await streamFromProviders(providers(),payload,{limits,fetcher:async()=>reply(data)});
  await assert.rejects(read(stream),/completion/);
+});
+
+
+test("V53 distinguish Gemini primary failure from Groq backup 404 without leaking upstream bodies",async()=>{
+ let calls=0;
+ await assert.rejects(
+  streamFromProviders(providers(),payload,{limits,fetcher:async(_url,options)=>{
+   calls++;
+   if(calls===1)return new Response("SECRET_GEMINI_ERROR",{status:429});
+   assert.equal(options.headers.Authorization,"Bearer fixture-groq");
+   return new Response("SECRET_GROQ_ERROR",{status:404});
+  }}),
+  error=>{
+   assert.match(error.message,/Both AI providers failed/);
+   assert.match(error.message,/gemini API request failed \(HTTP 429/);
+   assert.match(error.message,/groq API request failed \(HTTP 404/);
+   assert.doesNotMatch(error.message,/SECRET_/);
+   return true;
+  });
+ assert.equal(calls,2);
+});
+
+test("V53 Gemini HTTP 400 preserves its cause and does not bypass it with Groq",async()=>{
+ let calls=0;
+ await assert.rejects(streamFromProviders(providers(),payload,{limits,fetcher:async()=>{
+   calls++; return new Response("private upstream error",{status:400});
+ }}),/gemini API request failed \(HTTP 400: request format or model feature rejected/);
+ assert.equal(calls,1);
+});
+
+test("V53 research-safe default Gemini timeout permits longer model thinking",()=>{
+ const defaults=gatewayLimits({});
+ assert.equal(defaults.firstOutputMs,20000);
+ assert.equal(defaults.idleMs,20000);
+ assert.equal(defaults.totalMs,90000);
 });

@@ -13,7 +13,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 USER_AGENT = "genithm-ai-worker/0.6.0"
 ENDPOINTS = {"gemini": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "groq": "https://api.groq.com/openai/v1/chat/completions"}
-DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "groq": "llama-3.3-70b-versatile"}
+DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "groq": "openai/gpt-oss-120b"}
+# Preserve old development environments that explicitly cached the retired default.
+RETIRED_GROQ_DEFAULT = "llama-3.3-70b-versatile"
 
 
 class ProviderHttpError(RuntimeError):
@@ -158,8 +160,11 @@ def provider_configs_from_env(env: Mapping[str,str] | None = None) -> tuple[Prov
     primary = ProviderConfig("gemini",env.get("GEMINI_API_KEY","").strip(),ENDPOINTS["gemini"],
                              env.get("GENITHM_GEMINI_MODEL",DEFAULT_MODELS["gemini"]).strip(),"chat_completions")
     groq_key = env.get("GROQ_API_KEY","").strip()
+    groq_model = env.get("GENITHM_GROQ_MODEL",DEFAULT_MODELS["groq"]).strip()
+    if groq_model == RETIRED_GROQ_DEFAULT:
+        groq_model = DEFAULT_MODELS["groq"]
     secondary = ProviderConfig("groq",groq_key,ENDPOINTS["groq"],
-                               env.get("GENITHM_GROQ_MODEL",DEFAULT_MODELS["groq"]).strip(),"chat_completions") if groq_key else None
+                               groq_model,"chat_completions") if groq_key else None
     return primary, secondary
 
 
