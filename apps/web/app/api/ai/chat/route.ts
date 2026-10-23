@@ -245,6 +245,7 @@ export async function POST(request: Request) {
           let toolSeen = false;
           let providerDone = false;
 
+          try {
           while (!providerDone) {
             const { value, done } = await reader.read();
             if (done) break;
@@ -285,19 +286,20 @@ export async function POST(request: Request) {
               }
 
               if (!toolSeen && typeof delta.content === "string" && delta.content) {
-                const remaining = 2000 - partialVisible.length;
-                if (researchFileIds.length && delta.content.length > remaining) throw new Error("AI response exceeded safe evidence response length.");
-                if (remaining <= 0) {
-                  await reader.cancel();
-                  providerDone = true;
-                  break;
-                }
-                const piece = delta.content.slice(0, remaining);
+                const remaining = 16000 - partialVisible.length;
+                if (delta.content.length > remaining) throw new Error("AI response exceeded safe response length.");
+                const piece = delta.content;
                 partialVisible += piece;
                 if (!researchFileIds.length) controller.enqueue(sse("delta", { text: piece }));
               }
             }
           }
+
+          } finally {
+            await reader.cancel().catch(() => undefined);
+          }
+          if (!providerDone) throw new Error("AI provider did not finish the response.");
+          console.info(JSON.stringify({ event: "ai_stream_completed", provider: providerResult.provider, configured_model: providerResult.configuredModel, returned_model: providerResult.model, first_output_ms: providerResult.firstOutputMs, fallback_used: providerResult.fallbackUsed }));
 
           // Evidence turns cannot invent executable use of a stored raw file.
           // Require a complete provider stream before showing/persisting its reply.

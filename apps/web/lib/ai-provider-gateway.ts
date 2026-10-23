@@ -63,6 +63,11 @@ export function configuredProviders(env: Environment): [AiProvider, AiProvider |
   return [primary, secondary];
 }
 
+export function reasoningEffort(env: Environment, hasEvidence = false): "low" | "medium" | "high" {
+  const value = (env.GENITHM_GEMINI_REASONING_EFFORT || (hasEvidence ? "medium" : "low")).trim();
+  if (!["low","medium","high"].includes(value)) throw new ProviderFailure("Invalid Gemini reasoning effort.", false);
+  return value as "low" | "medium" | "high";
+}
 export function gatewayLimits(env: Environment): GatewayLimits {
   function integer(name: string, fallback: number, min: number, max: number) {
     const value = env[name] === undefined || env[name] === "" ? fallback : Number(env[name]);
@@ -185,6 +190,8 @@ export async function streamFromProviders(
   const limits = options.limits || { firstOutputMs: 8000, idleMs: 15000, totalMs: 60000 };
   const deadline = started + limits.totalMs;
   let lastError: unknown;
+  if (providers[0]?.name !== "gemini" || (providers[1] && providers[1].name !== "groq"))
+    throw new ProviderFailure("Provider order must be Gemini primary and Groq secondary.", false);
   for (const [index, provider] of providers.entries()) {
     aborted(options.signal);
     if (!provider) continue;
