@@ -6,8 +6,6 @@ WEB_PID="$ROOT/.codespaces-web.pid"
 cd "$ROOT"
 export GENITHM_CODESPACES_PREVIEW=1
 
-# A listening port is not proof of current source, safe dependencies or loaded keys.
-# Never silently reuse an older Next.js process after a checkout/secret update.
 if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
   echo "Run this startup inside GitHub Codespaces."
   exit 2
@@ -18,21 +16,35 @@ for binary in python3 node npm curl; do
     exit 3
   fi
 done
-python3 "$ROOT/scripts/stop_codespaces_web.py"
 
-# Preserve a previously selected full runtime. Sample tools require explicit opt-in.
-mode="${GENITHM_CODESPACES_MODE:-}"
-if [[ -z "$mode" ]]; then
-  if [[ -f "$ROOT/.env.codespaces-preview" ]]; then mode=full; else mode=chat; fi
-fi
+# A leftover environment file is not proof that the full Docker fleet is ready.
+# Open the real web app by default; full scientific execution remains explicit.
+mode="${GENITHM_CODESPACES_MODE:-chat}"
 case "$mode" in
-  full) exec bash "$ROOT/scripts/codespaces_preview.sh" ;;
-  chat) exec bash "$ROOT/scripts/codespaces_bioai.sh" ;;
-  sample) ;;
+  chat|full|sample) ;;
   *) echo "GENITHM_CODESPACES_MODE must be chat, full or sample."; exit 2 ;;
 esac
 
-# Explicit sample-only mode: never described as a configured AI research assistant.
+recover() {
+  local status=$?
+  trap - EXIT
+  if (( status != 0 )); then
+    local reason=startup
+    if (( status == 2 )); then reason=configuration; fi
+    python3 "$ROOT/scripts/stop_codespaces_web.py" || true
+    python3 "$ROOT/scripts/codespaces_recovery.py" --start --reason "$reason" || true
+    echo "[Genithm] Startup failed (exit $status). The recovery page is not application readiness."
+  fi
+  exit "$status"
+}
+trap recover EXIT
+python3 "$ROOT/scripts/stop_codespaces_web.py"
+case "$mode" in
+  full) bash "$ROOT/scripts/codespaces_preview.sh"; exit 0 ;;
+  chat) bash "$ROOT/scripts/codespaces_bioai.sh"; exit 0 ;;
+  sample) ;;
+esac
+
 npm --prefix apps/web ci --no-fund
 node "$ROOT/scripts/check_web_runtime.mjs"
 rm -rf -- "$ROOT/apps/web/.next"

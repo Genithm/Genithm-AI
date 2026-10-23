@@ -1,0 +1,34 @@
+name: Codespaces web recovery
+on:
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/codespaces_bioai.sh'
+      - 'scripts/codespaces_recovery.py'
+      - 'scripts/stop_codespaces_web.py'
+      - 'scripts/tests/test_codespaces_502_v52.py'
+      - '.github/workflows/codespaces-web-recovery.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/codespaces_bioai.sh'
+      - 'scripts/codespaces_recovery.py'
+      - 'scripts/stop_codespaces_web.py'
+      - 'scripts/tests/test_codespaces_502_v52.py'
+      - '.github/workflows/codespaces-web-recovery.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - name: Verify HTTP recovery, failure handling and process ownership
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_codespaces_502_v52.py -v
+          python3 -m unittest discover -s scripts/tests -p test_runtime_startup_v51.py -v
+          python3 -m unittest discover -s scripts/tests -p test_development_readiness_v50.py -v
+          bash -n .devcontainer/start.sh scripts/codespaces_bioai.sh
