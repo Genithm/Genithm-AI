@@ -25,3 +25,8 @@ supabase/.branches/
 .DS_Store
 .vscode/
 .idea/
+
+# Private development process output and local validation evidence
+.codespaces-*.log
+.codespaces-*.pid
+artifacts/

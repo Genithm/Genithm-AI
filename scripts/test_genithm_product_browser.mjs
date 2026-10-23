@@ -112,7 +112,7 @@ const api=createServer(async(req,res)=>{
  return json(200,rows);
 });
 await new Promise(resolve=>api.listen(3198,'127.0.0.1',resolve));
-const env={...process.env};for(const key of Object.keys(env))if(/SUPABASE|OPENROUTER|GENITHM|CODESPACE/i.test(key))delete env[key];
+const env={...process.env};for(const key of Object.keys(env))if(/SUPABASE|OPENROUTER|GEMINI|GROQ|GENITHM|CODESPACE/i.test(key))delete env[key];
 Object.assign(env,{NEXT_PUBLIC_GENITHM_API_URL:backend,NEXT_PUBLIC_SUPABASE_URL:backend,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-publishable-not-a-secret',GENITHM_APP_URL:base,GENITHM_SCIENCE_V22_ENABLED:'false',NEXT_TELEMETRY_DISABLED:'1'});
 const child=spawn('npm',['run','dev','--','--hostname','127.0.0.1','--port','3199'],{cwd:resolve('apps/web'),env,stdio:['ignore','pipe','pipe'],detached:true});
 let serverLog='';for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{serverLog+=chunk;});

@@ -96,3 +96,36 @@ test("user cancellation blocks fallback",async()=>{
  }}),{name:"AbortError"});
  assert.equal(calls,1);
 });
+
+test("V50 non-streaming responses are cancelled before fallback",async()=>{
+ let cancelled=false,calls=0;
+ const stream=await streamFromProviders(providers(),payload,{limits,fetcher:async()=>{
+   if(++calls===1)return new Response(new ReadableStream({cancel(){cancelled=true;}}),{headers:{"content-type":"application/json"}});
+   return reply(chunk("Recovered","llama-3.3-70b-versatile")+end());
+ }});
+ await read(stream);
+ assert.equal(cancelled,true);assert.equal(calls,2);
+});
+
+test("V50 first-output timeout cancels primary before starting secondary",async()=>{
+ let firstAborted=false,calls=0;
+ const stream=await streamFromProviders(providers(),payload,{limits:{firstOutputMs:20,idleMs:250,totalMs:1000},fetcher:async(_url,options)=>{
+   if(++calls===1){options.signal.addEventListener("abort",()=>{firstAborted=true;});return new Response(new ReadableStream({}),{headers:{"content-type":"text/event-stream"}});}
+   return reply(chunk("Fallback","llama-3.3-70b-versatile")+end());
+ }});
+ assert.match(await read(stream),/Fallback/);
+ assert.equal(firstAborted,true);assert.equal(stream.fallbackUsed,true);assert.equal(calls,2);
+});
+
+test("V50 UTF8 fragments and CRLF frames survive stream normalization",async()=>{
+ const bytes=enc.encode((chunk("DNA \u03b1","gemini-3.8-flash")+end()).replaceAll("\n","\r\n"));
+ const source=new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=3)c.enqueue(bytes.slice(i,i+3));c.close();}});
+ const stream=await streamFromProviders(providers(),payload,{limits,fetcher:async()=>new Response(source,{headers:{"content-type":"text/event-stream"}})});
+ assert.match(await read(stream),/DNA \u03b1/);
+});
+
+test("V50 incomplete scientific tool arguments never imply a completed action",async()=>{
+ const data=frame({choices:[{delta:{tool_calls:[{index:0,id:"t",function:{name:"propose_scientific_action",arguments:'{"summary":'}}]}}]});
+ const stream=await streamFromProviders(providers(),payload,{limits,fetcher:async()=>reply(data)});
+ await assert.rejects(read(stream),/completion/);
+});

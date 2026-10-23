@@ -5,7 +5,7 @@
 ## Choose the right mode
 
 - `bash .devcontainer/setup.sh` and `bash .devcontainer/start.sh` launch a simple sample-only developer environment. `/preview` shows local scientific fixtures; it does not prove database, login, API, NCBI or six-worker execution.
-- `bash scripts/codespaces_preview.sh` launches the **integrated Codespaces runtime**: real Next.js login/signup, API on 8000, six released worker containers, existing Genithm Supabase Auth/queues, synthetic-data object storage, and Gemini primary and Groq fallback AI. Only this path can qualify as the fully integrated preview.
+- `bash scripts/codespaces_preview.sh` launches the **integrated Codespaces runtime**: real Next.js login/signup, API on 8000, six revision-matched worker containers, existing Genithm Supabase Auth/queues, synthetic-data object storage, and Gemini primary and Groq fallback AI. Only this path can qualify as the fully integrated preview.
 - The homepage at `/` always prioritizes **Sign in to Genithm** and **Create Research Account**; the optional `/preview` page remains accessible directly to developers but is deliberately not promoted as the product.
 
 ## Codespaces prerequisites
@@ -117,9 +117,9 @@ git pull --ff-only
 bash scripts/codespaces_preview.sh
 ```
 
-The launcher replaces an automatically started sample server on port 3000, writes protected `apps/web/.env.local` with the public Supabase client settings, backend-only `SUPABASE_SECRET_KEY`, `GENITHM_SCIENCE_V22_ENABLED=true`, the API proxy, and the Codespaces web origin, and starts the actual API/worker stack from a coordinated V1 candidate release.
+The launcher replaces an automatically started sample server on port 3000, writes protected `apps/web/.env.local` with the public Supabase client settings, backend-only `SUPABASE_SECRET_KEY`, `GENITHM_SCIENCE_V22_ENABLED=true`, the API proxy, and the Codespaces web origin, and starts the actual API/worker stack from the same source revision as the web app. It pulls matching images when available and otherwise builds the seven application images locally from the checked-out Dockerfiles. No production deployment is performed.
 
-It verifies Supabase email/password signup availability, Gemini and Groq model availability, backend release images, API and web health, plus **six current worker heartbeats and nine existing queues**. If any check fails, the launcher exits nonzero. Do **not** interpret a mere port-3000 page as a complete scientific preview.
+It verifies Supabase email/password signup availability, both AI accounts using model discovery and one small structured inference request each, revision-matched backend images, API and web health, plus **six current worker heartbeats and nine existing queues**. If any check fails, the launcher exits nonzero. Do **not** interpret a mere port-3000 page as a complete scientific preview.
 
 A successful launcher prints a private forwarded HTTPS URL:
 
@@ -165,7 +165,7 @@ A Codespaces preview is not proof that the separate Oracle or Cloudflare **produ
 - **Only sample DNA tools, no login:** You are at `/preview` or ran only `.devcontainer/start.sh`. Open `/login` from the actual forwarded application origin, and run `bash scripts/codespaces_preview.sh` for complete backend services.
 - **Login fails / missing environment:** Use the full launcher, check your secret name and whether `apps/web/.env.local` exists. Never print secret values for debugging.
 - **Port 3000 busy:** The launcher attempts to stop the previous sample process. If it cannot free the port, stop the old Next.js dev process and rerun it. Check the `PORTS` tab.
-- **Missing GHCR image:** The candidate API and six-worker release images must exist at the same exact source revision; do not substitute floating `latest` tags.
+- **Missing GHCR image:** The development launcher builds the same checked-out source locally. Docker, enough Codespace disk/RAM, and internet access to package registries are required. It never substitutes an older V1 candidate or a floating `latest` tag.
 - **Worker readiness not ready:** Inspect `docker compose --env-file .env.codespaces-preview -f deploy/codespaces/docker-compose.preview.yml ps` and the worker logs. All six must heartbeat before the launcher claims successful activation.
 - **AI provider rejected:** Check the selected model exists for that key and the key has the required provider permissions.
 - **Web error:** Inspect `tail -n 60 .codespaces-web.log` and the Codespaces terminal output, redact credentials before sharing.

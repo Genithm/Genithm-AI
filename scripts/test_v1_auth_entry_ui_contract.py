@@ -53,7 +53,7 @@ def test_auth_entry_preserves_supabase_server_actions_and_secure_contract():
     assert 'CODESPACE_NAME' in next_config
     assert 'localhost:3000' in next_config
     assert '127.0.0.1:3000' in next_config
-    for token in ['/auth/v1/settings','disable_signup','email authentication is disabled','get_release_readiness','"status"','"ready"','SUPABASE_SECRET_KEY','GEMINI_API_KEY','GROQ_API_KEY','scripts/check_ai_provider_models.py','GENITHM_API_IMAGE','GENITHM_SEQUENCE_WORKER_IMAGE','GENITHM_SOURCE_WORKER_IMAGE','GENITHM_BLAST_WORKER_IMAGE','GENITHM_SCIENTIFIC_WORKER_IMAGE','GENITHM_AUDIT_WORKER_IMAGE','GENITHM_AI_WORKER_IMAGE','RUNTIME_SHA','release/v1/candidate.json','runtime_images=(', 'git -C "$ROOT_DIR" rev-parse HEAD']:
+    for token in ['/auth/v1/settings','disable_signup','email authentication is disabled','get_release_readiness','"status"','"ready"','SUPABASE_SECRET_KEY','GEMINI_API_KEY','GROQ_API_KEY','scripts/check_ai_provider_models.py','GENITHM_API_IMAGE','GENITHM_SEQUENCE_WORKER_IMAGE','GENITHM_SOURCE_WORKER_IMAGE','GENITHM_BLAST_WORKER_IMAGE','GENITHM_SCIENTIFIC_WORKER_IMAGE','GENITHM_AUDIT_WORKER_IMAGE','GENITHM_AI_WORKER_IMAGE','RUNTIME_SHA','Development runtime must match','runtime_images=(', 'git -C "$ROOT_DIR" rev-parse HEAD']:
         assert token in preview_launcher, token
     assert 'export async function proxy(request: NextRequest)' in proxy_entry
     assert 'return updateSession(request)' in proxy_entry

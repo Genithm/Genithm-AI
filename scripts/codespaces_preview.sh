@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 export GENITHM_GEMINI_MODEL="${GENITHM_GEMINI_MODEL:-gemini-3.8-flash}"
 export GENITHM_GROQ_MODEL="${GENITHM_GROQ_MODEL:-llama-3.3-70b-versatile}"
 
@@ -28,7 +29,7 @@ if (( ${#missing[@]} > 0 )); then
   exit 2
 fi
 
-for tool in npm curl base64 od head tr grep git; do
+for tool in npm curl python3 base64 od head tr grep git; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required tool is missing: $tool"
     exit 3
@@ -76,7 +77,13 @@ GENITHM_PREVIEW_STORAGE_ACCESS_KEY="genithmpreview"
 GENITHM_PREVIEW_STORAGE_SECRET_KEY="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 GENITHM_AUDIT_SIGNING_PRIVATE_KEY_BASE64="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
 HEAD_SHA="$(git -C "$ROOT_DIR" rev-parse HEAD)"
-RUNTIME_SHA="${GENITHM_PREVIEW_RUNTIME_SHA:-$(git -C "$ROOT_DIR" log -n 1 --format=%H -- release/v1/candidate.json)}"
+# Development must not combine current web code with an obsolete V1 candidate.
+RUNTIME_SHA="${GENITHM_PREVIEW_RUNTIME_SHA:-$HEAD_SHA}"
+if [[ "$RUNTIME_SHA" != "$HEAD_SHA" ]]; then
+  echo "Development runtime must match the checked-out source revision."
+  echo "Unset GENITHM_PREVIEW_RUNTIME_SHA or check out that revision first."
+  exit 4
+fi
 
 if [[ ! "$RUNTIME_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Could not resolve a valid coordinated V1 runtime revision."
@@ -94,6 +101,9 @@ GENITHM_BLAST_WORKER_IMAGE="ghcr.io/genithm/genithm-blast-worker:sha-$RUNTIME_SH
 GENITHM_SCIENTIFIC_WORKER_IMAGE="ghcr.io/genithm/genithm-scientific-worker:sha-$RUNTIME_SHA"
 GENITHM_AUDIT_WORKER_IMAGE="ghcr.io/genithm/genithm-audit-worker:sha-$RUNTIME_SHA"
 GENITHM_AI_WORKER_IMAGE="ghcr.io/genithm/genithm-ai-worker:sha-$RUNTIME_SHA"
+
+echo "Checking Gemini and Groq model availability..."
+python3 "$ROOT_DIR/scripts/check_ai_provider_models.py" --inference
 
 cat > "$ENV_FILE" <<EOF
 SUPABASE_URL=$SUPABASE_URL
@@ -139,9 +149,6 @@ if ! printf '%s' "$AUTH_SETTINGS" | grep -Eq '"email"[[:space:]]*:[[:space:]]*tr
   exit 4
 fi
 
-echo "Checking Gemini and Groq model availability..."
-python3 "$ROOT_DIR/scripts/check_ai_provider_models.py"
-
 echo "Checking coordinated preview runtime images for revision $RUNTIME_SHA..."
 if [[ "$RUNTIME_SHA" != "$HEAD_SHA" ]]; then
   echo "Web source is $HEAD_SHA; backend runtime uses the latest coordinated V1 candidate $RUNTIME_SHA."
@@ -156,11 +163,15 @@ runtime_images=(
   "$GENITHM_AUDIT_WORKER_IMAGE"
   "$GENITHM_AI_WORKER_IMAGE"
 )
-for image in "${runtime_images[@]}"; do
+runtime_contexts=(api sequence-worker source-worker blast-worker scientific-worker audit-worker ai-worker)
+for index in "${!runtime_images[@]}"; do
+  image="${runtime_images[$index]}"
   if ! docker pull "$image" >/dev/null 2>&1; then
-    echo "Required preview runtime image is not published: $image"
-    echo "Use a coordinated V1 candidate revision whose API and Worker release workflows completed successfully."
-    exit 4
+    # Development-only fallback: build exactly this checkout, never an older image.
+    # Dockerfiles COPY application files explicitly; no keys are build arguments.
+    echo "Building current development source for ${runtime_contexts[$index]}..."
+    docker build --label "org.opencontainers.image.revision=$HEAD_SHA" \
+      --tag "$image" "$ROOT_DIR/apps/${runtime_contexts[$index]}"
   fi
 done
 
@@ -179,8 +190,7 @@ echo "Preparing web dependencies..."
 )
 
 echo "Starting Genithm API, six workers, and preview object storage..."
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans --pull never
 
 cat > "$WEB_DIR/.env.local" <<EOF
 NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL
