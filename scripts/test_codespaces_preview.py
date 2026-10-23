@@ -19,7 +19,8 @@ class CodespacesPreviewContractTests(unittest.TestCase):
     def test_codespaces_startup_and_private_port(self):
         self.assertEqual(self.config["forwardPorts"], [3000])
         self.assertEqual(self.config["portsAttributes"]["3000"]["visibility"], "private")
-        self.assertEqual(self.config["portsAttributes"]["3000"]["onAutoForward"], "openBrowser")
+        self.assertEqual(self.config["portsAttributes"]["3000"]["onAutoForward"], "notify")
+        self.assertEqual(self.config["portsAttributes"]["3000"]["protocol"], "http")
         self.assertTrue(self.config["postCreateCommand"].startswith("bash .devcontainer/setup.sh || "))
         self.assertTrue(self.config["postStartCommand"].startswith("bash .devcontainer/start.sh || "))
         self.assertIn("true;", self.config["postCreateCommand"])

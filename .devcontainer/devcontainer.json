@@ -1,18 +1,19 @@
 {
-  "name": "Genithm AI — Codespaces Development",
+  "name": "Genithm AI \u2014 Codespaces Development",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
   "forwardPorts": [
     3000
   ],
   "portsAttributes": {
     "3000": {
-      "label": "Genithm full AI and bioinformatics preview",
-      "onAutoForward": "openBrowser",
-      "visibility": "private"
+      "label": "Genithm web - HTTP port 3000",
+      "onAutoForward": "notify",
+      "visibility": "private",
+      "protocol": "http"
     }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh || { echo '[Genithm] Codespace ready; installation needs retry from Terminal.'; true; }",
-  "postStartCommand": "bash .devcontainer/start.sh || { echo '[Genithm] Startup stopped. Read the diagnostic above; check Codespaces secrets, stop/start the Codespace, then run bash .devcontainer/start.sh'; true; }",
+  "postStartCommand": "bash .devcontainer/start.sh || { echo '[Genithm] Application startup failed. Open port 3000 for recovery guidance and inspect the terminal diagnostic. Recovery is not a running research app.'; true; }",
   "remoteEnv": {
     "GENITHM_CODESPACES_PREVIEW": "1"
   },

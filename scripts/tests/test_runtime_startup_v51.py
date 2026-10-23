@@ -48,10 +48,11 @@ class Startup(unittest.TestCase):
         self.assertNotIn('npm run dev',commands)
         self.assertNotIn('synthetic-google-private',result.stdout+result.stderr+commands)
 
-    def test_preserves_previous_full_mode(self):
+    def test_leftover_full_environment_is_not_a_successful_runtime_marker(self):
         (self.root/'.env.codespaces-preview').write_text('not executed or sourced')
         self.assertEqual(self.run_start().returncode,0)
-        self.assertIn('codespaces_preview.sh',self.calls.read_text())
+        self.assertIn('codespaces_bioai.sh',self.calls.read_text())
+        self.assertNotIn('codespaces_preview.sh',self.calls.read_text())
 
     def test_explicit_chat_mode_overrides_full_marker(self):
         (self.root/'.env.codespaces-preview').write_text('marker')

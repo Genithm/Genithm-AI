@@ -14,7 +14,7 @@ if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
   exit 2
 fi
 
-# Stop stale Next.js before any setup failure or node_modules replacement.
+# Stop only this checkout's previous server before replacing dependencies.
 python3 "$ROOT/scripts/stop_codespaces_web.py"
 
 missing=()
@@ -23,7 +23,7 @@ for key in SUPABASE_SECRET_KEY GEMINI_API_KEY GROQ_API_KEY; do
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing Codespaces secrets: ${missing[*]}"
-  echo "Add them under repository Settings > Secrets and variables > Codespaces, then STOP and START your Codespace (not only the browser). Actions secrets are separate."
+  echo "Add them under repository Settings > Secrets and variables > Codespaces, then STOP and START your Codespace. Actions secrets are separate."
   exit 2
 fi
 
@@ -33,9 +33,6 @@ for binary in npm curl python3; do
     exit 3
   fi
 done
-
-echo "Validating both AI accounts without displaying credentials..."
-python3 "$ROOT/scripts/check_ai_provider_models.py" --inference
 
 ORIGIN="https://${CODESPACE_NAME}-3000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 WEB_DIR="$ROOT/apps/web"
@@ -62,6 +59,7 @@ chmod 600 "$WEB_DIR/.env.local"
 # Existing Codespaces may still contain dependencies from an older lockfile.
 echo "Synchronizing locked Genithm web dependencies..."
 (cd "$WEB_DIR" && npm ci)
+
 node "$ROOT/scripts/check_web_runtime.mjs"
 rm -rf -- "$WEB_DIR/.next"
 
@@ -91,13 +89,24 @@ if [[ "$ready" != 1 ]]; then
 fi
 
 echo
-echo "Genithm BioAI chat web is running."
+echo "Genithm BioAI chat web is running at http://localhost:3000 (AI account validation follows)."
 echo "Sign in: $ORIGIN/login"
 echo "Create account: $ORIGIN/signup"
 echo "Research conversations: $ORIGIN/dashboard/ai"
 echo
-echo "MODE: Real authenticated AI chat with Google AI Studio and Groq and existing Supabase."
+echo "MODE: Real authenticated chat UI; scientific services are not started by this launcher."
 echo "Scientific jobs, NCBI retrieval and FASTA uploads are not started by this chat-only launcher."
 echo "For the full backend, API, sequence storage and six real workers, use:"
 echo "  bash scripts/codespaces_preview.sh"
 echo "No development demo or fabricated scientific results are used."
+
+# Provider/network/quota failures must not take down a healthy web application.
+# This is an account check, not the web server's readiness check.
+echo "Validating AI accounts after web startup; credentials are never displayed..."
+if python3 "$ROOT/scripts/check_ai_provider_models.py" --inference; then
+  echo "Both AI accounts passed startup checks."
+else
+  echo "WARNING: AI account checks failed; the web app remains available."
+  echo "Chat may fail until the reported key, quota, model or network issue is resolved."
+  echo "Retry account validation with: python3 scripts/check_ai_provider_models.py --inference"
+fi
