@@ -39,7 +39,8 @@ def main():
         assert item.get("cap_drop")==["ALL"], name
         assert "no-new-privileges:true" in item.get("security_opt",[]), name
         assert item.get("pids_limit") == 128, name
-        assert item.get("mem_limit") == 1024**3, name
+        # Compose JSON may encode resource byte quantities as decimal strings.
+        assert str(item.get("mem_limit")).lower() in {"1073741824","1g","1024m"}, name
         assert item.get("ports") in (None,[]), "Private workers must not expose ports"
         assert item.get("volumes") in (None,[]), "No host filesystem or secrets mounts"
         assert item.get("privileged") in (None,False), name
