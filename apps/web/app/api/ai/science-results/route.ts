@@ -26,7 +26,7 @@ export async function POST(request:NextRequest){
   catch{return Response.json({error:'Unable to read the scientific file upload.'},{status:400});}
   const projectId=String(form.get('project_id')||'');
   const kind=String(form.get('kind')||'') as ChatScienceKind;
-  if(!UUID.test(projectId)||!['gwas','expression','pathways','fastq-qc','vcf-qc','fasta-qc'].includes(kind)||form.get('approved_private_compute')!=='yes')
+  if(!UUID.test(projectId)||!['gwas','expression','pathways','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan'].includes(kind)||form.get('approved_private_compute')!=='yes')
     return Response.json({error:'Choose a project, supported analysis, and explicitly approve temporary processing of your original research files.'},{status:422});
   // Enforce the signed-in researcher's exact existing Supabase project scope,
   // not client-provided org data or an elevated service-role read.
@@ -37,7 +37,7 @@ export async function POST(request:NextRequest){
   const files:Record<string,File>={};
   for(const [role,ceiling] of Object.entries(expected)){
     const entry=form.get(role);
-    if(kind==='fastq-qc'&&role==='r2'&&entry===null)continue;
+    if((kind==='fastq-qc'||kind==='fastq-trim')&&role==='r2'&&entry===null)continue;
     if(!(entry instanceof File)||entry.size<1||entry.size>ceiling)
       return Response.json({error:`Please attach a valid ${role} file up to ${Math.ceil(ceiling/1024/1024)} MiB.`},{status:422});
     files[role]=entry;

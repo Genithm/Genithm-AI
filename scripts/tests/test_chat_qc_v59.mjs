@@ -172,11 +172,11 @@ test('one-file QC dispatch, paired R1/R2 role ordering and scientific intent pro
  assert.equal(proposeChatScience('Run unrelated task',[{filename:'notes.txt',head:'plain text',size:12}]),null);
 });
 
-test('generic delegated file analysis defaults to QC but never hijacks RNA-seq, BLAST or read trimming',async()=>{
+test('generic delegated file analysis defaults to QC, while explicit V60 trimming runs the correct new engine',async()=>{
  const {proposeChatScience}=await import('../../apps/web/lib/chat-science-client.ts');
  const files=[{filename:'sample.fastq.gz',head:'',size:123,gzip:true}];
  assert.deepEqual(proposeChatScience('Run an analysis on this file',files),{kind:'fastq-qc',roles:{r1:0}});
  assert.equal(proposeChatScience('Quantify RNA-seq from this FASTQ',files),null);
- assert.equal(proposeChatScience('Trim adapters from these reads',files),null);
+ assert.deepEqual(proposeChatScience('Trim adapters from these reads',files),{kind:'fastq-trim',roles:{r1:0}});
  assert.equal(proposeChatScience('Run BLAST on this FASTA',[{filename:'sample.fa',head:'>a\nACGT\n',size:8}]),null);
 });

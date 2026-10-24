@@ -402,7 +402,7 @@ export default async function AiConversationPage({
                 {message.role === "user" ? "You" : "Genithm BioAI"}
               </div>
               <div className={styles.messageBody}>{message.role === "assistant"
-                ? message.content.replace(/\[\[genithm_rice_gwas_run:[a-f0-9-]{36}\]\]/gi, "").replace(/\[\[genithm_science_run:(?:gwas|expression|pathways|public-airway):[a-f0-9-]{36}\]\]/gi, "")
+                ? message.content.replace(/\[\[genithm_rice_gwas_run:[a-f0-9-]{36}\]\]/gi, "").replace(/\[\[genithm_science_run:(?:gwas|expression|pathways|public-airway|fastq-qc|vcf-qc|fasta-qc|fastq-trim|orf-scan):[a-f0-9-]{36}(?::(?:paired|single))?\]\]/gi, "")
                 : message.content}</div>
               {message.role === "assistant" ? <PublicRiceGwasArtifacts content={message.content} /> : null}
               {message.role === "assistant" ? <ChatScienceArtifacts content={message.content} /> : null}

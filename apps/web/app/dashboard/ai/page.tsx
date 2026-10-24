@@ -18,6 +18,8 @@ const researchActions:ResearchQuickAction[]=[
   {icon:"◎",label:"Find similar sequences",detail:"Plan a BLAST search",prompt:"I want to run BLAST on a FASTA sequence. Guide me through a scientific search and explain the resulting hits."},
   {icon:"♧",label:"Phylogenetics",detail:"Plan alignment and tree analysis",prompt:"Plan a multiple sequence alignment and a phylogenetic tree for my sequences."},
   {icon:"✳",label:"Plan my research",detail:"Start with your biological question",prompt:"Help me design a rigorous, reproducible bioinformatics workflow for my biological research question."},
+  {icon:"✂",label:"Trim FASTQ reads",detail:"Attach .fastq or paired R1/R2; get cleaned files",prompt:"Trim the exact adapters and low-quality tails from my attached FASTQ reads, and give me the real cleaned FASTQ files and QC results."},
+  {icon:"⌬",label:"Find candidate ORFs",detail:"Attach nucleotide FASTA; export proteins and GFF3",prompt:"Find six-frame open reading frame candidates in my attached nucleotide FASTA and give me the translated proteins and GFF3 results."},
 ];
 
 export default async function AiWorkspacePage({searchParams}:{searchParams:Promise<{error?:string;project?:string}>}) {
@@ -52,7 +54,7 @@ export default async function AiWorkspacePage({searchParams}:{searchParams:Promi
         {query.error?<div className={"error "+styles.feedback} role="alert">{query.error.slice(0,500)}</div>:null}
         {conversationsError?<p role="alert" className="error">Recent conversations could not be loaded.</p>:null}
         {projectsError||labsError?<p role="alert" className="error">Workspace access could not be loaded. Refresh before creating a project or starting an analysis.</p>:invalidProject?<p role="alert" className="error">That project is not available. <Link href="/dashboard/projects">Choose an accessible project.</Link></p>:activeProjects.length?<>
-          <AiChatComposer projects={activeProjects.map(project=>({id:project.id,name:project.name}))} defaultProjectId={selectedProject?.id} placeholder="Ask Genithm about your data, or describe an analysis..." quickActions={[researchActions[5],researchActions[2],researchActions[3]]} scienceReady={fixedScienceReady}/>
+          <AiChatComposer projects={activeProjects.map(project=>({id:project.id,name:project.name}))} defaultProjectId={selectedProject?.id} placeholder="Ask Genithm about your data, or describe an analysis..." quickActions={[researchActions[6],researchActions[7],researchActions[5]]} scienceReady={fixedScienceReady}/>
           <div className={styles.availability} role="status"><span className={scienceUnavailable?styles.availabilityDot:styles.readyDot} aria-hidden="true"/><div><strong>{scienceUnavailable?"Scientific execution is currently unavailable":"Scientific workers available"}</strong><span>{scienceUnavailable?"You can still chat and plan. Worker-backed analyses need the scientific services to be running.":"You approve scientific work before it runs."}</span></div></div>
         </>:<div className={styles.onboarding}>
           <div className={styles.onboardingIntro}><span className={styles.stepPill}>LET'S GET STARTED</span><h2>Create your research space</h2><p>Keep your questions, data, and results together in a project.</p></div>
