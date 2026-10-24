@@ -20,6 +20,8 @@ V58 adds a **deterministic, explicit, science-to-chat execution path** for three
 
 ### Public data provenance
 
+The public airway example applies a **predefined low-count filter of at least 10 raw counts in at least 4 of 8 biological samples** before normalized CPM filtering. Original, retained and tested gene counts are separately reported. No first-N row truncation or fabricated gene values.
+
 - [Himes et al. 2014 airway RNA-seq (PMID 24926665)](https://pubmed.ncbi.nlm.nih.gov/24926665/); [audited workshop source repository](https://github.com/bioconnector/workshops/tree/68ff3e4868b0e5673a1c4399828a3e0adc72f8e4/data). Two exact source blobs are pinned by git SHA1 in `scripts/chat_science_worker.mjs`. The published study is **paired by cell line**; V58's unpaired Welch test does not account for pairing. Interpret as exploratory only, not DESeq2 inference.
 - [Zhao et al. 2011, Rice Diversity Panel](https://doi.org/10.1038/ncomms1467); V57 pinning and source hashes described in `docs/public-rice-gwas-v57.md`. V57 reports large genomic inflation (λGC about 5.47); its SNP associations are **not** certified loci.
 

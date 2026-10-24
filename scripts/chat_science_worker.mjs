@@ -116,7 +116,19 @@ export function prepareAirway(countsCsv,metaCsv){
   check(first.length===9 && /^(?:ensgene|gene_id|gene|""|)$/i.test(first[0]),'Airway count matrix columns changed.');
   const samples=first.slice(1);
   check(samples.length===8 && new Set(samples).size===8,'Airway RNA read-count sample list changed.');
-  counts[0]=['gene_id',...samples].join(',');
+  // The published airway matrix has more than 50k annotated genes.
+  // Pre-filter using one prespecified biological count rule, never the
+  // arbitrary first N rows. Retain >=10 raw reads in >=4 of 8 samples.
+  const originalGenes=counts.length-1;
+  const kept=counts.slice(1).filter((line,index)=>{
+    const fields=line.split(',');
+    check(fields.length===9,`Airway gene row ${index+2} has an invalid column count.`);
+    const values=fields.slice(1).map(x=>x.trim());
+    check(values.every(x=>/^\d+$/.test(x)),`Airway gene row ${index+2} does not contain integer read counts.`);
+    return values.filter(x=>Number(x)>=10).length>=4;
+  });
+  check(kept.length>=20&&kept.length<=50000,'Public airway low-count filtering did not produce a valid <=50,000 gene count matrix.');
+  const countsFiltered=[['gene_id',...samples].join(','),...kept];
   const sampleSheet=metaCsv.replace(/^\uFEFF/,'').trimEnd().split(/\r?\n/);
   const head=sampleSheet.shift().split(',').map(x=>x.trim());
   const idIdx=head.indexOf('id'),groupIdx=head.indexOf('dex');
@@ -126,7 +138,7 @@ export function prepareAirway(countsCsv,metaCsv){
     const id=values[idIdx],group=values[groupIdx];check(!design.has(id)&&['control','treated'].includes(group),'Invalid public airway sample design.');design.set(id,group);
   }
   check(samples.every(x=>design.has(x)) && design.size===8,'Public airway genotype/design sample mismatch.');
-  return {countsText:counts.join('\n')+'\n',designText:'sample_id,condition\n'+samples.map(s=>`${s},${design.get(s)}`).join('\n')+'\n'};
+  return {countsText:countsFiltered.join('\n')+'\n',designText:'sample_id,condition\n'+samples.map(s=>`${s},${design.get(s)}`).join('\n')+'\n',originalGenes,prefilterRetained:kept.length};
 }
 
 /** Pure research operation: executes only a supported scientific engine. */
@@ -190,13 +202,17 @@ export async function runChatStudy({kind,inputs,outDirectory,onProgress=()=>{},f
     const prepared=prepareAirway(utf8(source['airway_rawcounts.csv'].raw),utf8(source['airway_metadata.csv'].raw));
     data={counts:Buffer.from(prepared.countsText),design:Buffer.from(prepared.designText)};
     pub={repository:AIRWAY_SOURCE.repository,revision:AIRWAY_SOURCE.revision,paper:AIRWAY_SOURCE.paper,
+      original_genes:prepared.originalGenes,genes_after_prefilter:prepared.prefilterRetained,
+      prefilter:'At least 10 unnormalized raw counts in at least 4 of 8 samples',
       files:Object.fromEntries(Object.entries(source).map(([name,s])=>[name,{url:s.url,git_blob_sha1:s.gitBlob,...sha(s.raw,name)}]))};
   }
   const result=calculateChatStudy(kind,data,onProgress);
   if(pub){result.provenance.public_source=pub;result.summary.dataset='Himes et al. 2014 human airway RNA-seq: dexamethasone vs control';
+    result.summary.public_source_genes=pub.original_genes;result.summary.prefilter_retained_genes=pub.genes_after_prefilter;result.summary.prefilter_rule=pub.prefilter;
     result.outputs['summary.json']=json(result.summary);
     result.outputs['provenance.json']=json(result.provenance);
     result.outputs['METHODS.md']+='\nPublic source: '+AIRWAY_SOURCE.paper+'; '+AIRWAY_SOURCE.repository+' at '+AIRWAY_SOURCE.revision+'\nImportant: 8 samples correspond to four paired cell lines; Welch method does not model pairing. Treat significance as exploratory only.\n';}
+    result.outputs['METHODS.md']+='\nPrespecified low-count filter: '+pub.prefilter+'. Original gene rows: '+pub.original_genes+'; retained: '+pub.genes_after_prefilter+'.\n';
   result.outputs['complete-results.zip']=createZip(result.outputs);
   await mkdir(outDirectory,{recursive:true,mode:0o700});
   const hashes={};

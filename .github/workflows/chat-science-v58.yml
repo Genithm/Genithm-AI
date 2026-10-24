@@ -43,7 +43,10 @@ jobs:
           const s=manifest.summary,p=JSON.parse(await readFile(dir+'provenance.json','utf8'));
           assert.equal(s.kind,'public-airway');
           assert.equal(s.samples,8);
-          assert.ok(s.genes_seen>=20000&&s.genes_tested>=1000);
+          assert.ok(s.genes_seen>=1000&&s.genes_tested>=1000);
+          assert.ok(s.public_source_genes>50000);
+          assert.ok(s.prefilter_retained_genes>=1000&&s.prefilter_retained_genes<=50000);
+          assert.equal(s.genes_seen,s.prefilter_retained_genes);
           assert.equal(s.reference,'control');
           assert.equal(s.comparison,'treated');
           assert.equal(p.public_source.revision,'68ff3e4868b0e5673a1c4399828a3e0adc72f8e4');
