@@ -32,7 +32,7 @@ class Startup(unittest.TestCase):
                     'GROQ_API_KEY':'synthetic-groq-private', 'SUPABASE_SECRET_KEY':'synthetic-db-private'}
         for name in ('node','npm','python3','curl','nohup'):
             file = self.root/'bin'/name
-            file.write_text('#!/bin/bash\necho "'+name+' $*" >> "$CALLS"\nexit 0\n')
+            # nohup is launched in the background by sample mode. A mock that\n            # writes to the temporary fixture after the parent exits races\n            # TemporaryDirectory cleanup, causing intermittent ENOTEMPTY CI.\n            if name == 'nohup':\n                file.write_text('#!/bin/bash\nexit 0\n')\n            else:\n                file.write_text('#!/bin/bash\necho "'+name+' $*" >> "$CALLS"\nexit 0\n')
             file.chmod(0o700)
 
     def run_start(self):
