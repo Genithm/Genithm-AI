@@ -1,0 +1,66 @@
+name: Genithm V58 real chat science
+on:
+  pull_request:
+    paths:
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_chat_science_v58.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/app/api/ai/science-results/**'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - '.github/workflows/chat-science-v58.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  science-engines:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Test real file-driven GWAS, RNA expression, pathway enrichment, safety and chat routing
+        run: node --experimental-strip-types --test scripts/tests/test_chat_science_v58.mjs
+      - name: Analyze genuine published airway RNA-seq raw-count data, not synthetic fixtures
+        run: |
+          mkdir -p artifacts/public-airway
+          node --experimental-strip-types scripts/chat_science_worker.mjs --kind public-airway --inputs artifacts --out artifacts/public-airway
+      - name: Verify original published source hashes, experiment metadata and scientific exports
+        run: |
+          node --input-type=module - <<'JS'
+          import {readFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const dir='artifacts/public-airway/';
+          const manifest=JSON.parse(await readFile(dir+'result-manifest.json','utf8'));
+          const s=manifest.summary,p=JSON.parse(await readFile(dir+'provenance.json','utf8'));
+          assert.equal(s.kind,'public-airway');
+          assert.equal(s.samples,8);
+          assert.ok(s.genes_seen>=20000&&s.genes_tested>=1000);
+          assert.equal(s.reference,'control');
+          assert.equal(s.comparison,'treated');
+          assert.equal(p.public_source.revision,'68ff3e4868b0e5673a1c4399828a3e0adc72f8e4');
+          for(const source of Object.values(p.public_source.files)){
+            assert.match(source.sha256,/^[0-9a-f]{64}$/);
+            assert.match(source.git_blob_sha1,/^[0-9a-f]{40}$/);
+          }
+          for(const file of manifest.filenames){
+            const bytes=await readFile(dir+file);
+            assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.hashes[file]);
+          }
+          assert.ok((await readFile(dir+'complete-results.zip')).readUInt32LE(0)===0x04034b50);
+          console.log('Verified genuine airway RNA-seq expression:',s.samples,'samples,',s.genes_tested,'genes tested; count source hashes pinned.');
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: genithm-public-airway-rnaseq-v58
+          path: artifacts/public-airway/
+          retention-days: 14
+          if-no-files-found: error
