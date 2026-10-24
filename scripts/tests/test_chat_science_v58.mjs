@@ -57,7 +57,7 @@ test('airway public conversion preserves 8 metadata groups and never invents gen
 });
 test('airway public source pinning refuses mismatched bytes',async()=>{
  const fake=async url=>({ok:true,url,headers:new Headers({'content-length':'100'}),arrayBuffer:async()=>new Uint8Array(100).buffer});
- await assert.rejects(()=>fetchPublicAirway(fake),/Unexpected public airway source size/);
+ await assert.rejects(()=>fetchPublicAirway(fake),/Unexpected public airway file bytes|Public airway download is oversized/);
  assert.match(AIRWAY_SOURCE.revision,/^[a-f0-9]{40}$/);
 });
 test('execution intent: public RNA automatically selected only for matching goals',()=>{
