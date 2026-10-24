@@ -9,7 +9,8 @@ import unicodedata
 from .policy import LargeDataError
 
 LEGACY_VERSION = "genithm-file-registry/1"
-VERSION = "genithm-file-registry/2"
+PREVIOUS_VERSION = "genithm-file-registry/2"
+VERSION = "genithm-file-registry/3"
 # id | label | category | suffixes (longest match wins)
 _ROWS = """
 fasta|FASTA sequence or alignment|Sequences|fasta fa fna ffn faa frn fas fsa
@@ -130,7 +131,7 @@ def validate_path(filename: str, relative_path: str | None = None) -> str:
 
 
 def describe(filename: str, *, registry_version: str = VERSION) -> dict:
-    if registry_version not in {LEGACY_VERSION, VERSION}:
+    if registry_version not in {LEGACY_VERSION, PREVIOUS_VERSION, VERSION}:
         raise ValueError("Unknown versioned scientific format registry")
     name = filename.lower()
     compression = "none"
@@ -142,10 +143,13 @@ def describe(filename: str, *, registry_version: str = VERSION) -> dict:
     action = "integrity_only"
     if compression in {"none", "gzip"} and format_id in {"fasta", "fastq"}:
         action = "complete_" + format_id
-    elif registry_version == VERSION and compression in {"none", "gzip"} and format_id == "vcf":
+    elif registry_version in {PREVIOUS_VERSION, VERSION} and compression in {"none", "gzip"} and format_id == "vcf":
         # Historical V47 VCF rows were integrity-only: their recorded hints
         # continue to validate under LEGACY_VERSION without retroactive change.
         action = "complete_vcf"
+    elif registry_version == VERSION and compression in {"none", "gzip"} and format_id == "gff" and name.endswith(".gff3"):
+        # Strict GFF3 only; GFF2/.gff and historical GFF3 uploads remain inert.
+        action = "complete_gff3"
     return {"format_id": format_id, "label": item["label"], "category": item["category"],
             "compression_hint": compression, "available_inspection": action, "name_is_not_validation": True}
 

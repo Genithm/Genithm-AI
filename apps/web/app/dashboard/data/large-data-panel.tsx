@@ -9,9 +9,10 @@ import qualityStyles from "./quality-report.module.css";
 type Project={id:string;name:string};
 type FastqMetrics={read_count:number;base_count:number;mean_phred:number;q30_bases:number;gc_percent:number|null;quality_profile_available?:boolean};
 type VcfMetrics={schema:"genithm-vcf-site-qc/1";record_count:number;sample_count:number;snv_sites:number;indel_sites:number;symbolic_sites:number;transitions:number;transversions:number;pass_sites:number;failed_filter_sites:number;unfiltered_sites:number;sampling:false};
+type Gff3Metrics={schema:"genithm-gff3-feature-qc/1";feature_rows:number;gene_features:number;transcript_features:number;exon_features:number;cds_features:number;utr_features:number;contigs_seen:number;embedded_fasta:boolean;sampling:false};
 type Upload={id:string;project_id:string;original_filename:string;expected_bytes:number;expected_sha256:string;
  data_format:"fastq"|"fastq.gz"|"opaque";state:string;part_bytes?:number;checked_bytes:number;error_code:string|null;
- summary?:{scientific_scope:string;metrics?:FastqMetrics|VcfMetrics|null};
+ summary?:{scientific_scope:string;metrics?:FastqMetrics|VcfMetrics|Gff3Metrics|null};
  parts?:{number:number;size:number}[]};
 type Overview={limits:FileLimits&{verifier_ready:boolean};uploads:Upload[];file_catalog?:FileCatalog};
 const API_BASE=(process.env.NEXT_PUBLIC_GENITHM_API_URL||"").replace(/\/$/,"");
@@ -128,7 +129,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
  async function cleanup(item:Upload){setError("");try{await call("/uploads/"+item.id+"/abort",{});if(current?.id===item.id)setCurrent(null);setOverview(await call<Overview>("/projects/"+project));}
   catch(e){setError(e instanceof Error?e.message:"Cleanup not confirmed; storage remains reserved.");}}
  return <section className={"genithm-page "+qualityStyles.controls} aria-label="Managed large-file uploads">
-  <h2>Large research files</h2><p>Resumable private uploads and server-side verification. Upload any nonempty research file within project limits. The universal worker fully scans supported FASTA, FASTQ and VCF/.vcf.gz files. VCF reports contain site statistics, not decoded genotypes or variant calling; other formats receive byte-integrity checks only.</p>
+  <h2>Large research files</h2><p>Resumable private uploads and server-side verification. Upload any nonempty research file within project limits. The universal worker fully scans supported FASTA, FASTQ, VCF/.vcf.gz and GFF3/.gff3.gz files. VCF reports contain site QC, while GFF3 reports count annotation features and coordinate spans without inferring biological function. Other formats receive byte-integrity checks only.</p>
   <label>Research project <select value={project} disabled={busy||batchBusy} onChange={e=>{setProject(e.target.value);requestId.current=null;setFile(null);}}>
    {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
   {overview&&<p className="genithm-note">{size(overview.limits.charged_bytes)} reserved or stored / {size(overview.limits.capacity_bytes)} allowed.
@@ -146,7 +147,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
   <p className="genithm-note">Closing the tab pauses browser uploads, not already-queued server verification. Resume from the server list with the same file. This uploader does not store access tokens or signed URLs in upload checkpoints. A 100 GiB policy ceiling is not a promise that every analysis supports that size.</p>
   {overview&&<UniversalFilePanel key={project+"-files"} project={project} limits={overview.limits} catalog={overview.file_catalog} api={call} blocked={busy} onBusy={setBatchBusy} onResume={selectFromLibrary} download={download}/>}
   {overview&&<LargePairPanel key={project} project={project} sources={overview.uploads} call={call} download={download}/>}
-  {overview?.uploads.map(item=>{const metric=item.summary?.metrics;const fastq=metric&&"read_count" in metric?metric:null;const vcf=metric&&"schema" in metric&&metric.schema==="genithm-vcf-site-qc/1"?metric:null;return <article key={item.id} className="genithm-disclosure">
+  {overview?.uploads.map(item=>{const metric=item.summary?.metrics;const fastq=metric&&"read_count" in metric?metric:null;const vcf=metric&&"schema" in metric&&metric.schema==="genithm-vcf-site-qc/1"?metric:null;const gff3=metric&&"schema" in metric&&metric.schema==="genithm-gff3-feature-qc/1"?metric:null;return <article key={item.id} className="genithm-disclosure">
    <h3>{item.original_filename}</h3><p>{size(item.expected_bytes)} · {item.state.replaceAll("_"," ")}{item.error_code?" · "+item.error_code.replaceAll("_"," "):""}</p>
    {item.state==="uploading"&&<button className="button" disabled={busy||batchBusy} onClick={()=>{setCurrent(item);requestId.current=null;}}>Select to resume</button>}
    {item.state==="ready"&&fastq&&<p>Server QC: {fastq.read_count.toLocaleString()} reads · {fastq.base_count.toLocaleString()} bases · mean Phred {fastq.mean_phred.toFixed(2)}. Complete data scanned, not sampled.</p>}
@@ -154,6 +155,7 @@ export function LargeDataPanel({projects}:{projects:Project[]}){
     <QualityReportViewer path={"/uploads/"+item.id+"/quality-report"} call={call} download={download}/>:
     <p className="genithm-note">Detailed profiles were not recorded by this result's verifier. Existing aggregate results are unchanged.</p>)}
    {item.state==="ready"&&vcf&&<><p>Whole-file VCF QC: {vcf.record_count.toLocaleString()} sites · {vcf.snv_sites.toLocaleString()} single-nucleotide sites · {vcf.indel_sites.toLocaleString()} indel sites · {vcf.symbolic_sites.toLocaleString()} symbolic sites; {vcf.sample_count.toLocaleString()} sample columns (genotypes not analyzed). Complete input scanned, not sampled.</p><button className="button" type="button" onClick={()=>void download("/uploads/"+item.id+"/quality-report","tsv")}>Download VCF site-QC table (.tsv)</button></>}
+    {item.state==="ready"&&gff3&&<><p>Whole-file GFF3 annotation QC: {gff3.feature_rows.toLocaleString()} features · {gff3.gene_features.toLocaleString()} gene rows · {gff3.transcript_features.toLocaleString()} transcript rows · {gff3.exon_features.toLocaleString()} exons · {gff3.cds_features.toLocaleString()} CDS rows across {gff3.contigs_seen.toLocaleString()} contigs. Span totals are not unique genome coverage; attributes are not interpreted.</p><button className="button" type="button" onClick={()=>void download("/uploads/"+item.id+"/quality-report","tsv")}>Download GFF3 feature-QC table (.tsv)</button></>}
     {item.state==="ready"&&item.summary?.scientific_scope==="bytes_only"&&<p>All file bytes verified. No biological analysis has been performed.</p>}
    {!['aborted','verifying','completing'].includes(item.state)&&<details><summary>Remove upload and stored bytes</summary><p>Quota is released only after confirmed cleanup. Active upload links must expire first.</p><button disabled={busy||batchBusy} className="button" onClick={()=>void cleanup(item)}>Confirm removal</button></details>}
   </article>})}

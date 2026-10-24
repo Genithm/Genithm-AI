@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from .file_registry import VERSION, LEGACY_VERSION, HEADER_KINDS, describe, header_kind, storage_format
+from .file_registry import VERSION, PREVIOUS_VERSION, LEGACY_VERSION, HEADER_KINDS, describe, header_kind, storage_format
 from .fasta import SYMBOLS
 from .policy import LargeDataError
 
@@ -27,13 +27,14 @@ def warnings_for(hint: dict, mode: str, observed: str) -> list[str]:
     return result
 
 
-def build_intake(row: dict, prefix: bytes, *, fasta: dict | None = None, vcf: dict | None = None) -> dict:
+def build_intake(row: dict, prefix: bytes, *, fasta: dict | None = None, vcf: dict | None = None, gff3: dict | None = None) -> dict:
     hint = describe(row["original_filename"])
     observed = header_kind(prefix)
     mode = row["intake_mode"]
     inspection = "complete_fasta" if fasta is not None else (
         "complete_vcf" if vcf is not None else (
-        "complete_fastq" if mode == "auto" and row["data_format"] in {"fastq", "fastq.gz"} else "integrity_only"))
+        "complete_gff3" if gff3 is not None else (
+        "complete_fastq" if mode == "auto" and row["data_format"] in {"fastq", "fastq.gz"} else "integrity_only")))
     return {"schema": "genithm-file-intake/1", "registry_version": VERSION, "mode": mode,
         "name_hint": hint, "observed_header": observed, "prefix_bytes_inspected": len(prefix),
         "inspection": inspection, "archive_extraction": "not_performed", "malware_scan": "not_performed",
@@ -69,7 +70,7 @@ def validate_fasta(value):
 def validate_intake(row: dict, report: dict):
     intake = report["intake"]
     require(isinstance(intake, dict) and set(intake) == FIELDS)
-    require(intake["schema"] == "genithm-file-intake/1" and intake["registry_version"] in {LEGACY_VERSION, VERSION})
+    require(intake["schema"] == "genithm-file-intake/1" and intake["registry_version"] in {LEGACY_VERSION, PREVIOUS_VERSION, VERSION})
     mode = row["intake_mode"]
     require(mode in {"auto", "preserve"} and intake["mode"] == mode)
     require(intake["name_hint"] == describe(row["original_filename"], registry_version=intake["registry_version"]))
@@ -83,6 +84,11 @@ def validate_intake(row: dict, report: dict):
     if expected == "complete_fasta":
         validate_fasta(intake["fasta"])
         require(report["metrics"] is None and report["scientific_scope"] == "full_fasta_structural_summary")
+    elif expected == "complete_gff3":
+        from .gff3_scanner import validate_gff3_metric
+        require(intake["fasta"] is None and row["data_format"] == "opaque")
+        require(report["scientific_scope"] == "full_gff3_feature_qc")
+        validate_gff3_metric(report["metrics"], report["source_bytes"])
     elif expected == "complete_vcf":
         # The generic metrics field carries a separately typed VCF summary;
         # the unchanged version-1 report envelope remains SQL-compatible.

@@ -7,7 +7,7 @@ export type FileCatalog={version:string;formats:{id:string;label:string;category
 export type FileLimits={enabled:boolean;max_file_bytes:number;capacity_bytes:number;charged_bytes:number;file_uploads_version?:number;file_verifier_ready?:boolean};
 type Entry=BatchSource&{state:string;bytes:number;phase:string;attempted:boolean};
 type StoredFile=FileSession&{project_id:string;original_filename:string;actual_sha256?:string;relative_path?:string;batch_id?:string;
- summary?:{intake?:{inspection:string;observed_header:string;fasta?:{record_count:number;symbol_count:number}|null};metrics?:{schema?:string;record_count?:number;snv_sites?:number;indel_sites?:number;sample_count?:number;transitions?:number;transversions?:number}|null}};
+ summary?:{intake?:{inspection:string;observed_header:string;fasta?:{record_count:number;symbol_count:number}|null};metrics?:{schema?:string;record_count?:number;snv_sites?:number;indel_sites?:number;sample_count?:number;transitions?:number;transversions?:number;feature_rows?:number;gene_features?:number;transcript_features?:number;exon_features?:number;cds_features?:number;contigs_seen?:number}|null}};
 type Page={files:StoredFile[];next:string|null;project_id:string;batch_id:string|null};
 const amount=(n:number)=>n<1024?`${n} bytes`:n<1024**2?`${(n/1024).toFixed(1)} KiB`:n<1024**3?`${(n/1024**2).toFixed(1)} MiB`:`${(n/1024**3).toFixed(2)} GiB`;
 
@@ -93,7 +93,7 @@ function BatchWorkspace({project,limits,catalog,api,blocked,onBusy,onResume,down
   {!unavailable&&!limits.file_verifier_ready&&<p role="status">The universal-file worker is offline. Existing stored files remain accessible; new batch admission is paused.</p>}
   <details><summary>Supported file families and inspection levels</summary>
    <label>Find a format <input type="search" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="BAM, single-cell, proteomics..."/></label>
-   <p>Automatic complete inspection: FASTQ read QC and FASTA structural statistics, plain or gzip/BGZF. Other formats receive full-byte integrity verification and bounded header hints only. Names are not proof of format.</p>
+   <p>Automatic complete inspection: FASTQ read QC, FASTA structural statistics, VCF site QC, and strict GFF3 feature QC, plain or gzip. Other formats receive full-byte integrity verification and bounded header hints only. Names are not proof of format.</p>
    <div style={{maxHeight:320,overflow:"auto"}}><table className="genithm-table"><caption>Recognized name hints; other extensions are also accepted</caption><thead><tr><th scope="col">Family</th><th scope="col">Format</th><th scope="col">Extensions</th></tr></thead><tbody>
     {matching.map(f=><tr key={f.id}><td>{f.category}</td><td>{f.label}</td><td>{f.extensions.map(x=>"."+x).join(", ")}</td></tr>)}
    </tbody></table></div>
@@ -102,7 +102,7 @@ function BatchWorkspace({project,limits,catalog,api,blocked,onBusy,onResume,down
   <label>Choose a research folder <input ref={folderInput} type="file" multiple style={{maxWidth:"100%"}} disabled={busy||unavailable} onChange={e=>choose(e.target.files)}/></label>
   <p className="genithm-note">Up to 100 nonempty files per selection, within project limits. Folder selection depends on browser support. Selecting again starts a new batch without deleting previously uploaded files.</p>
   <label>Inspection mode <select value={mode} disabled={busy||entries.some(e=>e.attempted)} onChange={e=>setMode(e.target.value as "auto"|"preserve")}>
-   <option value="auto">Inspect supported formats; preserve all others</option><option value="preserve">Preserve bytes only; do not parse FASTA, FASTQ or VCF</option>
+   <option value="auto">Inspect supported formats; preserve all others</option><option value="preserve">Preserve bytes only; do not parse FASTA, FASTQ, VCF or GFF3</option>
   </select></label>
   {entries.length>0&&<p role="status">{entries.length} selected files / {amount(entries.reduce((n,e)=>n+e.file.size,0))}. {complete} uploads accepted by the server; verification may still be pending.</p>}
   <div className="genithm-page-links">
@@ -121,6 +121,7 @@ function BatchWorkspace({project,limits,catalog,api,blocked,onBusy,onResume,down
    {record.summary?.intake&&<p>Inspection: {record.summary.intake.inspection.replaceAll("_"," ")}. Observed header: {record.summary.intake.observed_header.replaceAll("_"," ")} (bounded hint).</p>}
    {record.summary?.intake?.fasta&&<p>Complete FASTA scan: {record.summary.intake.fasta.record_count.toLocaleString()} records, {record.summary.intake.fasta.symbol_count.toLocaleString()} sequence symbols. Alphabet was not inferred.</p>}
    {record.summary?.metrics?.schema==="genithm-vcf-site-qc/1"&&<><p>Complete VCF site QC: {(record.summary.metrics.record_count??0).toLocaleString()} records, {(record.summary.metrics.snv_sites??0).toLocaleString()} SNV sites, {(record.summary.metrics.indel_sites??0).toLocaleString()} indel sites, {(record.summary.metrics.sample_count??0).toLocaleString()} sample columns. Genotypes, allele frequencies and pathogenicity were not analyzed.</p><button className="button" type="button" onClick={()=>void download("/uploads/"+record.id+"/quality-report","tsv")}>Download VCF site-QC table</button></>}
+   {record.summary?.metrics?.schema==="genithm-gff3-feature-qc/1"&&<><p>Complete GFF3 annotation QC: {(record.summary.metrics.feature_rows??0).toLocaleString()} feature rows, {(record.summary.metrics.gene_features??0).toLocaleString()} gene rows, {(record.summary.metrics.exon_features??0).toLocaleString()} exons and {(record.summary.metrics.cds_features??0).toLocaleString()} CDS rows, across {(record.summary.metrics.contigs_seen??0).toLocaleString()} contigs. GFF3 spans can overlap and do not measure unique genome coverage.</p><button className="button" type="button" onClick={()=>void download("/uploads/"+record.id+"/quality-report","tsv")}>Download GFF3 feature-QC table</button></>}
    {record.state==="ready"&&<button className="button" onClick={()=>void exportReport(record.id)}>Download verified file report</button>}
    {record.state==="ready"&&<button className="button" onClick={()=>void downloadOriginal(record.id)}>Download original file (private link)</button>}
    {record.state==="uploading"&&<button className="button" disabled={busy} onClick={()=>void onResume(record.id).catch(e=>setError(e instanceof Error?e.message:"Could not select upload."))}>Select this file to resume above</button>}

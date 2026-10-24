@@ -181,7 +181,12 @@ def report_for_row(row: dict, *, paired: bool = False) -> dict:
             _require(report["format"] == row["data_format"] and report["source_bytes"] == row["expected_bytes"])
             _require(isinstance(report["source_sha256"], str) and HEX.fullmatch(report["source_sha256"]))
             _require(report["source_sha256"] == row["expected_sha256"] == row["actual_sha256"])
-            if report["scientific_scope"] == "full_vcf_site_qc" and modern:
+            if report["scientific_scope"] == "full_gff3_feature_qc" and modern:
+                from .gff3_scanner import validate_gff3_metric
+                _require(report["format"] == "opaque")
+                validate_gff3_metric(report["metrics"], report["source_bytes"])
+                metrics = []
+            elif report["scientific_scope"] == "full_vcf_site_qc" and modern:
                 from .vcf_scanner import validate_vcf_metric
                 _require(report["format"] == "opaque")
                 validate_vcf_metric(report["metrics"], report["source_bytes"])
@@ -205,6 +210,22 @@ def report_tsv(envelope: dict) -> str:
     report = envelope["report"]
     stream = io.StringIO(newline="")
     writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
+    if report["scientific_scope"] == "full_gff3_feature_qc":
+        writer.writerow(["# Genithm full-file GFF3 feature summary; overlapping spans are not genome coverage"])
+        writer.writerow(["# report_sha256", report["report_sha256"]])
+        writer.writerow(["# original_source_sha256", report["source_sha256"]])
+        writer.writerow(["metric", "value"])
+        for key in ("feature_rows", "gene_features", "transcript_features", "exon_features",
+                    "cds_features", "utr_features", "other_features",
+                    "plus_features", "minus_features", "unstranded_features",
+                    "unknown_strand_features", "phased_cds_rows", "unphased_cds_rows",
+                    "contigs_seen", "total_feature_span_bp", "minimum_feature_bp",
+                    "maximum_feature_bp", "mean_feature_bp", "expanded_bytes",
+                    "embedded_fasta", "embedded_fasta_validated"):
+            value = report["metrics"][key]
+            writer.writerow([key, "." if value is None else
+                             str(value).lower() if type(value) is bool else value])
+        return stream.getvalue()
     if report["scientific_scope"] == "full_vcf_site_qc":
         # report_for_row validated the exact metric schema first. Fixed metric
         # labels and numeric outputs cannot inject spreadsheet formulas.
