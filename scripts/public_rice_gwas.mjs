@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { calculateGwas, gwasManhattanOrder, gwasSummaryTsv } from '../apps/web/lib/gwas-association.ts';
 
@@ -240,7 +241,7 @@ export async function runPublicRiceStudy({outDirectory, fixtureDirectory=null,on
 function parseCli(args){const permitted=['--out','--fixture'];check(args.length%2===0,'Expected --out DIR [--fixture DIR]');
  const result={};for(let i=0;i<args.length;i+=2){check(permitted.includes(args[i]) && !result[args[i]],'Unsupported argument');result[args[i]]=args[i+1];}
  check(result['--out'] && resolve(result['--out'])!==resolve('/'),'Output directory required');return result;}
-if(process.argv[1] && /public_rice_gwas\.mjs$/.test(process.argv[1])){
+if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{const a=parseCli(process.argv.slice(2));await runPublicRiceStudy({outDirectory:resolve(a['--out']),fixtureDirectory:a['--fixture']?resolve(a['--fixture']):null});}
  catch(error){process.stderr.write(`[Genithm Rice GWAS] ${String(error?.message||error).slice(0,450)}\n`);process.exitCode=1;}
 }
