@@ -1,0 +1,9 @@
+#!genome-build TEST_SYNTHETIC
+chr1	synthetic	gene	1	150	.	+	.	gene_id "GENE_A"; gene_name "secret; alpha";
+chr1	synthetic	transcript	1	100	.	+	.	gene_id "GENE_A"; transcript_id "TX001";
+chr1	synthetic	exon	1	100	.	+	.	gene_id "GENE_A"; transcript_id "TX001"; exon_number "1";
+chr1	synthetic	transcript	20	150	.	+	.	gene_id "GENE_A"; transcript_id "TX003";
+chr1	synthetic	CDS	30	150	.	+	0	gene_id "GENE_A"; transcript_id "TX003";
+chr2	synthetic	gene	50	250	.	-	.	gene_id "GENE_B";
+chr2	synthetic	transcript	50	250	.	-	.	gene_id "GENE_B"; transcript_id "TX002";
+chr2	synthetic	exon	50	180	.	-	.	gene_id "GENE_B"; transcript_id "TX002";
