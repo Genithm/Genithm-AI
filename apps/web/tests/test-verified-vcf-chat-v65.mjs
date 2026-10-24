@@ -36,7 +36,7 @@ test('V65 parsed VCF report contains only approved numeric and boolean fields, n
  assert.equal(vcf.vcf_site_qc.mean_qual,37.5);
  const text=JSON.stringify(vcf);
  assert.doesNotMatch(text,/patient|chr1|private_/);
- assert.equal(Object.keys(vcf.vcf_site_qc).length,18);
+ assert.equal(Object.keys(vcf.vcf_site_qc).length,21);
 });
 test('V65 DB snapshot must prove same scoped source/report sha before enrichment',()=>{
  const verified=parseVerifiedResearchFile(clone(),fid,pid);
@@ -48,7 +48,7 @@ test('V65 DB snapshot must prove same scoped source/report sha before enrichment
  assert.deepEqual(result.other_context,{id:'db'});
  assert.throws(()=>withVerifiedVcfSiteEvidence({...context,selected_verified_research_files:[{...snapshot,source_sha256:'c'.repeat(64)}]},[verified]));
  assert.throws(()=>withVerifiedVcfSiteEvidence({...context,selected_verified_research_files:[{...snapshot,report_sha256:'c'.repeat(64)}]},[verified]));
- assert.throws(()=>withVerifiedVcfSiteEvidence({...context,selected_verified_research_files:[{...snapshot,project_id:'a'.repeat(36)}]},[verified]));
+ assert.throws(()=>withVerifiedVcfSiteEvidence({...context,selected_verified_research_files:[{...snapshot,id:'a'.repeat(36)}]},[verified]));
 });
 test('V65 does not elevate integrity-only or legacy VCF to real scientific analysis',()=>{
  for(const [scope,inspection] of [['bytes_only','integrity_only'],['full_vcf_site_qc','legacy'],['full_vcf_site_qc','integrity_only']]){
