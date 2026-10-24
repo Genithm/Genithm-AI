@@ -28,7 +28,7 @@ export type VerifiedVcfSiteQc = {
 function verifiedVcfSiteQc(report: RecordValue, inspection:string):VerifiedVcfSiteQc {
   const intake=object(report.intake);
   if(inspection!=="complete_vcf" || report.format!=="opaque" ||
-      intake.registry_version!=="genithm-file-registry/2" || intake.mode!=="auto" ||
+      !["genithm-file-registry/2","genithm-file-registry/3"].includes(String(intake.registry_version)) || intake.mode!=="auto" ||
       object(intake.name_hint).format_id!=="vcf")throw new Error("VCF evidence must be fully parsed by the authorized worker.");
   const data=object(report.metrics);
   if(data.schema!=="genithm-vcf-site-qc/1"||data.engine_version!=="genithm-vcf-stream/1.0.0"||
