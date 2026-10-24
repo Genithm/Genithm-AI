@@ -1,0 +1,57 @@
+name: Genithm V59 real chat FASTQ VCF FASTA quality control
+on:
+  pull_request:
+    paths:
+      - 'scripts/chat_qc_engine.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_chat_qc_v59.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/chat-qc-v59.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/chat_qc_engine.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_chat_qc_v59.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/chat-qc-v59.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  file-qc-science:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate actual FASTQ VCF FASTA science, compressed inputs, private chat and artifact checksums
+        run: node --experimental-strip-types --test scripts/tests/test_chat_qc_v59.mjs
+      - name: Validate previous fastq Phred+33 QC contracts
+        run: node --experimental-strip-types --test apps/web/tests/fastq-qc-v39.test.mjs
+      - name: Verify no raw scientific source content in new result descriptions
+        run: |
+          node --input-type=module - <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const worker=readFileSync('scripts/chat_qc_engine.mjs','utf8');
+          const route=readFileSync('apps/web/app/api/ai/science-results/route.ts','utf8');
+          const ui=readFileSync('apps/web/components/chat-science-artifacts.tsx','utf8');
+          assert.match(worker,/gunzipSync\(bytes,\{maxOutputLength:ceiling\}\)/);
+          assert.match(route,/approved_private_compute/);
+          assert.match(route,/chatScienceAcceptsRoles/);
+          assert.match(ui,/fastq-qc/);
+          assert.doesNotMatch(worker,/GEMINI_API_KEY|GROQ_API_KEY|SUPABASE_SECRET_KEY|eval\(/);
+          JS

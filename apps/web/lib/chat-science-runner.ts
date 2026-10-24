@@ -11,23 +11,29 @@ import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.0.0';
+export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.1.0';
 export const CHAT_SCIENCE_BASE = join(tmpdir(),'genithm-v58-chat-science');
 export const CHAT_SCIENCE_AGE_MS = 48*3600*1000;
 const EXECUTION_LIMIT_MS = 150_000;
+const ACCEPTED_MANIFEST_VERSIONS = new Set(['genithm-chat-science/1.0.0',CHAT_SCIENCE_VERSION]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESULT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/i;
-const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway'] as const;
+const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc'] as const;
 export type ChatScienceKind = typeof ALLOWED_KINDS[number];
 const REQUIRED_FILES: Record<Exclude<ChatScienceKind,'public-airway'>,Record<string,number>> = {
   gwas: {genotypes:64*1024*1024,phenotypes:2*1024*1024},
   expression: {counts:32*1024*1024,design:512*1024},
   pathways: {selected:1024*1024,universe:1024*1024,gmt:8*1024*1024},
+  'fastq-qc': {r1:12*1024*1024,r2:12*1024*1024},
+  'vcf-qc': {vcf:8*1024*1024},
+  'fasta-qc': {fasta:32*1024*1024},
 };
 const FILE_NAMES = new Set(['complete-results.zip','association.tsv','manhattan.svg','qq.svg','expression.tsv',
   'significant_genes.txt','measured_genes.txt','sample_qc.tsv','volcano.svg','sample-pca.svg',
-  'pathway-enrichment.tsv','enrichment.svg','summary.json','provenance.json','METHODS.md']);
+  'pathway-enrichment.tsv','enrichment.svg','fastq-qc.tsv','quality-by-cycle.svg','read-lengths.svg',
+  'vcf-qc.tsv','variant-types.svg','fasta-stats.tsv','sequence-lengths.svg',
+  'summary.json','provenance.json','METHODS.md']);
 const CACHE_ID = createHash('sha256').update('Himes2014|bioconnector/workshops@68ff3e4868b0e5673a1c4399828a3e0adc72f8e4|'+CHAT_SCIENCE_VERSION+'|control-treated-minCPM1').digest('hex').slice(0,25);
 const PUBLIC_CACHE = join(CHAT_SCIENCE_BASE,'public-airway-cache-'+CACHE_ID);
 
@@ -40,8 +46,16 @@ function ownerDirectory(userId:string,runId:string){if(!RESULT_UUID.test(runId))
 export function chatScienceAvailable(){return process.env.NODE_ENV==='development'&&process.env.GENITHM_CODESPACES_PREVIEW==='1'&&
   !!process.env.CODESPACE_NAME&&!!process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;}
 export function chatScienceRequiredFiles(kind:ChatScienceKind){return kind==='public-airway'?{}:REQUIRED_FILES[kind];}
+/** A single FASTQ R1 is legal; paired FASTQ requires BOTH correctly ordered
+ * mates. No other scientific task permits silent optional missing inputs. */
+export function chatScienceAcceptsRoles(kind:ChatScienceKind,keys:string[]){
+  if(!ALLOWED_KINDS.includes(kind)||new Set(keys).size!==keys.length)return false;
+  const got=keys.slice().sort().join(',');
+  if(kind==='fastq-qc')return got==='r1'||got==='r1,r2';
+  return got===Object.keys(chatScienceRequiredFiles(kind)).sort().join(',');
+}
 function validateManifest(manifest:Manifest){
-  if(!ALLOWED_KINDS.includes(manifest.kind)||manifest.version!==CHAT_SCIENCE_VERSION||
+  if(!ALLOWED_KINDS.includes(manifest.kind)||!ACCEPTED_MANIFEST_VERSIONS.has(manifest.version)||
      !Array.isArray(manifest.filenames)||manifest.filenames.length<3||manifest.filenames.length>15||
      new Set(manifest.filenames).size!==manifest.filenames.length||
      !manifest.filenames.every(x=>FILE_NAMES.has(x)&&SHA.test(manifest.hashes?.[x]||''))||
@@ -114,8 +128,9 @@ export async function runChatScience(userId:string,projectId:string,kind:ChatSci
   const hash=userDigest(userId);
   if(!ALLOWED_KINDS.includes(kind))throw new Error('Unsupported scientific analysis.');
   const needed=chatScienceRequiredFiles(kind);
-  if(Object.keys(sources).sort().join(',')!==Object.keys(needed).sort().join(','))throw new Error('Expected input file roles do not match this scientific task.');
+  if(!chatScienceAcceptsRoles(kind,Object.keys(sources)))throw new Error('Expected input file roles do not match this scientific task.');
   for(const [name,limit] of Object.entries(needed)){
+    if(kind==='fastq-qc' && name==='r2' && !sources.r2)continue;
     const file=sources[name];
     if(!(file instanceof File)||file.size<1||file.size>limit)throw new Error(`The ${name} file is missing or exceeds the supported ${Math.ceil(limit/1024/1024)} MiB ceiling.`);
   }

@@ -12,8 +12,9 @@ import { createZip } from './public_rice_gwas.mjs';
 import { calculateGwas, gwasSummaryTsv } from '../apps/web/lib/gwas-association.ts';
 import { analyzeExpression, expressionTsv, expressionGeneList } from '../apps/web/lib/expression-analysis.ts';
 import { analyzePathways, pathwaysTsv } from '../apps/web/lib/pathway-enrichment.ts';
+import { analyzeChatQc } from './chat_qc_engine.mjs';
 
-export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.0.0';
+export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.1.0';
 export const AIRWAY_SOURCE = Object.freeze({
   repository: 'bioconnector/workshops',
   revision: '68ff3e4868b0e5673a1c4399828a3e0adc72f8e4',
@@ -143,6 +144,7 @@ export function prepareAirway(countsCsv,metaCsv){
 
 /** Pure research operation: executes only a supported scientific engine. */
 export function calculateChatStudy(kind, files, onProgress=()=>{}){
+  if(['fastq-qc','vcf-qc','fasta-qc'].includes(kind))return analyzeChatQc(kind,files);
   const hashed=Object.fromEntries(Object.entries(files).map(([name,bytes])=>[name,sha(bytes,name)]));
   const input={};for(const [name,bytes] of Object.entries(files))input[name]=utf8(bytes);
   const provenance={schema:'genithm-chat-science-provenance/1',engine:CHAT_SCIENCE_VERSION,created_at:new Date().toISOString(),kind,
@@ -232,10 +234,15 @@ function parseCli(args){const out={};for(let i=0;i<args.length;i+=2){check(['--k
   check(out['--kind']&&out['--inputs']&&out['--out']&&args.length===6,'CLI requires kind, inputs path, output directory');return out;}
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   try{const args=parseCli(process.argv.slice(2));const kind=args['--kind'];
-    check(['gwas','expression','pathways','public-airway'].includes(kind),'Unsupported public or uploaded analysis kind');
+    check(['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc'].includes(kind),'Unsupported public or uploaded analysis kind');
     const input={};if(kind!=='public-airway'){
-      const names=kind==='gwas'?['genotypes','phenotypes']:kind==='expression'?['counts','design']:['selected','universe','gmt'];
-      for(const name of names)input[name]=await readFile(join(resolve(args['--inputs']),name+'.txt'));
+      const names=kind==='gwas'?['genotypes','phenotypes']:kind==='expression'?['counts','design']:
+        kind==='pathways'?['selected','universe','gmt']:kind==='fastq-qc'?['r1','r2']:
+        kind==='vcf-qc'?['vcf']:['fasta'];
+      for(const name of names){
+        try{input[name]=await readFile(join(resolve(args['--inputs']),name+'.txt'));}
+        catch(err){if(kind==='fastq-qc'&&name==='r2'&&err?.code==='ENOENT')continue;throw err;}
+      }
     }
     await runChatStudy({kind,inputs:input,outDirectory:resolve(args['--out']),onProgress:(stage,count)=>process.stdout.write(JSON.stringify({stage,count})+'\n')});
   }catch(e){process.stderr.write('Genithm scientific worker failed: '+String(e?.message||e).slice(0,350)+'\n');process.exitCode=1;}

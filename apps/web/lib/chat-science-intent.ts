@@ -26,6 +26,9 @@ export function scienceCompletionText(runId:string,summary:ChatScienceSummary):s
   let detail='';
   if(kind==='gwas')detail=`${summary.samples} matched samples; ${summary.variants_tested} tested variants of ${summary.variants_seen}. Bonferroni-significant variants: ${summary.significant_bonferroni} (not necessarily independent loci).`;
   else if(kind==='public-airway'||kind==='expression')detail=`${summary.samples} samples; ${summary.genes_tested} tested genes of ${summary.genes_seen}. Genes with BH FDR below 0.05: ${summary.genes_fdr_below_0_05}.`;
+  else if(kind==='fastq-qc')detail=`${summary.reads} reads (${summary.bases} bases); Phred+33 Q30 ${summary.q30_percent}%. ${summary.mode==='paired'?'Paired read IDs verified.':'Single-file read QC.'}`;
+  else if(kind==='vcf-qc')detail=`${summary.variants} VCF variants, ${summary.samples} sample columns. Transition/transversion ratio: ${summary.ti_tv??'undefined'}.`;
+  else if(kind==='fasta-qc')detail=`${summary.records} sequences, ${summary.total_residues} residues, N50 ${summary.n50}, L50 ${summary.l50}. Inferred molecule type: ${summary.molecule_type}.`;
   else if(kind==='pathways')detail=`${summary.selected} selected genes out of ${summary.universe} measured genes; ${summary.pathways_tested} tested pathways. Sets with BH FDR below 0.05: ${summary.pathways_fdr_below_0_05}.`;
   else throw new Error('Unsupported recorded scientific result.');
   const source=summary.inputs==='published-airway'?'**Real public research data:** Himes et al. (2014), eight airway samples, dexamethasone vs control. The raw integer count matrix and experimental metadata were selected and fetched from a pinned public source.':

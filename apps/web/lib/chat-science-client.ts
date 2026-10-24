@@ -4,17 +4,47 @@
  */
 import { isGwasExecutionRequest } from './gwas-chat-intent.ts';
 import { matchLocalAnalysisRequest } from './local-analysis-intent.ts';
-export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways';
+export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc';
 export type ChatScienceUpload = {kind:ChatScienceUploadKind;files:Record<string,File>};
 const action=/\b(?:run|perform|analy[sz]e|compare|test|calculate|compute|execute|do|study|process)\b/i;
-const question=/^(?:what|why|how|explain|teach|define|summarize)\b/i;
+const question=/^(?:what|why|how|explain|teach|define)\b/i;
 const header=(text:string)=>text.replace(/^\uFEFF/,'').split(/\r?\n/).find(line=>line.trim()&& !line.startsWith('##'))||'';
 const sep=(line:string)=>line.includes('\t')?'\t':',';
 export type ProposedChatScience = {kind:ChatScienceUploadKind;roles:Record<string,number>;error?:string};
 /** Probe only 4 KiB, never inspect private source beyond the local browser. */
-export function proposeChatScience(message:string,sources:Array<{filename:string;head:string;size:number}>):ProposedChatScience|null{
-  if(sources.length<2||sources.length>3)return null;
+export function proposeChatScience(message:string,sources:Array<{filename:string;head:string;size:number;gzip?:boolean}>):ProposedChatScience|null{
+  if(sources.length<1||sources.length>3)return null;
   if(question.test(message)&&!action.test(message))return null;
+  // V59: a real FASTA, FASTQ or VCF is sufficient for bounded QC. Its
+  // execution is independent from an unrelated GWAS/BLAST scientific request.
+  const m=message.toLowerCase();
+  const wantsGwas=isGwasExecutionRequest(message);
+  const wantsOtherMethod=/\b(?:blast|alignment|phylogen|tree|annotation|protein properties|translate|assemble|variant calling|differential expression|rna[ -]?seq|transcriptom|quantif\w*|trim\w*|gwas)\b/i.test(m);
+  const couldQc=/\b(?:qc|quality|check|inspect|stats?|summary|summari[sz]e|analy[sz]e|calculate|report|process|profile|characteri[sz]e|overview|n50|gc content)\b/i.test(m)||action.test(message);
+  const info=sources.map(s=>{
+    const lower=s.filename.toLowerCase(),head=s.head.replace(/^\uFEFF/,'');
+    const fastq=/\.(?:fastq|fq)(?:\.gz)?$/.test(lower)||(/^@[^\n]+\r?\n[ACGTNacgtn]+\r?\n\+/.test(head) && !s.gzip);
+    const vcf=/\.vcf(?:\.gz)?$/.test(lower)||head.startsWith('##fileformat=VCFv4.');
+    const fasta=/\.(?:fasta|fa|fna|faa)(?:\.gz)?$/.test(lower)||head.startsWith('>');
+    return {fastq,vcf,fasta,lower,head};
+  });
+  if(!wantsGwas&&!wantsOtherMethod&&couldQc){
+    if(sources.length===1){
+      const type=info[0].fastq?'fastq-qc':info[0].vcf?'vcf-qc':info[0].fasta?'fasta-qc':null;
+      if(type)return {kind:type,roles:{[type==='fastq-qc'?'r1':type==='vcf-qc'?'vcf':'fasta']:0}};
+    }
+    if(sources.length===2&&info.every(x=>x.fastq)){
+      const mate=sources.map((src,i)=>{
+        const t=src.filename;
+        if(/(?:^|[_./-])R?1(?:[_.-]|$)/i.test(t)||/^@\S+\/1(?:\s|\r?\n)/.test(info[i].head))return 1;
+        if(/(?:^|[_./-])R?2(?:[_.-]|$)/i.test(t)||/^@\S+\/2(?:\s|\r?\n)/.test(info[i].head))return 2;
+        return 0;
+      });
+      if(mate.includes(1)&&mate.includes(2))return {kind:'fastq-qc',roles:{r1:mate.indexOf(1),r2:mate.indexOf(2)}};
+      return {kind:'fastq-qc',roles:{},error:'For paired FASTQ QC, name the two files R1 and R2 or use standard /1 and /2 read headers.'};
+    }
+  }
+  if(sources.length<2)return null;
   const kind:ChatScienceUploadKind|null=isGwasExecutionRequest(message)?'gwas':matchLocalAnalysisRequest(message)==='expression'?'expression':
     matchLocalAnalysisRequest(message)==='pathway'?'pathways':null;
   if(!kind&&!action.test(message))return null;
@@ -56,9 +86,10 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
   return {kind:selected,roles};
 }
 export async function identifyChatScienceFiles(message:string,files:File[]):Promise<ChatScienceUpload|{error:string}|null>{
-  if(files.length<2||files.length>3)return null;
+  if(files.length<1||files.length>3)return null;
   const probes=await Promise.all(files.map(async file=>({filename:file.name,size:file.size,
-    head:await file.slice(0,4096).text().catch(()=>'' )})));
+    head:await file.slice(0,4096).text().catch(()=>'' ),
+    gzip:(await file.slice(0,2).arrayBuffer().then(buffer=>{const b=new Uint8Array(buffer);return b[0]===31&&b[1]===139;}).catch(()=>false))})));
   const result=proposeChatScience(message,probes);
   if(!result)return null;if(result.error)return {error:result.error};
   return {kind:result.kind,files:Object.fromEntries(Object.entries(result.roles).map(([role,index])=>[role,files[index]]))};
