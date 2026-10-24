@@ -4,7 +4,7 @@ import {mkdtemp,readFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import { runChatStudy, calculateChatStudy, prepareAirway, fetchPublicAirway, AIRWAY_SOURCE } from '../chat_science_worker.mjs';
+import { runChatStudy, calculateChatStudy, prepareAirway, fetchPublicAirway, AIRWAY_SOURCE, inferGwasTraitKind } from '../chat_science_worker.mjs';
 import {proposeChatScience} from '../../apps/web/lib/chat-science-client.ts';
 import {shouldRunPublicAirway,scienceCompletionText} from '../../apps/web/lib/chat-science-intent.ts';
 function countFixture(){
@@ -128,4 +128,11 @@ test('chat integration dispatch is separate from LLM and enforces private-file c
  assert.match(runner,/authenticated|owner_hash/);
  assert.match(runner,/chatScienceAvailable\(\)/);
  assert.doesNotMatch(runner,/process\.env\.(?:GEMINI_API_KEY|GROQ_API_KEY|SUPABASE_SECRET_KEY)/);
+});
+
+test('case/control 0/1 phenotype is routed to logistic score; quantitative phenotype stays OLS',()=>{
+ const samples=Array.from({length:30},(_,i)=>'S'+(i+1));
+ assert.equal(inferGwasTraitKind('sample_id,phenotype\\n'+samples.map((s,i)=>s+','+(i%2)).join('\\n')+'\\n'),'binary');
+ assert.equal(inferGwasTraitKind('sample_id,phenotype\\n'+samples.map((s,i)=>s+','+(i%3)).join('\\n')+'\\n'),'quantitative');
+ assert.throws(()=>inferGwasTraitKind('id,trait\\nS1,0'),/sample_id/);
 });

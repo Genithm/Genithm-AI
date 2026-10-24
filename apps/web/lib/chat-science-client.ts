@@ -35,7 +35,7 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
   // Explicit scientific intent wins; other unrelated attachments cannot
   // silently be mapped into a different method or submitted to the server.
   if(kind && inferred && kind!==inferred)return {kind,roles:{},error:`Your attachments resemble ${inferred} inputs, not ${kind}. Select matching files or change the analysis.`};
-  const wanted=selected==='gwas'?['genotypes','phenotypes']:selected==='expression'?['counts','design']:['selected','universe','gmt'];
+  const wanted: string[]=selected==='gwas'?['genotypes','phenotypes']:selected==='expression'?['counts','design']:['selected','universe','gmt'];
   if(sources.length!==wanted.length)return {kind:selected,roles:{},error:`${selected} requires exactly ${wanted.join(', ')} files in the same chat message.`};
   const roles:Record<string,number>={};
   if(selected==='gwas'||selected==='expression'){

@@ -27,6 +27,20 @@ const asHash = buf => createHash('sha256').update(buf).digest('hex');
 const check = (value, explanation) => {if(!value) throw new Error(explanation);};
 const safe = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const numeric = value => Number.isFinite(value) ? Number(value).toPrecision(5) : 'NA';
+/** Infer only a genuinely binary 0/1 phenotype, never assume that an ordinary
+ * integer-valued quantitative trait is a case/control study. Researchers can
+ * use the dedicated GWAS Lab to override or configure advanced models.
+ */
+export function inferGwasTraitKind(table){
+ const lines=table.replace(/^\\uFEFF/,'').split(/\\r?\\n/).filter(Boolean);
+ const first=lines[0]||'',sep=first.includes('\\t')?'\\t':',';
+ const fields=first.split(sep).map(x=>x.trim().toLowerCase());
+ const col=fields.indexOf('phenotype');
+ if(fields[0]!=='sample_id'||col<0)throw new Error('GWAS phenotype must start with sample_id and include phenotype column.');
+ const values=lines.slice(1).map(line=>line.split(sep)[col]?.trim()).filter(x=>x && !['NA','.','N/A','-9'].includes(x));
+ return values.length>=20 && values.every(x=>x==='0'||x==='1') &&
+    values.includes('0') && values.includes('1') ? 'binary':'quantitative';
+}
 const json = data => JSON.stringify(data,null,2)+'\n';
 const sha = (raw, label) => ({ label, bytes: raw.byteLength, sha256: asHash(raw) });
 const utf8 = bytes => new TextDecoder('utf-8',{fatal:true}).decode(bytes);
@@ -123,8 +137,11 @@ export function calculateChatStudy(kind, files, onProgress=()=>{}){
   const digest='0'.repeat(64);
   if(kind==='gwas'){
     check(input.genotypes&&input.phenotypes,'GWAS requires genotype and phenotype files.');
-    const traitKind=/(?:binary)/i.test(input._metadata||'')?'binary':'quantitative';
-    const result=calculateGwas(input.genotypes,input.phenotypes,{traitKind,minMaf:.05,maxMissing:.1},n=>onProgress('testing_variants',n));
+    const traitKind=inferGwasTraitKind(input.phenotypes);
+    // Private uploads are explicitly opt-in. If ancestry PCs are absent,
+    // the consent checkbox explains and acknowledges unadjusted exploratory
+    // association; never invent PCs or pretend to run a mixed model.
+    const result=calculateGwas(input.genotypes,input.phenotypes,{traitKind,minMaf:.05,maxMissing:.1,noCovariateAcknowledged:true},n=>onProgress('testing_variants',n));
     outputs['association.tsv']=gwasSummaryTsv(result,hashed.genotypes.sha256,hashed.phenotypes.sha256);
     outputs['manhattan.svg']=manhattanPlot(result);outputs['qq.svg']=qqPlot(result);
     summary={kind,method:result.associationMethod,inputs:'user-provided',samples:result.samplesMatched,variants_seen:result.variantsSeen,

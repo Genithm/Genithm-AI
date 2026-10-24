@@ -426,11 +426,19 @@ export function AiChatComposer({
           attachment_upload_ids: readyAttachmentIds,
           research_file_ids: selectedResearchFiles,
           media_attachments: readyMediaAttachments,
-          share_local_text_excerpts: completedScienceRunId ? false : shareTextExcerpts,
-          local_file_evidence: completedScienceRunId ? [] : readyLocalEvidence.map((file) => ({
-            ...file,
-            ...(shareTextExcerpts ? {} : { excerpt: undefined }),
-          })),
+          // Preserve the V55 browser-only privacy contract for ordinary
+          // messages; computed research runs never forward the original files
+          // or unverified local metrics to Gemini or Groq.
+          ...(completedScienceRunId ? {
+            local_file_evidence: [],
+            share_local_text_excerpts: false,
+          } : {
+            local_file_evidence: readyLocalEvidence.map((file) => ({
+              ...file,
+              ...(shareTextExcerpts ? {} : { excerpt: undefined }),
+            })),
+            share_local_text_excerpts: shareTextExcerpts,
+          }),
           completed_science_run_id: completedScienceRunId,
         }),
       });
@@ -674,7 +682,7 @@ export function AiChatComposer({
         {attachments.filter(a => a.kind === "local" && a.status === "ready").length >= 2 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 0"}}>
           <input type="checkbox" checked={approvePrivateCompute} disabled={sending}
             onChange={event=>setApprovePrivateCompute(event.target.checked)} />
-          Authorize Genithm to temporarily transfer the attached files to the private Codespaces scientific worker if I request GWAS, RNA expression, or pathway enrichment. Original inputs are deleted after calculation; real results remain downloadable for 48 hours. Without this option, files stay as local previews.
+          Authorize Genithm to temporarily transfer the attached files to the private Codespaces scientific worker if I request GWAS, RNA expression, or pathway enrichment. Original inputs are deleted after calculation; real results remain downloadable for 48 hours. GWAS without numeric ancestry covariates is explicitly acknowledged as unadjusted exploratory association, not population-corrected discovery. Without this option, files stay as local previews.
         </label> : null}
         {shareableExcerptCount > 0 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
           <input type="checkbox" checked={shareTextExcerpts} disabled={sending}
