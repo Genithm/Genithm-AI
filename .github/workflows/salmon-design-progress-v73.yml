@@ -1,0 +1,45 @@
+name: Genithm V73 measured Salmon study-design QC and scientific checklist
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/salmon-design-cohort-v73.ts'
+      - 'apps/web/lib/bioinformatics-program-v73.ts'
+      - 'apps/web/app/dashboard/rnaseq/**'
+      - 'apps/web/app/dashboard/capabilities/**'
+      - 'apps/web/app/dashboard/apps/page.tsx'
+      - 'apps/web/tests/salmon-design-cohort-v73.test.mjs'
+      - 'apps/web/tests/bioinformatics-progress-v73.test.mjs'
+      - 'docs/salmon-design-cohort-v73.md'
+      - 'docs/universal-bioinformatics-checklist-v73.md'
+      - '.github/workflows/salmon-design-progress-v73.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/salmon-design-cohort-v73.ts'
+      - 'apps/web/lib/bioinformatics-program-v73.ts'
+      - 'apps/web/app/dashboard/rnaseq/**'
+      - 'apps/web/app/dashboard/capabilities/**'
+      - 'apps/web/tests/salmon-design-cohort-v73.test.mjs'
+      - 'apps/web/tests/bioinformatics-progress-v73.test.mjs'
+      - 'docs/salmon-design-cohort-v73.md'
+      - 'docs/universal-bioinformatics-checklist-v73.md'
+      - '.github/workflows/salmon-design-progress-v73.yml'
+permissions:
+  contents: read
+jobs:
+  measured-design-and-checklist:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify real design-to-cohort matching, grouped correlations and truthful P0–P10 statuses
+        run: node --experimental-strip-types --test apps/web/tests/salmon-design-cohort-v73.test.mjs apps/web/tests/bioinformatics-progress-v73.test.mjs
+      - name: Preserve real imported Salmon quantification and prior GTF/cohort science
+        run: node --experimental-strip-types --test apps/web/tests/salmon-gene-summary-v71.test.mjs apps/web/tests/gtf-transcript-mapping-v72.test.mjs apps/web/tests/salmon-gene-cohort-qc-v72.test.mjs apps/web/tests/salmon-rnaseq-ui-v72.test.mjs
+      - name: Preserve V69 sample sheet, V70 transcript import and exploratory expression boundaries
+        run: node --experimental-strip-types --test apps/web/tests/rnaseq-study-preflight-v69.test.mjs apps/web/tests/salmon-quant-matrix-v70.test.mjs apps/web/tests/expression-science-v56.test.mjs

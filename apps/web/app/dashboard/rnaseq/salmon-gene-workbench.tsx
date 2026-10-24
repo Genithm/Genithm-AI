@@ -10,6 +10,7 @@ import {
 } from "@/lib/salmon-gene-summary-v71";
 import {deriveTx2GeneFromGtf, MAX_GTF_BYTES, type GtfMapping} from "@/lib/gtf-transcript-mapping-v72";
 import {inspectSalmonGeneCohort, type SalmonCohortQc} from "@/lib/salmon-gene-cohort-qc-v72";
+import {inspectSalmonCohortDesign, MAX_DESIGN_CSV_BYTES, type DesignCohortQc} from "@/lib/salmon-design-cohort-v73";
 
 type Selected = {id: number; file: File; sample: string};
 type Evidence = {
@@ -20,6 +21,8 @@ type Evidence = {
   derived_tx2gene_sha256: string;
   annotation_summary: GtfMapping | null;
   cohort: SalmonCohortQc;
+  design_review: DesignCohortQc | null;
+  design_csv_sha256: string | null;
 };
 
 function candidateSample(file: File, index: number): string {
@@ -47,6 +50,7 @@ async function fileSha256(file: File): Promise<string> {
 export function SalmonGeneWorkbench() {
   const [files, setFiles] = useState<Selected[]>([]);
   const [mapFile, setMapFile] = useState<File | null>(null);
+  const [designFile, setDesignFile] = useState<File | null>(null);
   const [referenceMode,setReferenceMode] = useState<"tsv"|"gtf">("tsv");
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,13 +84,21 @@ export function SalmonGeneWorkbench() {
       const tx2geneText=annotationSummary?.transcript_to_gene_tsv??referenceText;
       const report = summarizeSalmonGenes(quant,tx2geneText);
       const cohort=inspectSalmonGeneCohort(report);
+      let designReview: DesignCohortQc | null=null;
+      let designSha256: string | null=null;
+      if (designFile){
+        if(designFile.size<1||designFile.size>MAX_DESIGN_CSV_BYTES)
+          throw new Error("Optional RNA-seq sample,condition design CSV must be nonempty and at most 16 KiB.");
+        designReview=inspectSalmonCohortDesign(cohort,await designFile.text());
+        designSha256=await fileSha256(designFile);
+      }
       const digestRows: Evidence["source_quant_sha256"] = [];
       for (const x of files) digestRows.push({sample: x.sample, sha256: await fileSha256(x.file)});
       const mappingSha256=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(tx2geneText));
       const derivedSha=[...new Uint8Array(mappingSha256)].map(n=>n.toString(16).padStart(2,"0")).join("");
       setEvidence({report,source_quant_sha256:digestRows,reference_input_kind:referenceMode,
         reference_source_sha256:await fileSha256(mapFile),derived_tx2gene_sha256:derivedSha,
-        annotation_summary:annotationSummary,cohort});
+        annotation_summary:annotationSummary,cohort,design_review:designReview,design_csv_sha256:designSha256});
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Salmon gene summary failed validation.");
     } finally {setBusy(false);}
@@ -105,6 +117,8 @@ export function SalmonGeneWorkbench() {
         gene_ids:value.annotation_summary.gene_ids,
         contigs_seen:value.annotation_summary.contigs_seen,
         assembly_verified:false,salmon_index_verified:false}:null,
+      matched_design_sha256:value.design_csv_sha256,
+      optional_design_review:value.design_review,
       descriptive_cohort_qc:{schema:value.cohort.schema,status:value.cohort.status,
         metrics:value.cohort.metrics,correlations:value.cohort.correlations,
         warnings:value.cohort.warnings},
@@ -157,6 +171,10 @@ export function SalmonGeneWorkbench() {
       </div>
     </div>
     <div style={{marginTop:15}}>
+      <label htmlFor="salmon-v73-design"><strong>3. Optional study design (sample,condition CSV)</strong></label>
+      <input id="salmon-v73-design" type="file" disabled={busy} accept=".csv,text/csv"
+        onChange={e=>{setDesignFile(e.currentTarget.files?.[0]??null);clear();}} />
+      <p className="genithm-note">Match biological sample names exactly to the imported Salmon files. Grouped Pearson correlations are descriptive, not differential-expression results. CSV remains in your browser.</p>
       <button className="button" type="button" disabled={busy||!files.length||!mapFile}
         onClick={()=>void analyze()}>{busy?"Summarizing measured values...":"Validate and summarize genes"}</button>
     </div>
@@ -199,9 +217,24 @@ export function SalmonGeneWorkbench() {
         <button className="button" type="button" onClick={()=>save(evidence.cohort.sample_qc_tsv,"genithm-salmon-gene-sample-QC.tsv")}>Download sample detection QC</button>
         <button className="button" type="button" onClick={()=>save(evidence.cohort.correlation_tsv,"genithm-salmon-sample-correlations.tsv")}>Download sample correlations</button>
       </div>
+      {evidence.design_review&&<>
+        <h4>Researcher-labeled study design and descriptive cohort QC</h4>
+        <p>{evidence.design_review.groups.length} groups matched to {evidence.design_review.samples} existing Salmon samples; no biological labels or source FASTQ data were independently verified.</p>
+        <table style={{width:"100%",textAlign:"left"}}><thead><tr><th>Condition</th><th>Biological samples</th><th>At least three samples?</th></tr></thead>
+          <tbody>{evidence.design_review.groups.map(x=><tr key={x.condition}><td>{x.condition}</td><td>{x.biological_samples}</td><td>{x.replicates_ge_3?"Yes":"No"}</td></tr>)}</tbody></table>
+        <table style={{width:"100%",textAlign:"left"}}><thead><tr><th>Group A</th><th>Group B</th><th>Type</th><th>Median descriptive Pearson</th></tr></thead>
+          <tbody>{evidence.design_review.group_pairs.map(x=><tr key={x.condition_a+"/"+x.condition_b}>
+            <td>{x.condition_a}</td><td>{x.condition_b}</td><td>{x.kind}</td>
+            <td>{x.median_pearson_log2_tpm_plus_one===null?"NA":x.median_pearson_log2_tpm_plus_one.toFixed(3)}</td>
+          </tr>)}</tbody></table>
+        <div style={{display:"flex",gap:9,flexWrap:"wrap",marginTop:12}}>
+          <button type="button" className="button" onClick={()=>save(evidence.design_review!.group_pair_qc_tsv,"genithm-salmon-group-correlation-QC.tsv")}>Download grouped QC</button>
+          <button type="button" className="button" onClick={()=>save(evidence.design_review!.matched_design_tsv,"genithm-salmon-matched-design.tsv")}>Download matched study design</button>
+        </div>
+      </>}
       <h4>Scientific scope</h4>
       <ul>{[...evidence.report.warnings,...evidence.cohort.warnings,
-        ...(evidence.annotation_summary?.warnings??[])].map((w,i) => <li key={i}>{w}</li>)}</ul>
+        ...(evidence.annotation_summary?.warnings??[]),...(evidence.design_review?.warnings??[])].map((w,i) => <li key={i}>{w}</li>)}</ul>
     </div>}
   </section>;
 }

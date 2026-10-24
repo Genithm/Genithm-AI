@@ -102,3 +102,12 @@ https://registry.nextflow.io/pipelines/nf-core/rnaseq@3.27.0.
 
 Do not provision paid services, change live quotas or deploy unapproved
 runtime resources as a workaround for a missing scientific capability.
+
+
+## Detailed checked status and progress page
+
+The checked status of merged science modules, open release gates, and P0–P10
+pending end-to-end requirements is maintained in
+[the V73 scientific checklist](universal-bioinformatics-checklist-v73.md),
+linked from the signed-in `/dashboard/capabilities` page. A checked module
+is not proof its whole scientific domain is production ready.

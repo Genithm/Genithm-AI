@@ -17,6 +17,7 @@ export default async function RnaSeqIntakePage(){
       <Link href="/dashboard/data">Research data</Link>
       <Link href="/dashboard/expression">Expression Lab</Link>
       <Link href="/dashboard/apps">All analyses</Link>
+      <Link href="/dashboard/capabilities">Development checklist</Link>
     </nav>
     <header className={styles.hero}>
       <span className={styles.eyebrow}>GENITHM / RNA-SEQ PREPARATION</span>
