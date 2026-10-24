@@ -1,0 +1,76 @@
+name: Public rice GWAS real dataset and chat V57
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/public_rice_gwas.mjs'
+      - 'scripts/tests/test_public_rice_gwas.mjs'
+      - 'apps/web/lib/public-rice-gwas-*.ts'
+      - 'apps/web/components/public-rice-gwas-artifacts.tsx'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/app/api/ai/public-rice-gwas/**'
+      - '.github/workflows/public-rice-gwas-v57.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/public_rice_gwas.mjs'
+      - 'scripts/tests/test_public_rice_gwas.mjs'
+      - 'apps/web/lib/public-rice-gwas-*.ts'
+      - 'apps/web/components/public-rice-gwas-artifacts.tsx'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/app/api/ai/public-rice-gwas/**'
+      - '.github/workflows/public-rice-gwas-v57.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-rice-plant-height:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Test authentic PED parsing, statistical inference and delegated chat intent
+        run: node --experimental-strip-types --test scripts/tests/test_public_rice_gwas.mjs
+      - name: Execute GWAS on authentic pinned Rice Diversity Panel files
+        run: |
+          mkdir -p artifacts/public-rice
+          node --experimental-strip-types scripts/public_rice_gwas.mjs --out artifacts/public-rice
+      - name: Scientifically verify real rice report and downloadable sources
+        run: |
+          node --input-type=module - <<'JS'
+          import { readFile } from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          const read=async f=>JSON.parse(await readFile(`artifacts/public-rice/${f}`,'utf8'));
+          const p=await read('provenance.json'),s=await read('summary.json');
+          assert.equal(p.source_commit,'d83cc64f993f8a86485d30f715381b3c613e3d69');
+          assert.equal(p.samples_in_genotypes,413);
+          assert.equal(p.snp_markers_in_source,36901);
+          assert.ok(p.samples_complete>=100 && p.samples_complete<=413);
+          assert.ok(s.markers_tested>5000 && s.markers_tested<=36901);
+          assert.equal(s.trait,'Plant height');
+          assert.ok(s.top_markers.length>5);
+          assert.ok(s.genomic_inflation_lambda>5 && s.genomic_inflation_lambda<6,
+            'Unexpected genomic inflation factor for the fixed published rice panel');
+          assert.equal(p.genomic_inflation_lambda,s.genomic_inflation_lambda);
+          for(const info of Object.values(p.sources)){
+            assert.match(info.sha256,/^[0-9a-f]{64}$/);
+            assert.match(info.git_blob_sha1,/^[0-9a-f]{40}$/);
+          }
+          const raw=(await readFile('artifacts/public-rice/association.tsv','utf8')).split('\n');
+          const data=raw.filter(line=>line && !line.startsWith('#'));
+          assert.equal(data.length-1,s.markers_tested);
+          console.log(`Verified real Oryza sativa GWAS: ${s.matched} samples / ${s.markers_tested} SNPs; best=${s.top_markers[0].id}`);
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: genithm-real-rice-gwas-v57
+          path: artifacts/public-rice/
+          if-no-files-found: error
+          retention-days: 14
