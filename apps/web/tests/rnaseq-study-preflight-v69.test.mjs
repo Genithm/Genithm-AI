@@ -84,7 +84,7 @@ test("V69 rejects malformed header, ambiguous fields, non-CSV and hostile contro
  ["sample,fastq_1,fastq_2,strandedness\nS1,garbage\n","columns"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,seq/one.fastq,,auto\u0000\n","control"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,a.fastq,,UNSTRANDED\n","strandedness"],
- ["sample,fastq_1,fastq_2,strandedness\nS1,a.fastq,,auto\nS2,b.fastq,,auto\n","missing_design"]
+ ["sample,fastq_1,fastq_2,strandedness\nS1,a.fastq,,auto\nS2,b.fastq,,auto\n","foreign_design"]
  ];
  for(const [sheet,code] of cases)err(()=>validateRnaSeqStudy(sheet,design),code);
  err(()=>validateRnaSeqStudy("x".repeat(RNASEQ_MAX_MANIFEST_BYTES+1),design),"size");
