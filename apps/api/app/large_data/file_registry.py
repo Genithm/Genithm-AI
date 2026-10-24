@@ -8,7 +8,8 @@ from __future__ import annotations
 import unicodedata
 from .policy import LargeDataError
 
-VERSION = "genithm-file-registry/1"
+LEGACY_VERSION = "genithm-file-registry/1"
+VERSION = "genithm-file-registry/2"
 # id | label | category | suffixes (longest match wins)
 _ROWS = """
 fasta|FASTA sequence or alignment|Sequences|fasta fa fna ffn faa frn fas fsa
@@ -128,7 +129,9 @@ def validate_path(filename: str, relative_path: str | None = None) -> str:
     return path
 
 
-def describe(filename: str) -> dict:
+def describe(filename: str, *, registry_version: str = VERSION) -> dict:
+    if registry_version not in {LEGACY_VERSION, VERSION}:
+        raise ValueError("Unknown versioned scientific format registry")
     name = filename.lower()
     compression = "none"
     ext = name.rsplit(".", 1)[-1]
@@ -139,6 +142,10 @@ def describe(filename: str) -> dict:
     action = "integrity_only"
     if compression in {"none", "gzip"} and format_id in {"fasta", "fastq"}:
         action = "complete_" + format_id
+    elif registry_version == VERSION and compression in {"none", "gzip"} and format_id == "vcf":
+        # Historical V47 VCF rows were integrity-only: their recorded hints
+        # continue to validate under LEGACY_VERSION without retroactive change.
+        action = "complete_vcf"
     return {"format_id": format_id, "label": item["label"], "category": item["category"],
             "compression_hint": compression, "available_inspection": action, "name_is_not_validation": True}
 
