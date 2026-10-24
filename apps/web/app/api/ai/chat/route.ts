@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/ai-database.types";
 import { validateChatFileEvidence, safeChatFileContext } from "@/lib/chat-file-intake";
 import { isGwasExecutionRequest, gwasInputGuidance } from "@/lib/gwas-chat-intent";
+import { shouldRunPublicAirway, scienceCompletionText } from "@/lib/chat-science-intent";
 import { isPublicRiceGwasRequest, riceGwasCompletionMessage } from "@/lib/public-rice-gwas-intent";
 import { matchLocalAnalysisRequest, localAnalysisGuidance } from "@/lib/local-analysis-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
@@ -27,6 +28,7 @@ type ChatRequest = {
   attachment_upload_ids?: string[];
   research_file_ids?: string[];
   local_file_evidence?: unknown;
+  completed_science_run_id?: string;
   share_local_text_excerpts?: boolean;
   media_attachments?: Array<{ filename?: string; mime_type?: string; data_url?: string }>;
 };
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
   }
 
   const projectId = String(body.project_id ?? "").trim();
+  const completedScienceRunId = String(body.completed_science_run_id ?? "").trim();
   const conversationId = body.conversation_id ? String(body.conversation_id).trim() : null;
   const userMessage = String(body.user_message ?? "").trim();
   const attachmentIds = Array.isArray(body.attachment_upload_ids)
@@ -114,6 +117,8 @@ export async function POST(request: Request) {
   if (
     !projectId ||
     userMessage.length > 8000 ||
+    (completedScienceRunId.length > 0 && (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(completedScienceRunId) ||
+      attachmentIds.length > 0 || researchFileIds.length > 0 || mediaAttachments.length > 0 || localFiles.length > 0)) ||
     attachmentIds.length > 10 ||
     fileIdsInvalid ||
     (researchFileIds.length > 0 && !userMessage) ||
@@ -129,6 +134,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // The requested calculation has already executed in an isolated worker.
+  // Before persisting any claim or emitting an artifact link, verify the run
+  // is owned by this authenticated researcher AND bound to this project.
+  let completedScience: Awaited<ReturnType<typeof import("@/lib/chat-science-runner").getChatScienceRun>> | null = null;
+  if (completedScienceRunId) {
+    try {
+      const { getChatScienceRun } = await import("@/lib/chat-science-runner");
+      completedScience = await getChatScienceRun(userId, projectId, completedScienceRunId);
+    } catch {
+      return Response.json({ error: "The scientific run is expired, unverified, or not owned by this project." }, { status: 409 });
+    }
+  }
+
   const localFilenames = localFiles.map(file => `${file.filename} (${file.format}, ${file.inspection})`).join(", ");
   // Persist only filenames and the local-only disclosure in the normal user
   // message. Raw file contents and browser-computed metrics remain ephemeral;
@@ -137,7 +155,7 @@ export async function POST(request: Request) {
     ? `\n[Browser-only research attachments: ${localFilenames.slice(0, 360)}; originals not stored with this conversation.]`
     : "";
   const recordedUserMessage = userMessage
-    ? userMessage + attachmentLabel
+    ? userMessage + attachmentLabel + (completedScience ? `\n[Genithm scientific computation completed for ${completedScience.kind}; original uploaded inputs removed after analysis.]` : "")
     : localFiles.length
       ? `Please review the locally inspected research files: ${localFilenames.slice(0, 360)}. Only bounded browser-derived evidence is available; original files were not uploaded.`
       : mediaAttachments.length
@@ -212,6 +230,61 @@ export async function POST(request: Request) {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
           }));
+
+          // V58: trust neither a claimed run ID nor LLM prose. The run was
+          // checksum-verified and scoped to this user/project before the chat
+          // turn was recorded. Persist only authoritative scientific output.
+          if (completedScience && completedScienceRunId) {
+            const reply = scienceCompletionText(completedScienceRunId, completedScience.summary);
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id, expected_user_id: userId,
+              assistant_message: reply,
+            });
+            if (finishError) throw new Error("Could not record the verified scientific result.");
+            controller.enqueue(sse("done", { conversation_id: row.conversation_id,
+              status: "science_completed", message: reply, requires_confirmation: false }));
+            return;
+          }
+
+          // V58: when no research files are attached, a legitimate published
+          // human airway study may be selected and executed automatically.
+          // Never replace a user's requested different organism, single-cell
+          // study or FASTQ quantification with this convenient public example.
+          const historicalContext = row.authorized_context &&
+            typeof row.authorized_context === "object" && !Array.isArray(row.authorized_context)
+            ? row.authorized_context as Record<string, unknown> : null;
+          const hasResearchInputs = attachmentIds.length > 0 || researchFileIds.length > 0 ||
+            mediaAttachments.length > 0 || localFiles.length > 0;
+          if (!hasResearchInputs && shouldRunPublicAirway(row.user_message,
+              historicalContext?.conversation_history)) {
+            try {
+              const { runChatScience } = await import("@/lib/chat-science-runner");
+              const study = await runChatScience(userId, projectId, "public-airway", {}, request.signal,
+                text => controller.enqueue(sse("progress", { text })));
+              const reply = scienceCompletionText(study.runId, study.summary);
+              const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+                user_message_id: row.user_message_id, expected_user_id: userId,
+                assistant_message: reply,
+              });
+              if (finishError) throw new Error("RNA study completed but its chat result could not be recorded.");
+              controller.enqueue(sse("done", { conversation_id: row.conversation_id,
+                status: "science_completed", message: reply, requires_confirmation: false }));
+            } catch (cause) {
+              if (request.signal.aborted) throw cause;
+              const detail = cause instanceof Error ? cause.message.slice(0, 240) : "the scientific worker did not finish";
+              const reply = "I selected the published human airway RNA-seq dataset to answer your research request, but " +
+                detail + ". No analysis or result files were claimed as successful. " +
+                "The research goal remains an RNA expression comparison; you may also attach a raw count matrix and design sheet.";
+              const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+                user_message_id: row.user_message_id, expected_user_id: userId,
+                assistant_message: reply,
+              });
+              if (finishError) throw new Error("Could not record the RNA scientific failure.");
+              controller.enqueue(sse("done", { conversation_id: row.conversation_id,
+                status: "science_failed", message: reply, requires_confirmation: false }));
+            }
+            return;
+          }
 
           // V57: a real published-data rice GWAS can be executed and exported
           // directly from a signed-in chat request. Follow-ups within this

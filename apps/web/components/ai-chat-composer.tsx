@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { LargeDataPanel } from "@/app/dashboard/data/large-data-panel";
 import { ResearchFileSelector } from "@/components/research-file-selector";
 import { inspectChatFile, isActualFasta, type ChatFileEvidence } from "@/lib/chat-file-intake";
+import { identifyChatScienceFiles } from "@/lib/chat-science-client";
 import styles from "./ai-chat-composer.module.css";
 
 type ProjectOption = {
@@ -157,6 +158,7 @@ export function AiChatComposer({
   const [researchFilesOpen, setResearchFilesOpen] = useState(false);
   const [selectedResearchFiles, setSelectedResearchFiles] = useState<string[]>([]);
   const [shareTextExcerpts, setShareTextExcerpts] = useState(false);
+  const [approvePrivateCompute, setApprovePrivateCompute] = useState(false);
   const [sending, setSending] = useState(false);
   const [liveUserMessage, setLiveUserMessage] = useState<string | null>(null);
   const [liveAssistantMessage, setLiveAssistantMessage] = useState<string | null>(null);
@@ -387,6 +389,32 @@ export function AiChatComposer({
     setLiveUserMessage(trimmed || "Attached files for analysis.");
 
     try {
+      // Scientific requests with real local files take the bounded science
+      // execution path, not the LLM-only metadata inspection path. Researcher
+      // opt-in is mandatory before ANY private bytes leave this browser.
+      const attachedResearchFiles = attachments.filter(a => a.status === "ready" && a.kind !== "image").map(a => a.file);
+      const proposedScience = await identifyChatScienceFiles(trimmed, attachedResearchFiles);
+      if (proposedScience && "error" in proposedScience) throw new Error(proposedScience.error);
+      let completedScienceRunId: string | undefined;
+      if (proposedScience && "kind" in proposedScience) {
+        if (!approvePrivateCompute) throw new Error("Approve temporary private-file scientific processing using the checkbox below your attachments. Files are removed from the compute worker after execution.");
+        if (selectedResearchFiles.length || readyMediaAttachments.length || readyAttachmentIds.length)
+          throw new Error("Send only the matching raw scientific file inputs for this analysis; select saved research files or images in a separate message.");
+        const form = new FormData();
+        form.set("kind", proposedScience.kind);
+        form.set("project_id", projectId);
+        form.set("approved_private_compute", "yes");
+        for (const [role,file] of Object.entries(proposedScience.files)) form.set(role, file, file.name);
+        setLiveAssistantMessage(`Analyzing the supplied ${proposedScience.kind} input files with the verified scientific engine…`);
+        const scientificResponse = await fetch("/api/ai/science-results", {
+          method: "POST", body: form, signal: abortController.signal,
+        });
+        if (!scientificResponse.ok) throw new Error(await responseError(scientificResponse,"Scientific file analysis failed."));
+        const completed = await scientificResponse.json() as { run_id?: string };
+        if (!completed.run_id) throw new Error("Scientific analysis finished without a verifiable result reference.");
+        completedScienceRunId = completed.run_id;
+        setLiveAssistantMessage("Analysis completed. Recording real results and download links in the conversation…");
+      }
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         signal: abortController.signal,
@@ -398,11 +426,20 @@ export function AiChatComposer({
           attachment_upload_ids: readyAttachmentIds,
           research_file_ids: selectedResearchFiles,
           media_attachments: readyMediaAttachments,
-          local_file_evidence: readyLocalEvidence.map((file) => ({
-            ...file,
-            ...(shareTextExcerpts ? {} : { excerpt: undefined }),
-          })),
-          share_local_text_excerpts: shareTextExcerpts,
+          // Preserve the V55 browser-only privacy contract for ordinary
+          // messages; computed research runs never forward the original files
+          // or unverified local metrics to Gemini or Groq.
+          ...(completedScienceRunId ? {
+            local_file_evidence: [],
+            share_local_text_excerpts: false,
+          } : {
+            local_file_evidence: readyLocalEvidence.map((file) => ({
+              ...file,
+              ...(shareTextExcerpts ? {} : { excerpt: undefined }),
+            })),
+            share_local_text_excerpts: shareTextExcerpts,
+          }),
+          completed_science_run_id: completedScienceRunId,
         }),
       });
 
@@ -463,7 +500,8 @@ export function AiChatComposer({
             // Public-data scientific work is running, not a fabricated LLM answer.
             setLiveAssistantMessage(payload.text);
           } else if (eventName === "done") {
-            if (payload.status === "public_rice_gwas_completed" || payload.status === "public_rice_gwas_failed") {
+            if (payload.status === "science_completed" || payload.status === "science_failed" ||
+                payload.status === "public_rice_gwas_completed" || payload.status === "public_rice_gwas_failed") {
               finalMessage = payload.message || "The public rice GWAS did not return a complete result.";
               setLiveAssistantMessage(finalMessage);
             } else if (payload.status === "awaiting_approval") {
@@ -486,6 +524,7 @@ export function AiChatComposer({
       setAttachments([]);
       setSelectedResearchFiles([]);
       setShareTextExcerpts(false);
+      setApprovePrivateCompute(false);
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
@@ -591,6 +630,7 @@ export function AiChatComposer({
               setAttachments([]);
               setSelectedResearchFiles([]);
               setShareTextExcerpts(false);
+              setApprovePrivateCompute(false);
               if (fileInputRef.current) fileInputRef.current.value = "";
             }} disabled={sending || busyUploading}>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -639,6 +679,11 @@ export function AiChatComposer({
           </div>
         ) : null}
 
+        {attachments.filter(a => a.kind === "local" && a.status === "ready").length >= 2 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 0"}}>
+          <input type="checkbox" checked={approvePrivateCompute} disabled={sending}
+            onChange={event=>setApprovePrivateCompute(event.target.checked)} />
+          Authorize Genithm to temporarily transfer the attached files to the private Codespaces scientific worker if I request GWAS, RNA expression, or pathway enrichment. Original inputs are deleted after calculation; real results remain downloadable for 48 hours. GWAS without numeric ancestry covariates is explicitly acknowledged as unadjusted exploratory association, not population-corrected discovery. Without this option, files stay as local previews.
+        </label> : null}
         {shareableExcerptCount > 0 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
           <input type="checkbox" checked={shareTextExcerpts} disabled={sending}
             onChange={(event) => setShareTextExcerpts(event.target.checked)} />
@@ -648,7 +693,7 @@ export function AiChatComposer({
         {readyLocalEvidence.length > 0 ? <p className="genithm-note" role="status">
           {readyLocalEvidence.length} research file(s) inspected locally. Complete counts are reported only for fully parsed formats.
           Binary, compressed, proprietary or large files are accepted as metadata, not misrepresented as analyzed.
-          Use Research files for persistent, private project storage; for GWAS use the GWAS Lab.
+          Supported VCF + phenotype, count matrix + design, and GMT + gene-list requests can now execute directly in chat after the private-compute checkbox is approved. Other formats remain honest previews; use Research files for persistent storage.
         </p> : null}
         <textarea
           ref={textareaRef}
