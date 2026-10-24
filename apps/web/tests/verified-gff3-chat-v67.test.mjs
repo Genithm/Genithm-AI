@@ -40,7 +40,7 @@ test('V67 GFF3 evidence is an explicit numeric allowlist, not genomic content',(
  assert.equal(result.gff3_feature_qc.mean_feature_bp,7.666667);
  const text=JSON.stringify(result);
  assert.doesNotMatch(text,/patient|chr19|Pathogenic|raw_/);
- assert.equal(Object.keys(result.gff3_feature_qc).length,22);
+ assert.equal(Object.keys(result.gff3_feature_qc).length,23);
 });
 test('V67 only sends GFF3 numbers for DB-bound matching source and report hashes',()=>{
  const verified=parseVerifiedResearchFile(envelope(),id,project);
