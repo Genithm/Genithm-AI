@@ -162,7 +162,7 @@ export async function executePublicRiceGwas(userId: string, signal: AbortSignal,
     if(reason) throw new Error(reason);
     }
     if(signal.aborted)throw new Error("Rice GWAS cancelled before its results could be certified.");
-    const source=JSON.parse(await readFile(join(directory,"provenance.json"),"utf8")) as {source_commit?:string,trait?:string};
+    const source=JSON.parse(await readFile(join(directory,"provenance.json"),"utf8")) as {source_commit?:string,trait?:string,engine?:string};
     const summary=JSON.parse(await readFile(join(directory,"summary.json"),"utf8")) as Summary;
     if(source.source_commit!==EXPECTED_COMMIT || summary.trait!=="Plant height" || summary.markers_tested<5000 || summary.matched<100 || summary.markers_source!==36901 ||
        source.engine!==EXPECTED_ENGINE || !Number.isFinite(summary.genomic_inflation_lambda) ||
