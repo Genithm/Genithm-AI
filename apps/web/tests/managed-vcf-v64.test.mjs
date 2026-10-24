@@ -11,5 +11,5 @@ test('V64 universal data page presents real VCF site QC and no genotype capabili
  assert.match(panel,/quality-report.*tsv/);
  assert.match(library,/Complete VCF site QC/);
  assert.match(library,/Genotypes, allele frequencies and pathogenicity were not analyzed/);
- assert.match(library,/Preserve bytes only; do not parse FASTA, FASTQ or VCF/);
+ assert.match(library,/Preserve bytes only; do not parse FASTA, FASTQ, VCF or GFF3/);
 });
