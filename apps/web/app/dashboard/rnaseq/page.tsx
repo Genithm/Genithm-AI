@@ -2,6 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {createClient} from "@/lib/supabase/server";
 import {RnaSeqPreflightWorkbench} from "./rnaseq-preflight-workbench";
+import {SalmonQuantWorkbench} from "./salmon-quant-workbench";
 import styles from "../expression/research-labs.module.css";
 
 export const dynamic="force-dynamic";
@@ -22,6 +23,7 @@ export default async function RnaSeqIntakePage(){
       <p>Validate sample-to-FASTQ assignments and experimental groups before a full sequencing pipeline. This local metadata preflight is the first measured stage toward approved RNA-seq orchestration—not an already-run alignment, expression analysis or DESeq2 result.</p>
     </header>
     <RnaSeqPreflightWorkbench/>
-    <p className={styles.footnote}>No FASTQ bytes leave your computer. For existing quantified raw gene counts, the separate <Link href="/dashboard/expression">Expression Lab</Link> performs bounded exploratory two-group analysis. Full FASTQ-to-counts execution still requires separately approved infrastructure and validated scientific tools.</p>
+    <SalmonQuantWorkbench/>
+    <p className={styles.footnote}>No FASTQ bytes leave your computer. For existing quantified raw gene counts, the separate <Link href="/dashboard/expression">Expression Lab</Link> performs bounded exploratory two-group analysis. Full FASTQ-to-counts execution still requires separately approved infrastructure and validated scientific tools. Existing Salmon quant.sf outputs can now be locally imported into transcript TPM and estimated-count matrices; that is not proof Genithm ran Salmon or generated raw gene-level counts.</p>
   </main>;
 }
