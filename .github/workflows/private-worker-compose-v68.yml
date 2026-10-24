@@ -1,0 +1,44 @@
+name: Genithm V68 private verifier deployment contract
+on:
+  pull_request:
+    paths:
+      - 'deploy/large-data/compose.worker.yml'
+      - 'deploy/large-data/private-worker-compose-v68.md'
+      - 'tests/deploy/check_large_data_compose_v68.py'
+      - '.github/workflows/private-worker-compose-v68.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/large-data/compose.worker.yml'
+      - 'deploy/large-data/private-worker-compose-v68.md'
+      - 'tests/deploy/check_large_data_compose_v68.py'
+      - '.github/workflows/private-worker-compose-v68.yml'
+permissions:
+  contents: read
+jobs:
+  verify-private-compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Validate secure worker-compose configuration using dummy ephemeral env
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          chmod 600 "$tmp"
+          printf '%s\n' \
+            'SUPABASE_URL=https://example.supabase.co' \
+            'SUPABASE_PUBLISHABLE_KEY=sb_publishable_CI_DUMMY' \
+            'SUPABASE_SECRET_KEY=sb_secret_CI_DUMMY' \
+            'GENITHM_LARGE_DATA_ENDPOINT=https://private-s3.example.invalid' \
+            'GENITHM_LARGE_DATA_PUBLIC_ENDPOINT=https://browser-s3.example.invalid' \
+            'GENITHM_LARGE_DATA_BUCKET=genithm-ci-dummy' \
+            'GENITHM_LARGE_DATA_ACCESS_KEY_ID=CI_DUMMY' \
+            'GENITHM_LARGE_DATA_SECRET_ACCESS_KEY=CI_DUMMY' > "$tmp"
+          export GENITHM_LARGE_DATA_WORKER_ENV="$tmp"
+          python tests/deploy/check_large_data_compose_v68.py
+          docker compose -f deploy/large-data/compose.worker.yml config --quiet
