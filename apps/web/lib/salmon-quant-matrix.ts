@@ -6,6 +6,7 @@
 export const SALMON_IMPORT_SCHEMA="genithm-salmon-transcript-matrix/1";
 export const MAX_SALMON_SAMPLES=24;
 export const MAX_SALMON_QUANT_BYTES=24*1024*1024;
+export const MAX_SALMON_TOTAL_BYTES=96*1024*1024;
 export const MAX_SALMON_TRANSCRIPTS=100000;
 export const MAX_SALMON_MATRIX_CELLS=1000000;
 export type SalmonInput={sample:string;text:string};
@@ -97,6 +98,13 @@ export function inspectSalmonQuantifications(inputs:SalmonInput[]):SalmonMatrix{
     if(!x||typeof x!=="object"||typeof x.sample!=="string"||ids.has(x.sample))
       reject("sample","Salmon sample identifiers must be unique.");
     ids.add(x.sample);
+  }
+  let totalInputBytes=0;
+  for(const input of inputs){
+    if(typeof input.text!=="string")reject("empty","Salmon quant.sf content must be text.");
+    totalInputBytes+=new TextEncoder().encode(input.text).length;
+    if(totalInputBytes>MAX_SALMON_TOTAL_BYTES)
+      reject("aggregate_size","Combined Salmon inputs exceed the 96 MiB browser limit.");
   }
   const parsed=inputs.map(parseQuant);
   const primary=parsed[0].rows;
