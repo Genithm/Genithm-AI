@@ -116,3 +116,54 @@ test('large sparse alignment fixture remains within bounded indexed coverage cal
  assert.equal(r.summary.primary_mapped,count);
  assert.equal(r.summary.total_reference_covered_bases,194);
 });
+test('V62 chat router, consent boundary, artifact whitelist and old versions are wired',async t=>{
+ const fs=await import('node:fs/promises');
+ const {fileURLToPath}=await import('node:url');
+ const root=fileURLToPath(new URL('../../',import.meta.url));
+ if(!(await fs.stat(root+'apps/web/lib/chat-science-client.ts').catch(()=>null))){t.skip('Run repository integration after checkout.');return;}
+ const read=p=>fs.readFile(root+p,'utf8');
+ const [runner,route,worker,links,intent,client]=await Promise.all([
+  read('apps/web/lib/chat-science-runner.ts'),read('apps/web/app/api/ai/science-results/route.ts'),
+  read('scripts/chat_science_worker.mjs'),read('apps/web/components/chat-science-artifacts.tsx'),
+  read('apps/web/lib/chat-science-intent.ts'),read('apps/web/lib/chat-science-client.ts')]);
+ for(const text of [runner,route,worker,links,intent,client])assert.match(text,/sam-qc/);
+ for(const file of ['sam-mapping-qc.tsv','sam-reference-coverage.tsv','sam-cigar-operations.tsv','sam-mapq.svg']){
+  assert.ok(runner.includes(file)&&links.includes(file));
+ }
+ assert.match(route,/approved_private_compute/);
+ assert.match(runner,/genithm-chat-science\/1\.3\.0/);
+ assert.doesNotMatch(worker,/process\.env\.(?:GEMINI_API_KEY|GROQ_API_KEY|SUPABASE_SECRET_KEY)/);
+ const {proposeChatScience}=await import('../../apps/web/lib/chat-science-client.ts');
+ const sam=[{filename:'patient.sam.gz',head:'',gzip:true,size:5000}];
+ assert.deepEqual(proposeChatScience('Analyze mapping quality and CIGAR stats from this SAM',sam),{kind:'sam-qc',roles:{sam:0}});
+ assert.deepEqual(proposeChatScience('How many reads are mapped in my SAM file?',sam),{kind:'sam-qc',roles:{sam:0}});
+ assert.equal(proposeChatScience('Align my reads against the reference genome',sam),null);
+ assert.equal(proposeChatScience('What is a SAM file?',sam),null);
+ assert.equal(proposeChatScience('Analyze mapping quality of my BAM',[{filename:'sample.bam',head:'',size:5000}]),null);
+});
+test('V62 actual isolated CLI worker generates source-hashed results and nonempty ZIP',async t=>{
+ const fs=await import('node:fs/promises');
+ const {fileURLToPath}=await import('node:url');
+ const {join}=await import('node:path');
+ const {tmpdir}=await import('node:os');
+ const {spawnSync}=await import('node:child_process');
+ const root=fileURLToPath(new URL('../../',import.meta.url));
+ const script=root+'scripts/chat_science_worker.mjs';
+ if(!(await fs.stat(script).catch(()=>null))){t.skip('Run repository CLI test after checkout.');return;}
+ const dir=await fs.mkdtemp(join(tmpdir(),'genithm-sam-v62-'));const input=join(dir,'input'),output=join(dir,'results');
+ try{
+  await fs.mkdir(input);await fs.mkdir(output);
+  const bytes=B(HEADER+row('private-read',0,'chr1',4,60,'12M','ACGTACGTACGT'));
+  await fs.writeFile(join(input,'sam.txt'),bytes);
+  const processResult=spawnSync(process.execPath,['--experimental-strip-types',script,'--kind','sam-qc','--inputs',input,'--out',output],{cwd:root,encoding:'utf8',timeout:30000});
+  assert.equal(processResult.status,0,processResult.stderr);
+  const manifest=JSON.parse(await fs.readFile(join(output,'result-manifest.json'),'utf8'));
+  assert.equal(manifest.kind,'sam-qc');assert.equal(manifest.version,'genithm-chat-science/1.4.0');
+  assert.equal(manifest.summary.primary_mapped,1);
+  for(const name of manifest.filenames){const file=await fs.readFile(join(output,name));
+   assert.equal(H(file),manifest.hashes[name]);}
+  const zip=await fs.readFile(join(output,'complete-results.zip'));
+  assert.ok(zip.length>250&&zip.subarray(0,4).equals(Buffer.from([80,75,3,4])));
+  assert.equal(JSON.parse(await fs.readFile(join(output,'provenance.json'),'utf8')).source_files.sam.sha256,H(bytes));
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
