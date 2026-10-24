@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/ai-database.types";
 import { validateChatFileEvidence, safeChatFileContext } from "@/lib/chat-file-intake";
 import { isGwasExecutionRequest, gwasInputGuidance } from "@/lib/gwas-chat-intent";
+import { matchLocalAnalysisRequest, localAnalysisGuidance } from "@/lib/local-analysis-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
@@ -225,6 +226,27 @@ export async function POST(request: Request) {
             controller.enqueue(sse("done", {
               conversation_id: row.conversation_id,
               status: "gwas_inputs_required",
+              message: reply,
+              requires_confirmation: false,
+            }));
+            return;
+          }
+
+          // V56: these are real bounded local labs, not server-side scientific
+          // action types. Record input guidance without sending any local file
+          // bodies to the LLM or claiming execution/approval has occurred.
+          const localLab = matchLocalAnalysisRequest(row.user_message);
+          if (localLab) {
+            const reply = localAnalysisGuidance(localLab);
+            const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+              user_message_id: row.user_message_id,
+              expected_user_id: userId,
+              assistant_message: reply,
+            });
+            if (finishError) throw new Error(finishError.message);
+            controller.enqueue(sse("done", {
+              conversation_id: row.conversation_id,
+              status: localLab === "expression" ? "expression_inputs_required" : "pathway_inputs_required",
               message: reply,
               requires_confirmation: false,
             }));

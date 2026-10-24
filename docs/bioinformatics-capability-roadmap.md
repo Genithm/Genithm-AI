@@ -19,9 +19,9 @@ provenance, and a working end-to-end execution path.
 | Sequence data | FASTA validation/statistics; V42 single-pass streaming ingestion | V47 adds universal inert-file intake, batch/folder uploads and complete streaming FASTA summaries; cohort sample manifests remain planned |
 | Sequence research | Approved pairwise alignment, multiple alignment, phylogeny, nucleotide insights, protein properties and BLAST pathways | Larger-scale similarity search, assemblies, richer annotations |
 | Read and variant QC | Bounded local FASTQ/VCF inspection and optional aggregate history | V44-V47 add managed full-file/paired verification, descriptive profiles and universal file intake (separately enabled). V46 adds bounded complete-file read-quality profiles and authorized exports. Cohort QC, trimming, BAM/CRAM processing remain planned |
-| Bulk RNA-seq | No complete alignment-to-differential-expression pipeline | Sample design, alignment/quantification, counts, statistical contrasts, enrichment |
+| Bulk RNA-seq | V56 bounded browser-local exploratory count-matrix differential expression, median-ratio normalization, sample PCA, Welch P and BH FDR; **not** DESeq2 or a full FASTQ workflow | Managed FASTQ alignment/quantification, DESeq2/edgeR, covariate-aware models, batches and cohorts |
 | Genomics | VCF QC is not variant calling | Germline/somatic workflows, reference consistency, annotation and cohort analysis |
-| Single-cell/spatial | Not implemented | Assay-aware QC, normalization, integration, clustering, annotation and spatial analysis |
+| Gene-set / pathway analysis | V56 real local hypergeometric over-representation with user-supplied selected genes, measured background and GMT, BH FDR | Reference-backed automatic annotations, GO/KEGG linking, ranked GSEA and multimodal enrichment |\n| Single-cell/spatial | Not implemented | Assay-aware QC, normalization, integration, clustering, annotation and spatial analysis |
 | Microbiome/metagenomics | Not implemented | Taxonomy, assembly/binning, functional profiling and comparative statistics |
 | Epigenomics | Not implemented | ATAC/ChIP/methylation workflows and reproducible differential testing |
 | Structural/proteomics | Protein properties are not structure prediction or proteomics | Structure services, docking where scientifically justified, mass-spec workflows |
@@ -31,7 +31,7 @@ This inventory distinguishes implemented source from installed/running services.
 Availability still depends on the deployed revision, authorized inputs and
 healthy workers. This document is not an advertisement of unimplemented tools.
 
-## Next major functional milestone: managed bulk RNA-seq
+## Next major functional milestone: managed, production-grade bulk RNA-seq
 
 Reuse a version-pinned, validated workflow ecosystem rather than inventing new
 statistics or replacing established scientific methods with model-generated
@@ -82,5 +82,4 @@ must still preserve Genithm's tenant isolation, permissions and provenance.
 - https://nf-co.re/sarek/latest/ (germline/somatic workflow scope)
 - https://docs.seqera.io/nextflow/cache-and-resume (task identity, work directories and resume)
 
-No new RNA-seq, Sarek, Nextflow, single-cell or GPU executor is claimed as shipped
-by this roadmap. V42 ships the measured FASTA-ingestion improvement only.
+V56 ships only bounded browser-local exploratory count-matrix statistics and user-supplied GMT enrichment. It does not ship RNA-seq FASTQ quantification, DESeq2 inference, Sarek, Nextflow, single-cell or GPU job executors.

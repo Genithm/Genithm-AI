@@ -1,0 +1,37 @@
+name: Genithm V56 RNA and Pathway Science
+on:
+  push:
+    paths:
+      - 'apps/web/lib/research-statistics.ts'
+      - 'apps/web/lib/expression-analysis.ts'
+      - 'apps/web/lib/pathway-enrichment.ts'
+      - 'apps/web/lib/local-analysis-intent.ts'
+      - 'apps/web/app/dashboard/expression/**'
+      - 'apps/web/app/dashboard/pathways/**'
+      - 'apps/web/tests/*v56.test.mjs'
+      - '.github/workflows/expression-pathways-v56.yml'
+  pull_request:
+    paths:
+      - 'apps/web/lib/research-statistics.ts'
+      - 'apps/web/lib/expression-analysis.ts'
+      - 'apps/web/lib/pathway-enrichment.ts'
+      - 'apps/web/lib/local-analysis-intent.ts'
+      - 'apps/web/app/dashboard/expression/**'
+      - 'apps/web/app/dashboard/pathways/**'
+      - 'apps/web/tests/*v56.test.mjs'
+      - '.github/workflows/expression-pathways-v56.yml'
+permissions:
+  contents: read
+jobs:
+  science:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test actual RNA and pathway statistics, QC and chat intent
+        run: node --experimental-strip-types --test apps/web/tests/expression-science-v56.test.mjs apps/web/tests/pathway-science-v56.test.mjs apps/web/tests/local-analysis-integration-v56.test.mjs
+      - name: Test worker registry cannot claim cloud execution
+        run: python3 -m unittest discover -s scripts/tests -p 'test_v56_*' -v
