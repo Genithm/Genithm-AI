@@ -80,7 +80,7 @@ test("V69 rejects malformed header, ambiguous fields, non-CSV and hostile contro
  ["sample,fastq_1,fastq_1,strandedness\nS1,a.fastq,,auto\n","header"],
  ["sample,fastq_1,fastq_2,strandedness,unknown\nS1,a.fastq,,auto,1\n","header"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,a.fastq,,auto,extra\n","columns"],
- ["sample,fastq_1,fastq_2,strandedness\nS1,\"a.fastq,,auto\n","quotes"],
+ ["sample,fastq_1,fastq_2,strandedness\nS1,\"a.fastq,,auto\n","multiline"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,garbage\n","columns"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,seq/one.fastq,,auto\u0000\n","control"],
  ["sample,fastq_1,fastq_2,strandedness\nS1,a.fastq,,UNSTRANDED\n","strandedness"],
