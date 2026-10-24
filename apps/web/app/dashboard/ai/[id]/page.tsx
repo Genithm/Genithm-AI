@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AiChatComposer } from "@/components/ai-chat-composer";
+import { PublicRiceGwasArtifacts } from "@/components/public-rice-gwas-artifacts";
 import { ResearchChatSidebar } from "@/components/research-chat-sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { recordedEvidenceMetrics } from "@/lib/recorded-chat-evidence";
@@ -399,7 +400,10 @@ export default async function AiConversationPage({
                   aria-hidden="true">{message.role === "user" ? "Y" : "✳"}</span>
                 {message.role === "user" ? "You" : "Genithm BioAI"}
               </div>
-              <div className={styles.messageBody}>{message.content}</div>
+              <div className={styles.messageBody}>{message.role === "assistant"
+                ? message.content.replace(/\[\[genithm_rice_gwas_run:[a-f0-9-]{36}\]\]/gi, "")
+                : message.content}</div>
+              {message.role === "assistant" ? <PublicRiceGwasArtifacts content={message.content} /> : null}
               {scienceWorkersAvailable && message.role === "user" && message.protocol_input_scope === "text_only" &&
                 (message.attachment_upload_ids?.length ?? 0) === 0 && !message.research_pipeline_run_id &&
                 parseChatResearchProtocol(message.content) ? (

@@ -459,8 +459,14 @@ export function AiChatComposer({
           if (eventName === "delta" && payload.text) {
             finalMessage += payload.text;
             setLiveAssistantMessage(finalMessage);
+          } else if (eventName === "progress" && payload.text) {
+            // Public-data scientific work is running, not a fabricated LLM answer.
+            setLiveAssistantMessage(payload.text);
           } else if (eventName === "done") {
-            if (payload.status === "awaiting_approval") {
+            if (payload.status === "public_rice_gwas_completed" || payload.status === "public_rice_gwas_failed") {
+              finalMessage = payload.message || "The public rice GWAS did not return a complete result.";
+              setLiveAssistantMessage(finalMessage);
+            } else if (payload.status === "awaiting_approval") {
               finalMessage = (payload.message || "Scientific action ready for your approval.") + "\nApprove the proposed analysis inside this conversation before it starts.";
               setLiveAssistantMessage(finalMessage);
             } else if (payload.message && !finalMessage) {

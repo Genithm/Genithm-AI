@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/ai-database.types";
 import { validateChatFileEvidence, safeChatFileContext } from "@/lib/chat-file-intake";
 import { isGwasExecutionRequest, gwasInputGuidance } from "@/lib/gwas-chat-intent";
+import { isPublicRiceGwasRequest, riceGwasCompletionMessage } from "@/lib/public-rice-gwas-intent";
 import { matchLocalAnalysisRequest, localAnalysisGuidance } from "@/lib/local-analysis-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
@@ -211,6 +212,54 @@ export async function POST(request: Request) {
             conversation_id: row.conversation_id,
             user_message_id: row.user_message_id,
           }));
+
+          // V57: a real published-data rice GWAS can be executed and exported
+          // directly from a signed-in chat request. Follow-ups within this
+          // conversation inherit only its explicit rice GWAS goal. Unlike the
+          // manual V54 lab, this job fetches public genotype + phenotype data.
+          const contextForRice = row.authorized_context && typeof row.authorized_context === "object" &&
+            !Array.isArray(row.authorized_context)
+            ? row.authorized_context as Record<string, unknown> : null;
+          const hasUserSources = attachmentIds.length > 0 || mediaAttachments.length > 0 ||
+            researchFileIds.length > 0 || localFiles.length > 0;
+          if (!hasUserSources && isPublicRiceGwasRequest(row.user_message, contextForRice?.conversation_history)) {
+            try {
+              const { executePublicRiceGwas } = await import("@/lib/public-rice-gwas-runner");
+              const study = await executePublicRiceGwas(userId, request.signal,
+                (text) => controller.enqueue(sse("progress", { text })));
+              const reply = riceGwasCompletionMessage(study.runId, study.summary);
+              const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+                user_message_id: row.user_message_id,
+                expected_user_id: userId,
+                assistant_message: reply,
+              });
+              if (finishError) throw new Error("Rice GWAS completed, but its chat result could not be recorded.");
+              controller.enqueue(sse("done", {
+                conversation_id: row.conversation_id,
+                status: "public_rice_gwas_completed",
+                message: reply,
+                requires_confirmation: false,
+              }));
+            } catch (failure) {
+              if (request.signal.aborted) throw failure;
+              const reason = failure instanceof Error ? failure.message.slice(0, 260) : "The public dataset worker could not finish.";
+              const reply = "I selected the published Rice Diversity Panel and attempted the requested GWAS, but " +
+                reason + " No study results were certified or invented. The research goal is still rice GWAS.";
+              const { error: finishError } = await service.rpc("finish_ai_chat_turn", {
+                user_message_id: row.user_message_id,
+                expected_user_id: userId,
+                assistant_message: reply,
+              });
+              if (finishError) throw new Error("Could not record the public rice GWAS failure.");
+              controller.enqueue(sse("done", {
+                conversation_id: row.conversation_id,
+                status: "public_rice_gwas_failed",
+                message: reply,
+                requires_confirmation: false,
+              }));
+            }
+            return;
+          }
 
           // GWAS has a real authenticated browser-local execution path. Neither
           // the LLM's eight server-side proposal types nor the science-worker
