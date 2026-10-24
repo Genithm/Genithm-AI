@@ -42,5 +42,6 @@ export function ResearchFileSelector({projectId,selected,onChange,disabled}:{pro
     </label>)}</div>}
     {next&&<button className="button" type="button" disabled={disabled||loading} onClick={()=>void load(true)}>More project files</button>}
     <p className="genithm-note">{selected.length} of 4 selected. Selecting a file records its source and report checksums with this message.</p>
+    <p className="genithm-note">For two to four verified VCF site-QC files, ask in chat: “Compare these VCF QC reports.” Genithm calculates a deterministic side-by-side table of site counts, PASS percentages and Ti/Tv ratios. It does not compare actual variant loci or genotypes.</p>
   </section>;
 }

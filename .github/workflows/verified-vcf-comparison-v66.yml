@@ -1,0 +1,38 @@
+name: Genithm V66 deterministic private VCF report comparison
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/verified-vcf-comparison.ts'
+      - 'apps/web/lib/verified-research-files.ts'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/components/research-file-selector.tsx'
+      - 'apps/web/tests/verified-vcf-comparison-v66.test.mjs'
+      - '.github/workflows/verified-vcf-comparison-v66.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/verified-vcf-comparison.ts'
+      - 'apps/web/lib/verified-research-files.ts'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/components/research-file-selector.tsx'
+      - 'apps/web/tests/verified-vcf-comparison-v66.test.mjs'
+      - '.github/workflows/verified-vcf-comparison-v66.yml'
+permissions:
+  contents: read
+
+jobs:
+  verified-vcf-concordance-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify numeric-only VCF comparisons, privacy and no hallucinated record concordance
+        run: node --experimental-strip-types --test apps/web/tests/verified-vcf-comparison-v66.test.mjs
+      - name: Preserve prior V48/V65 authenticated file evidence contracts
+        run: node --experimental-strip-types --test apps/web/tests/test-verified-research-files-v48.mjs apps/web/tests/test-verified-vcf-chat-v65.mjs

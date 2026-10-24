@@ -6,6 +6,7 @@ import { isPublicRiceGwasRequest, riceGwasCompletionMessage } from "@/lib/public
 import { matchLocalAnalysisRequest, localAnalysisGuidance } from "@/lib/local-analysis-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {assertMatchingEvidence, loadVerifiedResearchFiles, withVerifiedVcfSiteEvidence} from "@/lib/verified-research-files";
+import {isVerifiedVcfComparisonRequest, renderVerifiedVcfComparison} from "@/lib/verified-vcf-comparison";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { fixedResearchProposalReply, offlineResearchReply } from "@/lib/offline-research-response";
 import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
@@ -427,6 +428,23 @@ export async function POST(request: Request) {
           // Add only worker-verified, numeric site QC to conversational context.
           // Never use local browser claims or unscoped file bytes here.
           const scopedContext = withVerifiedVcfSiteEvidence(context,verifiedFiles);
+          // V66: comparisons of already-authorized VCF site reports are exact,
+          // deterministic and do not involve an LLM, raw VCF or new compute.
+          // Mixed image/local/sequence attachments stay on the normal chat path.
+          if (!attachmentIds.length && !localFiles.length && !mediaAttachments.length &&
+              isVerifiedVcfComparisonRequest(row.user_message,verifiedFiles)) {
+            const reply=renderVerifiedVcfComparison(row.user_message,verifiedFiles);
+            const {error: finishError}=await service.rpc("finish_ai_chat_turn", {
+              user_message_id:row.user_message_id, expected_user_id:userId,
+              assistant_message:reply,
+            });
+            if(finishError)throw new Error("Could not save the verified VCF comparison.");
+            controller.enqueue(sse("done", {
+              conversation_id:row.conversation_id,status:"verified_vcf_comparison",
+              message:reply,requires_confirmation:false,
+            }));
+            return;
+          }
           const conversationalContext = localFiles.length ? {
             ...scopedContext,
             // A client can forge any of these counts. Keep the trust boundary
