@@ -4,7 +4,7 @@
  */
 import { isGwasExecutionRequest } from './gwas-chat-intent.ts';
 import { matchLocalAnalysisRequest } from './local-analysis-intent.ts';
-export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc';
+export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc'|'fastq-trim'|'orf-scan';
 export type ChatScienceUpload = {kind:ChatScienceUploadKind;files:Record<string,File>};
 const action=/\b(?:run|perform|analy[sz]e|compare|test|calculate|compute|execute|do|study|process)\b/i;
 const question=/^(?:what|why|how|explain|teach|define)\b/i;
@@ -28,6 +28,24 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
     const fasta=/\.(?:fasta|fa|fna|faa)(?:\.gz)?$/.test(lower)||head.startsWith('>');
     return {fastq,vcf,fasta,lower,head};
   });
+  // V60: when the user explicitly requests a transformation, execute that
+  // real method rather than silently substituting FASTQ/FASTA QC.
+  const wantsTrim=/\b(?:trim|trimming|preprocess|preprocessing|remove adapters?|adapter removal|clean (?:my |these )?reads?|quality filter)\b/i.test(m);
+  const wantsOrf=/\b(?:orfs?|open reading frames?|six[ -]frame|find coding regions|predict (?:potential )?coding sequences|translate orfs?)\b/i.test(m);
+  if(wantsTrim && !wantsGwas && sources.every((_,i)=>info[i].fastq)){
+    if(sources.length===1)return {kind:'fastq-trim',roles:{r1:0}};
+    if(sources.length===2){
+      const mate=sources.map((src,i)=>{
+        if(/(?:^|[_./-])R?1(?:[_.-]|$)/i.test(src.filename)||/^@\S+\/1(?:\s|\r?\n)/.test(info[i].head))return 1;
+        if(/(?:^|[_./-])R?2(?:[_.-]|$)/i.test(src.filename)||/^@\S+\/2(?:\s|\r?\n)/.test(info[i].head))return 2;
+        return 0;
+      });
+      if(mate.includes(1)&&mate.includes(2))return {kind:'fastq-trim',roles:{r1:mate.indexOf(1),r2:mate.indexOf(2)}};
+      return {kind:'fastq-trim',roles:{},error:'Name paired read files R1 and R2 to preserve synchronized preprocessing.'};
+    }
+  }
+  if(wantsOrf && !wantsGwas && sources.length===1 && info[0].fasta)
+    return {kind:'orf-scan',roles:{fasta:0}};
   if(!wantsGwas&&!wantsOtherMethod&&couldQc){
     if(sources.length===1){
       const type=info[0].fastq?'fastq-qc':info[0].vcf?'vcf-qc':info[0].fasta?'fasta-qc':null;

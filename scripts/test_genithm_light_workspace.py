@@ -40,7 +40,7 @@ class LightWorkspaceTests(unittest.TestCase):
         self.assertIn('statusLabel(run.status)', dock)
         self.assertNotIn('Math.random', dock)
         home = source('app/dashboard/ai/page.tsx')
-        self.assertIn('quickActions={[researchActions[5],researchActions[2],researchActions[3]]}', home)
+        self.assertIn('quickActions={[researchActions[6],researchActions[7],researchActions[5]]}', home)
         self.assertIn('scienceExecutionReady()', home)
         self.assertIn('createAiResearchProject', home)
         self.assertIn('genithm-logo.webp', home)

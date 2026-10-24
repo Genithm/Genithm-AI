@@ -19,7 +19,9 @@ test("V32 main dashboard remains an AI-first research conversation under the V40
   assert.match(landing,/What (?:can we discover today\?|would you like to analyze\?)/);
   assert.match(landing,/ResearchChatSidebar/);
   assert.match(landing,/AiChatComposer/);
-  assert.match(landing,/quickActions=\{\[researchActions\[5\],researchActions\[2\],researchActions\[3\]\]\}/);
+  assert.match(landing,/quickActions=\{\[researchActions\[6\],researchActions\[7\],researchActions\[5\]\]\}/);
+  assert.match(landing,/label:"Trim FASTQ reads"/);
+  assert.match(landing,/label:"Find candidate ORFs"/);
   assert.match(landing,/scienceReady=\{fixedScienceReady\}/);
   assert.match(landing,/from\("ai_conversations"\)/);
   assert.match(landing,/from\("projects"\)/);

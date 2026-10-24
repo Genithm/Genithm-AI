@@ -11,15 +11,15 @@ import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.1.0';
+export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.2.0';
 export const CHAT_SCIENCE_BASE = join(tmpdir(),'genithm-v58-chat-science');
 export const CHAT_SCIENCE_AGE_MS = 48*3600*1000;
 const EXECUTION_LIMIT_MS = 150_000;
-const ACCEPTED_MANIFEST_VERSIONS = new Set(['genithm-chat-science/1.0.0',CHAT_SCIENCE_VERSION]);
+const ACCEPTED_MANIFEST_VERSIONS = new Set(['genithm-chat-science/1.0.0','genithm-chat-science/1.1.0',CHAT_SCIENCE_VERSION]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESULT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/i;
-const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc'] as const;
+const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan'] as const;
 export type ChatScienceKind = typeof ALLOWED_KINDS[number];
 const REQUIRED_FILES: Record<Exclude<ChatScienceKind,'public-airway'>,Record<string,number>> = {
   gwas: {genotypes:64*1024*1024,phenotypes:2*1024*1024},
@@ -28,11 +28,15 @@ const REQUIRED_FILES: Record<Exclude<ChatScienceKind,'public-airway'>,Record<str
   'fastq-qc': {r1:12*1024*1024,r2:12*1024*1024},
   'vcf-qc': {vcf:8*1024*1024},
   'fasta-qc': {fasta:32*1024*1024},
+  'fastq-trim': {r1:12*1024*1024,r2:12*1024*1024},
+  'orf-scan': {fasta:32*1024*1024},
 };
 const FILE_NAMES = new Set(['complete-results.zip','association.tsv','manhattan.svg','qq.svg','expression.tsv',
   'significant_genes.txt','measured_genes.txt','sample_qc.tsv','volcano.svg','sample-pca.svg',
   'pathway-enrichment.tsv','enrichment.svg','fastq-qc.tsv','quality-by-cycle.svg','read-lengths.svg',
   'vcf-qc.tsv','variant-types.svg','fasta-stats.tsv','sequence-lengths.svg',
+  'trimmed_R1.fastq.gz','trimmed_R2.fastq.gz','trimming-summary.tsv','post-trim-qc.tsv','read-retention.svg',
+  'orfs.tsv','orfs.gff3','proteins.faa','orf-lengths.svg',
   'summary.json','provenance.json','METHODS.md']);
 const CACHE_ID = createHash('sha256').update('Himes2014|bioconnector/workshops@68ff3e4868b0e5673a1c4399828a3e0adc72f8e4|'+CHAT_SCIENCE_VERSION+'|control-treated-minCPM1').digest('hex').slice(0,25);
 const PUBLIC_CACHE = join(CHAT_SCIENCE_BASE,'public-airway-cache-'+CACHE_ID);
@@ -51,7 +55,7 @@ export function chatScienceRequiredFiles(kind:ChatScienceKind){return kind==='pu
 export function chatScienceAcceptsRoles(kind:ChatScienceKind,keys:string[]){
   if(!ALLOWED_KINDS.includes(kind)||new Set(keys).size!==keys.length)return false;
   const got=keys.slice().sort().join(',');
-  if(kind==='fastq-qc')return got==='r1'||got==='r1,r2';
+  if(kind==='fastq-qc'||kind==='fastq-trim')return got==='r1'||got==='r1,r2';
   return got===Object.keys(chatScienceRequiredFiles(kind)).sort().join(',');
 }
 function validateManifest(manifest:Manifest){
@@ -82,7 +86,7 @@ export async function getChatScienceArtifact(userId:string,runId:string,file:str
   validateManifest(meta);
   const data=await readFile(join(dir,file));
   if(sha(data)!==meta.hashes[file])throw new Error('Scientific result checksum failed.');
-  const type=file.endsWith('.zip')?'application/zip':file.endsWith('.svg')?'image/svg+xml':
+  const type=file.endsWith('.zip')?'application/zip':file.endsWith('.fastq.gz')?'application/gzip':file.endsWith('.svg')?'image/svg+xml':
     file.endsWith('.json')?'application/json':file.endsWith('.tsv')?'text/tab-separated-values':'text/plain';
   return {data,type,projectId:meta.project_id};
 }
@@ -130,7 +134,7 @@ export async function runChatScience(userId:string,projectId:string,kind:ChatSci
   const needed=chatScienceRequiredFiles(kind);
   if(!chatScienceAcceptsRoles(kind,Object.keys(sources)))throw new Error('Expected input file roles do not match this scientific task.');
   for(const [name,limit] of Object.entries(needed)){
-    if(kind==='fastq-qc' && name==='r2' && !sources.r2)continue;
+    if((kind==='fastq-qc'||kind==='fastq-trim') && name==='r2' && !sources.r2)continue;
     const file=sources[name];
     if(!(file instanceof File)||file.size<1||file.size>limit)throw new Error(`The ${name} file is missing or exceeds the supported ${Math.ceil(limit/1024/1024)} MiB ceiling.`);
   }
@@ -154,7 +158,10 @@ export async function runChatScience(userId:string,projectId:string,kind:ChatSci
       if(raw.length!==file.size)throw new Error('Input bytes changed during upload.');
       await writeFile(join(inputDir,role+'.txt'),raw,{mode:0o600});
     }
-    progress(kind==='public-airway'?'Finding pinned, verified human airway RNA-seq counts and treatment groups…':'Checking file integrity and running validated scientific tests…');
+    progress(kind==='public-airway'?'Finding pinned, verified human airway RNA-seq counts and treatment groups…':
+      kind==='fastq-trim'?'Validating, adapter clipping and trimming all FASTQ reads…':
+      kind==='orf-scan'?'Finding six-frame candidate open reading frames and translating proteins…':
+      'Checking file integrity and running validated scientific tests…');
     const cacheHit=kind==='public-airway'&&await verifiedPublicCopy(dir);
     if(cacheHit)progress('Reusing the checksum-verified version of the same published public RNA study…');
     if(!cacheHit){

@@ -1,0 +1,61 @@
+name: Genithm V60 real FASTQ trimming and six-frame ORF science
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/chat_science_preprocess.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_sequence_preprocessing_v60.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/sequence-processing-v60.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/chat_science_preprocess.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_sequence_preprocessing_v60.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/sequence-processing-v60.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verified-sequence-processing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify actual FASTQ data transformation, ORF translation, gzip, private provenance and full result archive
+        run: node --experimental-strip-types --test scripts/tests/test_sequence_preprocessing_v60.mjs
+      - name: Verify legacy V59 upload/QC tests and backwards-compatible result schema
+        run: node --experimental-strip-types --test scripts/tests/test_chat_qc_v59.mjs
+      - name: Verify previously implemented FASTQ pairing parser
+        run: node --experimental-strip-types --test apps/web/tests/fastq-qc-v39.test.mjs
+      - name: Reject accidental scientific pseudoworkflows and shell-injected private input
+        run: |
+          node --input-type=module - <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const proc=readFileSync('scripts/chat_science_preprocess.mjs','utf8');
+          const worker=readFileSync('scripts/chat_science_worker.mjs','utf8');
+          const client=readFileSync('apps/web/lib/chat-science-client.ts','utf8');
+          assert.match(proc,/analyzeFastqQc\(t1,t2\)/);
+          assert.match(proc,/scanOpenReadingFrames/);
+          assert.match(worker,/analyzeSequenceProcessing/);
+          assert.match(client,/wantsTrim/);
+          assert.match(client,/wantsOrf/);
+          assert.doesNotMatch(proc,/process\.env\.(?:GEMINI_API_KEY|GROQ_API_KEY|SUPABASE_SECRET_KEY)|eval\(|new Function\(/);
+          JS
