@@ -4,7 +4,7 @@
  */
 import { isGwasExecutionRequest } from './gwas-chat-intent.ts';
 import { matchLocalAnalysisRequest } from './local-analysis-intent.ts';
-export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc'|'fastq-trim'|'orf-scan'|'genomic-overlap'|'sam-qc';
+export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc'|'fastq-trim'|'orf-scan'|'genomic-overlap'|'sam-qc'|'bam-qc';
 export type ChatScienceUpload = {kind:ChatScienceUploadKind;files:Record<string,File>};
 const action=/\b(?:run|perform|analy[sz]e|compare|test|calculate|compute|execute|do|study|process)\b/i;
 const question=/^(?:what|why|how|explain|teach|define)\b/i;
@@ -15,8 +15,9 @@ export type ProposedChatScience = {kind:ChatScienceUploadKind;roles:Record<strin
 export function proposeChatScience(message:string,sources:Array<{filename:string;head:string;size:number;gzip?:boolean}>):ProposedChatScience|null{
   if(sources.length<1||sources.length>3)return null;
   const samAttached=sources.length===1&&/\.sam(?:\.gz)?$/i.test(sources[0].filename);
+  const bamAttached=sources.length===1&&/\.bam$/i.test(sources[0].filename);
   const samDataQuestion=/\b(?:how many reads|what (?:fraction|percent|percentage)|how much coverage|mapping quality distribution|mapq distribution|cigar operations|flag counts)\b/i.test(message);
-  if(question.test(message)&&!action.test(message)&&!(samAttached&&samDataQuestion))return null;
+  if(question.test(message)&&!action.test(message)&&!((samAttached||bamAttached)&&samDataQuestion))return null;
   // V59: a real FASTA, FASTQ or VCF is sufficient for bounded QC. Its
   // execution is independent from an unrelated GWAS/BLAST scientific request.
   const m=message.toLowerCase();
@@ -25,7 +26,11 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
   const couldQc=/\b(?:qc|quality|check|inspect|stats?|summary|summari[sz]e|analy[sz]e|calculate|report|process|profile|characteri[sz]e|overview|n50|gc content)\b/i.test(m)||action.test(message);
   const wantsSamQc=samAttached && /\b(?:sam|mapping quality|mapq|cigar|flag counts|alignment statistics|alignment qc|reference coverage|mapped reads|unmapped reads)\b/i.test(m);
   const asksToAlign=/\b(?:align|realign|map)\s+(?:my |these |the )?(?:reads?|sequences?|fastq)\b|\balign\b.{0,50}\b(?:against|to)\s+(?:the )?(?:genome|reference)\b/i.test(m);
-  if(wantsSamQc && (couldQc||samDataQuestion) && !asksToAlign && !wantsGwas)
+  const otherAnalysis=/\b(?:call variants?|variant calling|genotyp\w*|convert|export reads|sort|index|remove duplicates|deduplicat\w*|assemble|quantify expression|basecall\w*|recalibrat\w*)\b/i.test(m);
+  const wantsBamQc=bamAttached && /\b(?:bam|mapping quality|mapq|cigar|flag counts|alignment statistics|alignment qc|reference coverage|mapped reads|unmapped reads)\b/i.test(m);
+  if(wantsBamQc && (couldQc||samDataQuestion) && !asksToAlign && !otherAnalysis && !wantsGwas)
+    return {kind:'bam-qc',roles:{bam:0}};
+  if(wantsSamQc && (couldQc||samDataQuestion) && !asksToAlign && !otherAnalysis && !wantsGwas)
     return {kind:'sam-qc',roles:{sam:0}};
   const wantsOverlap=/\b(?:overlap|overlaps|intersect|intersection|intersections|compare genomic intervals|annotate genomic intervals|feature coverage)\b/i.test(m);
   if(wantsOverlap && !wantsGwas && sources.length===2){
