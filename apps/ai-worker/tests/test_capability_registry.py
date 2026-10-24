@@ -71,3 +71,13 @@ def test_gwas_local_execution_is_not_an_unapproved_server_side_job():
     assert gwas.execution_kind == "local"
     assert gwas.action_type is None
     assert "gwas" not in executable_action_types()
+
+
+def test_v56_bounded_local_rna_and_enrichment_never_enter_server_science_allowlist():
+    for capability_id in ("differential_expression", "pathway_analysis"):
+        capability = get_capability(capability_id)
+        assert capability.status == "available"
+        assert capability.execution_kind == "local"
+        assert capability.action_type is None
+        assert capability_id not in executable_action_types()
+    assert get_capability("rna_seq_quantification").status == "planned"

@@ -696,6 +696,8 @@ export function AiChatComposer({
               Attach
             </button>
             <Link href="/dashboard/gwas" className={styles.attachButton} title="Open real local genome-wide association analysis">GWAS Lab</Link>
+            <Link href="/dashboard/expression" className={styles.attachButton} title="Analyze RNA-seq count matrices and sample QC with real local statistics">RNA Expression</Link>
+            <Link href="/dashboard/pathways" className={styles.attachButton} title="Test actual gene-set over-representation on selected and measured genes">Pathways</Link>
             <button className={styles.attachButton} type="button" disabled={!projectId || sending} aria-expanded={researchFilesOpen} aria-controls={researchFilesOpen ? "genithm-chat-research-files" : undefined} onClick={() => setResearchFilesOpen(value => !value)}>Research files</button>
             <span className={styles.hint}>FASTA, FASTQ, VCF, tables, documents, archives and more · drag &amp; drop</span>
           </div>
