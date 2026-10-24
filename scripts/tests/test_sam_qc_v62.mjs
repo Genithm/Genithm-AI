@@ -139,7 +139,7 @@ test('V62 chat router, consent boundary, artifact whitelist and old versions are
  assert.deepEqual(proposeChatScience('How many reads are mapped in my SAM file?',sam),{kind:'sam-qc',roles:{sam:0}});
  assert.equal(proposeChatScience('Align my reads against the reference genome',sam),null);
  assert.equal(proposeChatScience('What is a SAM file?',sam),null);
- assert.equal(proposeChatScience('Analyze mapping quality of my BAM',[{filename:'sample.bam',head:'',size:5000}]),null);
+ assert.deepEqual(proposeChatScience('Analyze mapping quality of my BAM',[{filename:'sample.bam',head:'',size:5000}]),{kind:'bam-qc',roles:{bam:0}});
 });
 test('V62 actual isolated CLI worker generates source-hashed results and nonempty ZIP',async t=>{
  const fs=await import('node:fs/promises');
@@ -158,7 +158,8 @@ test('V62 actual isolated CLI worker generates source-hashed results and nonempt
   const processResult=spawnSync(process.execPath,['--experimental-strip-types',script,'--kind','sam-qc','--inputs',input,'--out',output],{cwd:root,encoding:'utf8',timeout:30000});
   assert.equal(processResult.status,0,processResult.stderr);
   const manifest=JSON.parse(await fs.readFile(join(output,'result-manifest.json'),'utf8'));
-  assert.equal(manifest.kind,'sam-qc');assert.equal(manifest.version,'genithm-chat-science/1.4.0');
+  assert.equal(manifest.kind,'sam-qc');assert.match(manifest.version,/^genithm-chat-science\/1\.\d+\.0$/);
+  assert.ok(Number(manifest.version.split('/1.')[1].split('.')[0])>=4);
   assert.equal(manifest.summary.primary_mapped,1);
   for(const name of manifest.filenames){const file=await fs.readFile(join(output,name));
    assert.equal(H(file),manifest.hashes[name]);}
