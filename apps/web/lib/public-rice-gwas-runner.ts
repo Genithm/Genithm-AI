@@ -6,7 +6,7 @@
 import "server-only";
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -17,6 +17,8 @@ const RUN_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a
 const MAX_AGE_MS = 48 * 3600 * 1000;
 const EXECUTION_TIMEOUT_MS = 7 * 60 * 1000;
 const EXPECTED_COMMIT = "d83cc64f993f8a86485d30f715381b3c613e3d69";
+const EXPECTED_ENGINE = "genithm-public-rice-gwas/1.0.1";
+const CACHE_DIR = join(BASE,"public-cache-"+createHash("sha256").update(EXPECTED_COMMIT+"|"+EXPECTED_ENGINE+"|Plant height|PC1,PC2,PC3|MAF=.05|MISS=.10").digest("hex").slice(0,24));
 const ID_REGEX = /^[0-9a-f-]{36}$/i;
 
 type Summary = {
@@ -26,6 +28,7 @@ type Summary = {
   markers_source: number;
   markers_tested: number;
   significant_bonferroni: number;
+  genomic_inflation_lambda: number;
   top_markers: Array<{ id: string; chr: string; pos: number; p: number; fdr: number }>;
 };
 type Metadata = { owner: string; created_at: number; source_commit: string; summary: Summary; hashes: Record<string, string> };
@@ -77,6 +80,35 @@ async function sweepExpired(): Promise<void> {
   }
 }
 
+/** A public-source cache must validate every file before reuse and must never
+ * include user-scoped metadata or private research inputs.
+ */
+async function restorePublicCache(destination: string): Promise<boolean> {
+  try {
+    const cache = JSON.parse(await readFile(join(CACHE_DIR,"cache.json"),"utf8")) as {
+      source_commit?: string; engine?: string; hashes?: Record<string,string>;
+    };
+    if(cache.source_commit!==EXPECTED_COMMIT || cache.engine!==EXPECTED_ENGINE)return false;
+    const contents=await Promise.all(OUTPUTS.map(file=>readFile(join(CACHE_DIR,file))));
+    for(let i=0;i<OUTPUTS.length;i++){
+      if(createHash("sha256").update(contents[i]).digest("hex")!==cache.hashes?.[OUTPUTS[i]])return false;
+    }
+    for(const file of OUTPUTS)await copyFile(join(CACHE_DIR,file),join(destination,file));
+    return true;
+  }catch {return false;}
+}
+async function savePublicCache(directory: string, hashes: Record<string,string>): Promise<void> {
+  const staging=join(BASE,"cache-staging-"+randomUUID());
+  try{
+    await mkdir(staging,{mode:0o700});
+    for(const file of OUTPUTS)await copyFile(join(directory,file),join(staging,file));
+    await writeFile(join(staging,"cache.json"),JSON.stringify({
+      source_commit:EXPECTED_COMMIT,engine:EXPECTED_ENGINE,hashes
+    }),{mode:0o600});
+    await rm(CACHE_DIR,{recursive:true,force:true});
+    await rename(staging,CACHE_DIR);
+  }finally {await rm(staging,{recursive:true,force:true}).catch(()=>{});}
+}
 /** One at a time across a Codespace checkout; no public data access without auth. */
 export async function executePublicRiceGwas(userId: string, signal: AbortSignal, progress: (message: string) => void) {
   if (!publicStudyEnabled()) throw new Error("Automated rice GWAS currently requires a private, running Genithm Codespace; this deployment has no safe public-data compute worker.");
@@ -91,6 +123,10 @@ export async function executePublicRiceGwas(userId: string, signal: AbortSignal,
   let succeeded=false;
   try {
     await mkdir(directory,{recursive:true,mode:0o700});
+    if(signal.aborted)throw new Error("Rice GWAS cancelled before starting.");
+    const cacheHit=await restorePublicCache(directory);
+    if(cacheHit)progress("Reusing checksum-verified public rice GWAS results from the same pinned source and analysis version…");
+    if(!cacheHit){
     const repoRoot=resolve(process.cwd(),"../..");
     const script=join(repoRoot,"scripts","public_rice_gwas.mjs");
     // The subprocess does not inherit API keys or Supabase credentials.
@@ -124,9 +160,13 @@ export async function executePublicRiceGwas(userId: string, signal: AbortSignal,
         resolveExit(code===0?null:"The published rice study failed validation or computation; no result files were certified.");}});
     });
     if(reason) throw new Error(reason);
+    }
+    if(signal.aborted)throw new Error("Rice GWAS cancelled before its results could be certified.");
     const source=JSON.parse(await readFile(join(directory,"provenance.json"),"utf8")) as {source_commit?:string,trait?:string};
     const summary=JSON.parse(await readFile(join(directory,"summary.json"),"utf8")) as Summary;
-    if(source.source_commit!==EXPECTED_COMMIT || summary.trait!=="Plant height" || summary.markers_tested<5000 || summary.matched<100 || summary.markers_source!==36901) {
+    if(source.source_commit!==EXPECTED_COMMIT || summary.trait!=="Plant height" || summary.markers_tested<5000 || summary.matched<100 || summary.markers_source!==36901 ||
+       source.engine!==EXPECTED_ENGINE || !Number.isFinite(summary.genomic_inflation_lambda) ||
+       summary.genomic_inflation_lambda<0) {
       throw new Error("Rice GWAS result did not match expected published-data invariants.");
     }
     const hashes:Record<string,string>={};
@@ -134,6 +174,7 @@ export async function executePublicRiceGwas(userId: string, signal: AbortSignal,
       if(bytes.length<50 || bytes.length>25_000_000) throw new Error("Unexpected GWAS artifact size.");
       hashes[file]=createHash("sha256").update(bytes).digest("hex");
     }
+    if(!cacheHit)await savePublicCache(directory,hashes).catch(()=>{/* Optional cache; failure must not invalidate verified science. */});
     await writeFile(join(directory,"owner.json"),JSON.stringify({owner:hash,created_at:Date.now(),source_commit:EXPECTED_COMMIT,summary,hashes} satisfies Metadata),{mode:0o600});
     succeeded=true;
     return {runId,summary};
