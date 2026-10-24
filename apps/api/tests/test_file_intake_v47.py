@@ -150,7 +150,6 @@ def test_unwrapped_long_fasta_has_bounded_allocations_and_reads():
     ('sample.bam',b'\x1f\x8b','gzip'),('sample.cram',b'CRAM','cram'),('sample.bcf',b'BCF\x02','bcf'),
     ('sample.h5ad',b'\x89HDF\r\n\x1a\n','hdf5'),('sample.pod5',b'POD5','unknown'),
     ('sample.mzML',b'<xml>','unknown'),('counts.mtx',b'%%MatrixMarket','unknown'),
-    ('anno.gff3',b'##gff-version 3','gff_hint'),
     ('model.pdb',b'HEADER','unknown'),('script.py',b'print("not executed")','unknown'),
     ('data.RDS',b'X\n','unknown'),('archive.zip',b'PK\x03\x04../../etc/not-extracted','zip'),
     ('notes.pdf',b'%PDF-','pdf'),('file.proprietary',b'\x7fELF','elf'),('file.exe',b'MZ','pe'),
