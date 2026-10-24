@@ -4,7 +4,7 @@
  */
 import { isGwasExecutionRequest } from './gwas-chat-intent.ts';
 import { matchLocalAnalysisRequest } from './local-analysis-intent.ts';
-export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc'|'fastq-trim'|'orf-scan';
+export type ChatScienceUploadKind = 'gwas'|'expression'|'pathways'|'fastq-qc'|'vcf-qc'|'fasta-qc'|'fastq-trim'|'orf-scan'|'genomic-overlap';
 export type ChatScienceUpload = {kind:ChatScienceUploadKind;files:Record<string,File>};
 const action=/\b(?:run|perform|analy[sz]e|compare|test|calculate|compute|execute|do|study|process)\b/i;
 const question=/^(?:what|why|how|explain|teach|define)\b/i;
@@ -21,6 +21,13 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
   const wantsGwas=isGwasExecutionRequest(message);
   const wantsOtherMethod=/\b(?:blast|alignment|phylogen|tree|annotation|protein properties|translate|assemble|variant calling|differential expression|rna[ -]?seq|transcriptom|quantif\w*|trim\w*|gwas)\b/i.test(m);
   const couldQc=/\b(?:qc|quality|check|inspect|stats?|summary|summari[sz]e|analy[sz]e|calculate|report|process|profile|characteri[sz]e|overview|n50|gc content)\b/i.test(m)||action.test(message);
+  const wantsOverlap=/\b(?:overlap|overlaps|intersect|intersection|intersections|compare genomic intervals|annotate genomic intervals|feature coverage)\b/i.test(m);
+  if(wantsOverlap && !wantsGwas && sources.length===2){
+    const beds=sources.map((s,i)=>/\.bed(?:\.gz)?$/i.test(s.filename)?i:-1).filter(x=>x>=0);
+    const gffs=sources.map((s,i)=>/\.gff3?(?:\.gz)?$/i.test(s.filename)?i:-1).filter(x=>x>=0);
+    if(beds.length===1&&gffs.length===1&&beds[0]!==gffs[0])return {kind:'genomic-overlap',roles:{bed:beds[0],gff3:gffs[0]}};
+    return {kind:'genomic-overlap',roles:{},error:'Attach exactly one BED and one GFF3 file to compare their genomic intervals.'};
+  }
   const info=sources.map(s=>{
     const lower=s.filename.toLowerCase(),head=s.head.replace(/^\uFEFF/,'');
     const fastq=/\.(?:fastq|fq)(?:\.gz)?$/.test(lower)||(/^@[^\n]+\r?\n[ACGTNacgtn]+\r?\n\+/.test(head) && !s.gzip);

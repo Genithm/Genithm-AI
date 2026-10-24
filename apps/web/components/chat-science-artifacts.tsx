@@ -1,5 +1,5 @@
 /** V58: persisted chat attachments, not text-only fake results. */
-const MARKER=/\[\[genithm_science_run:(gwas|expression|pathways|public-airway|fastq-qc|vcf-qc|fasta-qc|fastq-trim|orf-scan):([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(?::(paired|single))?\]\]/i;
+const MARKER=/\[\[genithm_science_run:(gwas|expression|pathways|public-airway|fastq-qc|vcf-qc|fasta-qc|fastq-trim|orf-scan|genomic-overlap):([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(?::(paired|single))?\]\]/i;
 const FILES=[
   ['complete-results.zip','Complete reproducible results (.zip)'],
   ['association.tsv','Variant association statistics (.tsv)'],
@@ -17,6 +17,8 @@ const FILES=[
   ['read-retention.svg','Read retention plot'],
   ['orfs.tsv','Candidate ORF coordinates (.tsv)'],['orfs.gff3','Genome feature positions (.gff3)'],
   ['proteins.faa','Translated candidate proteins (.faa)'],['orf-lengths.svg','ORF length chart'],
+  ['interval-overlaps.tsv','BED/GFF3 exact intersections'],['coverage-by-feature.tsv','Coverage by annotated feature type'],
+  ['genomic-overlaps.svg','Feature overlap chart'],
   ['summary.json','Computed summary (.json)'],['provenance.json','Input hashes and methods (.json)'],['METHODS.md','Methods report'],
 ] as const;
 export function ChatScienceArtifacts({content}:{content:string}){
@@ -33,7 +35,8 @@ export function ChatScienceArtifacts({content}:{content:string}){
   (kind==='fasta-qc'&&['fasta-stats.tsv','sequence-lengths.svg'].includes(name))||
   (kind==='fastq-trim'&&['trimmed_R1.fastq.gz','trimmed_R2.fastq.gz','trimming-summary.tsv','post-trim-qc.tsv','read-retention.svg'].includes(name)&&
     (name!=='trimmed_R2.fastq.gz'||mateMode==='paired'))||
-  (kind==='orf-scan'&&['orfs.tsv','orfs.gff3','proteins.faa','orf-lengths.svg'].includes(name)));
+  (kind==='orf-scan'&&['orfs.tsv','orfs.gff3','proteins.faa','orf-lengths.svg'].includes(name))||
+   (kind==='genomic-overlap'&&['interval-overlaps.tsv','coverage-by-feature.tsv','genomic-overlaps.svg'].includes(name)));
  return <section aria-label="Computed scientific files" style={{display:'grid',gap:10,marginTop:14,padding:16,border:'1px solid #a7cad0',borderRadius:12,background:'#f6fbfd'}}>
    <strong>Genithm scientific results — download your files</strong>
    <p style={{margin:0,fontSize:12}}>Actual computed output from verified source bytes. Result links are account-private, SHA-256 checked and expire after 48 hours.</p>

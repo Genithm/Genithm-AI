@@ -32,7 +32,12 @@ class Startup(unittest.TestCase):
                     'GROQ_API_KEY':'synthetic-groq-private', 'SUPABASE_SECRET_KEY':'synthetic-db-private'}
         for name in ('node','npm','python3','curl','nohup'):
             file = self.root/'bin'/name
-            file.write_text('#!/bin/bash\necho "'+name+' $*" >> "$CALLS"\nexit 0\n')
+            # The mocked nohup runs in the background; never write to a
+            # temporary fixture after the foreground startup test exits.
+            if name == 'nohup':
+                file.write_text('#!/bin/bash\nexit 0\n')
+            else:
+                file.write_text('#!/bin/bash\necho "'+name+' $*" >> "$CALLS"\nexit 0\n')
             file.chmod(0o700)
 
     def run_start(self):

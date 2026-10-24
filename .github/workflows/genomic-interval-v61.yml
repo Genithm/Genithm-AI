@@ -1,0 +1,38 @@
+name: Genithm V61 real genomic interval overlap
+on:
+  pull_request:
+    paths:
+      - 'scripts/chat_genomic_intervals.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_genomic_intervals_v61.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - '.github/workflows/genomic-interval-v61.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/chat_genomic_intervals.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_genomic_intervals_v61.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - '.github/workflows/genomic-interval-v61.yml'
+permissions:
+  contents: read
+jobs:
+  genomic-interval-verification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Run actual genomic coordinate, archive and routing tests
+        run: node --experimental-strip-types --test scripts/tests/test_genomic_intervals_v61.mjs
+      - name: Check existing V60 and V59 science
+        run: |
+          node --experimental-strip-types --test scripts/tests/test_sequence_preprocessing_v60.mjs
+          node --experimental-strip-types --test scripts/tests/test_chat_qc_v59.mjs
