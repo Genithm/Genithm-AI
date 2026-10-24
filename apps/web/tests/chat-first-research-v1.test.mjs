@@ -27,7 +27,9 @@ test("chat refresh is bounded and only runs for active jobs in visible tabs",()=
   assert.match(poller,/window.clearInterval\(timer\)/);
 });
 test("three focused examples populate the real composer, not decorative boxes",()=>{
-  assert.match(home,/quickActions=\{\[researchActions\[5\],researchActions\[2\],researchActions\[3\]\]\}/);
+  assert.match(home,/quickActions=\{\[researchActions\[6\],researchActions\[7\],researchActions\[5\]\]\}/);
+  assert.match(home,/label:"Trim FASTQ reads"/);
+  assert.match(home,/label:"Find candidate ORFs"/);
   assert.match(composer,/setMessage\(action\.prompt\)/);
   assert.match(composer,/textareaRef\.current\?\.focus\(\)/);
 });
