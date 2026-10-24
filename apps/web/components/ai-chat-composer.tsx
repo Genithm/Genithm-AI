@@ -398,7 +398,7 @@ export function AiChatComposer({
       let completedScienceRunId: string | undefined;
       if (proposedScience && "kind" in proposedScience) {
         if (!approvePrivateCompute) throw new Error("Approve temporary private-file scientific processing using the checkbox below your attachments. Files are removed from the compute worker after execution.");
-        if (selectedResearchFiles.length || readyMediaAttachments.length || readyAttachmentIds.length)
+        if (selectedResearchFiles.length || readyMediaAttachments.length)
           throw new Error("Send only the matching raw scientific file inputs for this analysis; select saved research files or images in a separate message.");
         const form = new FormData();
         form.set("kind", proposedScience.kind);
@@ -423,7 +423,7 @@ export function AiChatComposer({
           project_id: projectId,
           conversation_id: conversationId,
           user_message: trimmed,
-          attachment_upload_ids: readyAttachmentIds,
+          attachment_upload_ids: completedScienceRunId ? [] : readyAttachmentIds,
           research_file_ids: selectedResearchFiles,
           media_attachments: readyMediaAttachments,
           // Preserve the V55 browser-only privacy contract for ordinary
@@ -679,10 +679,10 @@ export function AiChatComposer({
           </div>
         ) : null}
 
-        {attachments.filter(a => a.kind === "local" && a.status === "ready").length >= 2 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 0"}}>
+        {attachments.filter(a => a.status === "ready" && a.kind !== "image").length >= 1 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 0"}}>
           <input type="checkbox" checked={approvePrivateCompute} disabled={sending}
             onChange={event=>setApprovePrivateCompute(event.target.checked)} />
-          Authorize Genithm to temporarily transfer the attached files to the private Codespaces scientific worker if I request GWAS, RNA expression, or pathway enrichment. Original inputs are deleted after calculation; real results remain downloadable for 48 hours. GWAS without numeric ancestry covariates is explicitly acknowledged as unadjusted exploratory association, not population-corrected discovery. Without this option, files stay as local previews.
+          Authorize Genithm to temporarily transfer the attached files to the private Codespaces scientific worker if I request GWAS, RNA expression, pathway enrichment, FASTQ read QC, VCF variant QC, or FASTA statistics. Original inputs are deleted after calculation; real results remain downloadable for 48 hours. GWAS without numeric ancestry covariates is explicitly acknowledged as unadjusted exploratory association, not population-corrected discovery. Without this option, files stay as local previews.
         </label> : null}
         {shareableExcerptCount > 0 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
           <input type="checkbox" checked={shareTextExcerpts} disabled={sending}
@@ -693,7 +693,7 @@ export function AiChatComposer({
         {readyLocalEvidence.length > 0 ? <p className="genithm-note" role="status">
           {readyLocalEvidence.length} research file(s) inspected locally. Complete counts are reported only for fully parsed formats.
           Binary, compressed, proprietary or large files are accepted as metadata, not misrepresented as analyzed.
-          Supported VCF + phenotype, count matrix + design, and GMT + gene-list requests can now execute directly in chat after the private-compute checkbox is approved. Other formats remain honest previews; use Research files for persistent storage.
+          Supported VCF + phenotype, count matrix + design, GMT + gene lists, FASTQ (single/paired), VCF QC and FASTA analysis can execute directly in chat after approval. Other formats remain honest previews; use Research files for persistent storage.
         </p> : null}
         <textarea
           ref={textareaRef}
