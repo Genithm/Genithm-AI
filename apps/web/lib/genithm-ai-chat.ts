@@ -141,7 +141,7 @@ function providerPayload(provider: AiProvider, userMessage: string, authorizedCo
   };
   return provider.name === "gemini"
     ? { ...base, reasoning_effort: reasoningEffort(process.env, evidence) }
-    : { ...base, parallel_tool_calls: false };
+    : localFilePreview ? base : { ...base, parallel_tool_calls: false };
 }
 export function currentAiModel() {
   return configuredProviders(process.env)[0].model;

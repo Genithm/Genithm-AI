@@ -117,3 +117,12 @@ test("V55 invalid or malformed FASTA is not presented as successfully analyzed",
   assert.equal(evidence("fake.fasta","not really FASTA\n").format,"text");
   assert.equal(evidence("broken.fasta",">x\n1234\n").inspection,"invalid");
 });
+
+
+test("V55 incomplete UTF-8 in a header boundary does not falsely classify a text table as binary",()=>{
+ const raw=new Uint8Array([...b("sample,age\nA,1\n"),0xc3]);
+ const result=inspectChatFileBytes("large.csv",9000000,raw,false);
+ assert.equal(result.format,"csv");
+ assert.equal(result.inspection,"header_only");
+ assert.deepEqual(result.metrics,{});
+});

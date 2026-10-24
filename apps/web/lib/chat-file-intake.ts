@@ -315,7 +315,7 @@ function inspectText(text:string):Record<string,number>{return {lines:safeLines(
 export function inspectChatFileBytes(filename:string,size_bytes:number,bytes:Uint8Array,complete:boolean):ChatFileEvidence{
   if(!filename.trim()||size_bytes<1||bytes.length<1)throw new Error("Choose a nonempty file.");
   let text:string|null=null;
-  try{text=new TextDecoder("utf-8",{fatal:true}).decode(bytes);if(text.includes("\u0000"))text=null;}
+  try{text=new TextDecoder("utf-8",{fatal:true}).decode(bytes,{stream:!complete});if(text.includes("\u0000"))text=null;}
   catch{text=null;}
   const format=classify(filename,bytes,text);
   const base:ChatFileEvidence={filename:filename.slice(0,180),size_bytes,format,inspection:"opaque",sha256:null,metrics:{}};

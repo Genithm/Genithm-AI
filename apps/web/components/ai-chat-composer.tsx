@@ -610,7 +610,7 @@ export function AiChatComposer({
                           ? "validating"
                           : attachment.status === "ready"
                             ? attachment.kind === "local"
-                              ? `${attachment.localEvidence?.format.toUpperCase() || "FILE"} · ${attachment.localEvidence?.inspection === "complete" ? "locally inspected" : "metadata only"}`
+                              ? `${attachment.localEvidence?.format.toUpperCase() || "FILE"} · ${attachment.localEvidence?.inspection === "complete" ? "fully inspected locally" : attachment.localEvidence?.inspection === "invalid" ? "invalid structure; not analyzed" : attachment.localEvidence?.inspection === "header_only" ? "header only" : "opaque metadata only"}`
                               : "attached to sequence storage"
                             : attachment.error || "failed"}
                   </span>
@@ -619,7 +619,9 @@ export function AiChatComposer({
                     <summary>Local file inspection report</summary>
                     <p className="genithm-note">{attachment.localEvidence.inspection === "complete"
                       ? "Calculated from the entire file (browser-reported; not server verified)."
-                      : "Only the file type/header was inspected. No complete scientific result exists."}</p>
+                      : attachment.localEvidence.inspection === "invalid"
+                        ? "The format validator rejected its structure. File is still attached as local metadata; no scientific counts are asserted."
+                        : "Only the file type/header was inspected. No complete scientific result exists."}</p>
                     {Object.entries(attachment.localEvidence.metrics).map(([name, value]) =>
                       <span key={name}>{name.replaceAll("_", " ")}: {value.toLocaleString()} · </span>)}
                     {attachment.localEvidence.sha256 ? <p className="genithm-note">Source SHA-256 (browser): {attachment.localEvidence.sha256}</p> : null}
@@ -635,7 +637,7 @@ export function AiChatComposer({
           <input type="checkbox" checked={shareTextExcerpts} disabled={sending}
             onChange={(event) => setShareTextExcerpts(event.target.checked)} />
           Share up to 1,500 characters from each locally inspected text/table document with Gemini or Groq for this message.
-          Original files stay in this browser; without this option only format, counts and checksums are shared.
+          Original files stay in this browser; without this option only filenames, file sizes, formats, counts and checksums are shared.
         </label> : null}
         {readyLocalEvidence.length > 0 ? <p className="genithm-note" role="status">
           {readyLocalEvidence.length} research file(s) inspected locally. Complete counts are reported only for fully parsed formats.
