@@ -69,10 +69,16 @@ Validation BEFORE enabling production:
 - Matching source hashes and independently calculated scientific metrics; storage/cost limits.
 - Real desktop browser at the deployed origin; provider speed and failure/retry observations.
 
-No arbitrary uploaded BAM/CRAM/VCF file is routed to an existing small-input scientific executor.
-Opaque inputs receive byte verification only. FASTQ/gzip receives full aggregate QC (Phred+33
-assumed, four-line layout, A/C/G/T/N). The separately enabled V45 paired checker supports ordered mate consistency. Alignment, variant calling, DE analysis,
-and downstream use require their own versioned executor integration and resource admission.
+Managed-file analysis uses dedicated reviewed streaming scanners, not the small-input chat executor.
+FASTQ/gzip receives whole-file Phred+33 aggregate QC; FASTA/gzip receives structural counts;
+VCF/.vcf.gz receives site-level variant-file QC without genotype interpretation; strict
+GFF3/.gff3.gz receives feature-row/coordinate summaries without interpreting attributes,
+unique genomic coverage, or embedded FASTA sequence. All other supported/unknown formats,
+including BAM and CRAM, remain private byte-integrity-only uploads on this large-data path.
+The separate bounded small-input BAM/SAM chat executor is not automatically invoked for
+large uploaded files. The optional V45 pair checker validates ordered FASTQ mate consistency.
+Mapping, clinical variant calling, annotation interpretation, DE and downstream analyses
+require separate admission, validated executors and explicit compute permissions.
 
 
 ## Optional V45 paired-input validation
