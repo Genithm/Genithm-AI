@@ -1,0 +1,45 @@
+name: Genithm V63 native BGZF BAM alignment quality control
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/chat_bam_qc.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_bam_qc_v63.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/bam-qc-v63.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/chat_bam_qc.mjs'
+      - 'scripts/chat_science_worker.mjs'
+      - 'scripts/tests/test_bam_qc_v63.mjs'
+      - 'apps/web/lib/chat-science-*.ts'
+      - 'apps/web/components/chat-science-artifacts.tsx'
+      - 'apps/web/app/api/ai/science-results/**'
+      - '.github/workflows/bam-qc-v63.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-bam-science:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify actual binary BAM and BGZF parsing, owner-safe outputs, and real worker ZIP
+        run: node --experimental-strip-types --test scripts/tests/test_bam_qc_v63.mjs
+      - name: Preserve previous real SAM, interval, preprocessing and QC analyses
+        run: |
+          node --experimental-strip-types --test scripts/tests/test_sam_qc_v62.mjs
+          node --experimental-strip-types --test scripts/tests/test_genomic_intervals_v61.mjs
+          node --experimental-strip-types --test scripts/tests/test_sequence_preprocessing_v60.mjs
+          node --experimental-strip-types --test scripts/tests/test_chat_qc_v59.mjs
