@@ -64,7 +64,7 @@ export function renderVerifiedVcfComparison(message:string, files:readonly Verif
     ? "You requested a record-level comparison. These reports **cannot** establish which variants overlap, match, differ, or are biologically concordant; the table below is limited to independently measured whole-file site counts."
     : "This is a comparison of independently measured QC summaries, not a read-through of individual variants.";
   return [header,"",caveat,"",
-    "| Verified file (source SHA-256 prefix) | VCF sites | SNV sites | Indel sites | Symbolic sites | Multiallelic sites | PASS sites (%) | Ti/Tv | Mean called QUAL | Sample columns |",
+    "| Verified file (source SHA-256 prefix) | VCF sites | SNV sites | Indel sites | Symbolic sites | Multiallelic sites | PASS sites (%) | Ti/Tv | Mean available QUAL | Sample columns |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...rows,"",
     "All figures come from the authenticated, full-file Genithm VCF scanner and were checked against the database-bound source/report hashes before this message. Files are identified in the same selection order as the chat attachment picker.",
