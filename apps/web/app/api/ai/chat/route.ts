@@ -1,4 +1,5 @@
 import type { Json } from "@/lib/ai-database.types";
+import { validateChatFileEvidence, safeChatFileContext } from "@/lib/chat-file-intake";
 import { isGwasExecutionRequest, gwasInputGuidance } from "@/lib/gwas-chat-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
 import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
@@ -23,6 +24,8 @@ type ChatRequest = {
   user_message?: string;
   attachment_upload_ids?: string[];
   research_file_ids?: string[];
+  local_file_evidence?: unknown;
+  share_local_text_excerpts?: boolean;
   media_attachments?: Array<{ filename?: string; mime_type?: string; data_url?: string }>;
 };
 
@@ -85,6 +88,19 @@ export async function POST(request: Request) {
       }))
     : [];
 
+  // User-browser summaries are NOT verified storage objects or authorized
+  // scientific inputs. Reject oversized/forged fields before any database RPC.
+  let localFiles;
+  try {
+    localFiles = validateChatFileEvidence(body.local_file_evidence);
+    if (body.share_local_text_excerpts !== undefined && typeof body.share_local_text_excerpts !== "boolean")
+      throw new Error("Invalid text sharing consent.");
+    if (!body.share_local_text_excerpts && localFiles.some(file => file.excerpt !== undefined))
+      throw new Error("A text excerpt was provided without permission.");
+  } catch {
+    return Response.json({ error: "Local research-file evidence is invalid or exceeds safe limits." }, { status: 422 });
+  }
+
   const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
   const mediaInvalid = mediaAttachments.some((attachment) => {
     if (!attachment.filename || !allowedImageTypes.has(attachment.mime_type)) return true;
@@ -102,19 +118,29 @@ export async function POST(request: Request) {
     mediaAttachments.length > 4 ||
     mediaInvalid ||
     totalMediaLength > 44_000_000 ||
-    (!userMessage && attachmentIds.length === 0 && mediaAttachments.length === 0)
+    (!userMessage && attachmentIds.length === 0 && mediaAttachments.length === 0 && localFiles.length === 0) ||
+    (localFiles.length > 0 && userMessage.length > 7500)
   ) {
     return Response.json(
-      { error: "Choose a project and send a message, sequence files, or up to 4 supported images." },
+      { error: "Choose a project and send a message or supported research attachments (or shorten the prompt)." },
       { status: 422 },
     );
   }
 
-  const recordedUserMessage = userMessage || (
-    mediaAttachments.length
-      ? `Attached image${mediaAttachments.length === 1 ? "" : "s"}: ${mediaAttachments.map((attachment) => attachment.filename).join(", ")}`
-      : ""
-  );
+  const localFilenames = localFiles.map(file => `${file.filename} (${file.format}, ${file.inspection})`).join(", ");
+  // Persist only filenames and the local-only disclosure in the normal user
+  // message. Raw file contents and browser-computed metrics remain ephemeral;
+  // reloads must never pretend the original source is still available.
+  const attachmentLabel = localFiles.length
+    ? `\n[Browser-only research attachments: ${localFilenames.slice(0, 360)}; originals not stored with this conversation.]`
+    : "";
+  const recordedUserMessage = userMessage
+    ? userMessage + attachmentLabel
+    : localFiles.length
+      ? `Please review the locally inspected research files: ${localFilenames.slice(0, 360)}. Only bounded browser-derived evidence is available; original files were not uploaded.`
+      : mediaAttachments.length
+        ? `Attached image${mediaAttachments.length === 1 ? "" : "s"}: ${mediaAttachments.map((attachment) => attachment.filename).join(", ")}`
+        : "";
 
   // File IDs alone are never sufficient: fetch the authenticated, checksummed
   // full report through Genithm's verifier API before starting a chat turn.
@@ -209,7 +235,7 @@ export async function POST(request: Request) {
           // conversational model when scientific execution is unavailable.
           // Persist a truthful availability notice against the saved user
           // message. No attestation, queue, run, or approval is created.
-          const requestedFixedProtocol = researchFileIds.length === 0 &&
+          const requestedFixedProtocol = researchFileIds.length === 0 && localFiles.length === 0 &&
             attachmentIds.length === 0 && mediaAttachments.length === 0
               ? parseChatResearchProtocol(row.user_message) : null;
           if (requestedFixedProtocol && !offerFixedResearch) {
@@ -252,9 +278,16 @@ export async function POST(request: Request) {
             return;
           }
 
+          const context = buildAuthorizedResearchContext(row.authorized_context);
+          const conversationalContext = localFiles.length ? {
+            ...context,
+            // A client can forge any of these counts. Keep the trust boundary
+            // distinct from database-authenticated project files and job IDs.
+            client_reported_local_file_previews: safeChatFileContext(localFiles, body.share_local_text_excerpts === true),
+          } : context;
           const providerResult = await startStreamingChat(
             row.user_message,
-            buildAuthorizedResearchContext(row.authorized_context),
+            conversationalContext,
             mediaAttachments,
             request.signal,
           );
@@ -328,6 +361,7 @@ export async function POST(request: Request) {
             throw new Error("AI did not finish a non-executable research-file evidence response.");
           }
           if (toolSeen) {
+            if (localFiles.length) throw new Error("Local file previews cannot authorize server-side scientific operations.");
             if (toolName !== "propose_scientific_action") {
               throw new Error("AI provider returned an unsupported tool call.");
             }

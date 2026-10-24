@@ -7,6 +7,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { LargeDataPanel } from "@/app/dashboard/data/large-data-panel";
 import { ResearchFileSelector } from "@/components/research-file-selector";
+import { inspectChatFile, isActualFasta, type ChatFileEvidence } from "@/lib/chat-file-intake";
 import styles from "./ai-chat-composer.module.css";
 
 type ProjectOption = {
@@ -42,7 +43,9 @@ type ReservationResponse = {
 type Attachment = {
   key: string;
   file: File;
-  kind: "sequence" | "image";
+  kind: "sequence" | "image" | "local";
+  localEvidence?: ChatFileEvidence;
+  localOnlyReason?: string;
   uploadId?: string;
   dataUrl?: string;
   mimeType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -107,6 +110,21 @@ function readAsDataUrl(file: File) {
   });
 }
 
+/** Keep complete research-file inspection off the UI thread when Web Workers exist. */
+function inspectLocalAttachment(file: File): Promise<ChatFileEvidence> {
+  if (typeof Worker === "undefined") return inspectChatFile(file);
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("../lib/chat-file-intake.worker.ts", import.meta.url));
+    worker.onmessage = (event: MessageEvent<{ report?: ChatFileEvidence; error?: string }>) => {
+      worker.terminate();
+      if (event.data.report) resolve(event.data.report);
+      else reject(new Error(event.data.error || "Local file inspection failed."));
+    };
+    worker.onerror = () => { worker.terminate(); reject(new Error("Local file inspection worker failed.")); };
+    worker.postMessage({ file });
+  });
+}
+
 async function responseError(response: Response, fallback: string) {
   try {
     const payload = await response.json();
@@ -138,6 +156,7 @@ export function AiChatComposer({
   const [dragActive, setDragActive] = useState(false);
   const [researchFilesOpen, setResearchFilesOpen] = useState(false);
   const [selectedResearchFiles, setSelectedResearchFiles] = useState<string[]>([]);
+  const [shareTextExcerpts, setShareTextExcerpts] = useState(false);
   const [sending, setSending] = useState(false);
   const [liveUserMessage, setLiveUserMessage] = useState<string | null>(null);
   const [liveAssistantMessage, setLiveAssistantMessage] = useState<string | null>(null);
@@ -155,20 +174,48 @@ export function AiChatComposer({
       data_url: attachment.dataUrl as string,
     }));
 
+  const readyLocalEvidence = attachments
+    .filter((attachment) => attachment.kind === "local" && attachment.status === "ready" && attachment.localEvidence)
+    .map((attachment) => attachment.localEvidence as ChatFileEvidence);
+  const shareableExcerptCount = readyLocalEvidence.filter((file) => file.excerpt !== undefined).length;
+
   async function uploadOne(file: File, key: string, kind: Attachment["kind"]) {
     try {
       if (kind === "image") {
-        const mimeType = await detectImageMime(file);
-        if (!IMAGE_TYPES.has(mimeType)) throw new Error("Unsupported image format.");
-        const dataUrl = await readAsDataUrl(file);
-        setAttachments((current) => current.map((item) => item.key === key
-          ? { ...item, mimeType, dataUrl, status: "ready", error: undefined }
-          : item));
+        try {
+          const mimeType = await detectImageMime(file);
+          if (!IMAGE_TYPES.has(mimeType)) throw new Error("Unsupported image format.");
+          const dataUrl = await readAsDataUrl(file);
+          setAttachments((current) => current.map((item) => item.key === key
+            ? { ...item, mimeType, dataUrl, status: "ready", error: undefined }
+            : item));
+        } catch {
+          // A filename/MIME hint is not proof of an image. Preserve the
+          // attachment as untrusted data instead of sending invalid pixels.
+          const evidence = await inspectLocalAttachment(file);
+          setAttachments((current) => current.map((item) => item.key === key
+            ? { ...item, kind: "local", localEvidence: evidence, status: "ready", error: undefined }
+            : item));
+        }
         return;
       }
 
+      // The paperclip is universal. Only a real FASTA goes to the dedicated
+      // sequence endpoint; all other types stay local for bounded inspection.
+      // This also accepts a .txt note without pretending it is FASTA.
+      const sequenceCandidate = await isActualFasta(file) && file.size <= MAX_FILE_BYTES;
+      if (!sequenceCandidate) {
+        const evidence = await inspectLocalAttachment(file);
+        setAttachments((current) => current.map((item) => item.key === key
+          ? { ...item, kind: "local", localEvidence: evidence, status: "ready", error: undefined }
+          : item));
+        return;
+      }
+      setAttachments((current) => current.map((item) => item.key === key
+        ? { ...item, kind: "sequence", status: "uploading", error: undefined }
+        : item));
+      try {
       await validateSequenceFile(file);
-      setAttachments((current) => current.map((item) => item.key === key ? { ...item, status: "uploading", error: undefined } : item));
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -240,8 +287,20 @@ export function AiChatComposer({
       }
 
       throw new Error(validationError || "Sequence validation is still running. Please retry the upload.");
+      } catch {
+        // Chat-only Codespaces has no scientific sequence API. Do not reject
+        // the file outright or claim it was saved: provide a local, unverified
+        // preview and require working science services for later execution.
+        const evidence = await inspectLocalAttachment(file);
+        setAttachments((current) => current.map((item) => item.key === key
+          ? { ...item, kind: "local", localEvidence: evidence, uploadId: undefined,
+              localOnlyReason: "Sequence service unavailable; file stays in this browser.",
+              status: "ready", error: undefined }
+          : item));
+        return;
+      }
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Upload failed.";
+      const message = caught instanceof Error ? caught.message : "File inspection failed.";
       setAttachments((current) => current.map((item) => item.key === key
         ? { ...item, status: "error", error: message }
         : item));
@@ -270,7 +329,7 @@ export function AiChatComposer({
       next.push({
         key: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
         file,
-        kind: looksLikeImage ? "image" : "sequence",
+        kind: looksLikeImage ? "image" : "local",
         status: "checking",
       });
     }
@@ -311,8 +370,8 @@ export function AiChatComposer({
       setError("Remove failed attachments before sending.");
       return;
     }
-    if (!trimmed && readyAttachmentIds.length === 0 && readyMediaAttachments.length === 0) {
-      setError("Type a message or attach a sequence file or image.");
+    if (!trimmed && readyAttachmentIds.length === 0 && readyMediaAttachments.length === 0 && readyLocalEvidence.length === 0) {
+      setError("Type a message or attach a research file or image.");
       return;
     }
 
@@ -339,6 +398,11 @@ export function AiChatComposer({
           attachment_upload_ids: readyAttachmentIds,
           research_file_ids: selectedResearchFiles,
           media_attachments: readyMediaAttachments,
+          local_file_evidence: readyLocalEvidence.map((file) => ({
+            ...file,
+            ...(shareTextExcerpts ? {} : { excerpt: undefined }),
+          })),
+          share_local_text_excerpts: shareTextExcerpts,
         }),
       });
 
@@ -415,6 +479,7 @@ export function AiChatComposer({
       setMessage("");
       setAttachments([]);
       setSelectedResearchFiles([]);
+      setShareTextExcerpts(false);
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
@@ -519,6 +584,7 @@ export function AiChatComposer({
               setProjectId(event.target.value);
               setAttachments([]);
               setSelectedResearchFiles([]);
+              setShareTextExcerpts(false);
               if (fileInputRef.current) fileInputRef.current.value = "";
             }} disabled={sending || busyUploading}>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
@@ -543,9 +609,23 @@ export function AiChatComposer({
                         : attachment.status === "validating"
                           ? "validating"
                           : attachment.status === "ready"
-                            ? "attached"
+                            ? attachment.kind === "local"
+                              ? `${attachment.localEvidence?.format.toUpperCase() || "FILE"} · ${attachment.localEvidence?.inspection === "complete" ? "fully inspected locally" : attachment.localEvidence?.inspection === "invalid" ? "invalid structure; not analyzed" : attachment.localEvidence?.inspection === "header_only" ? "header only" : "opaque metadata only"}`
+                              : "attached to sequence storage"
                             : attachment.error || "failed"}
                   </span>
+                  {attachment.localOnlyReason ? <span>{attachment.localOnlyReason}</span> : null}
+                  {attachment.kind === "local" && attachment.localEvidence ? <details>
+                    <summary>Local file inspection report</summary>
+                    <p className="genithm-note">{attachment.localEvidence.inspection === "complete"
+                      ? "Calculated from the entire file (browser-reported; not server verified)."
+                      : attachment.localEvidence.inspection === "invalid"
+                        ? "The format validator rejected its structure. File is still attached as local metadata; no scientific counts are asserted."
+                        : "Only the file type/header was inspected. No complete scientific result exists."}</p>
+                    {Object.entries(attachment.localEvidence.metrics).map(([name, value]) =>
+                      <span key={name}>{name.replaceAll("_", " ")}: {value.toLocaleString()} · </span>)}
+                    {attachment.localEvidence.sha256 ? <p className="genithm-note">Source SHA-256 (browser): {attachment.localEvidence.sha256}</p> : null}
+                  </details> : null}
                 </div>
                 <button type="button" onClick={() => removeAttachment(attachment.key)} disabled={sending || attachment.status === "uploading" || attachment.status === "validating"} aria-label={`Remove ${attachment.file.name}`}>×</button>
               </div>
@@ -553,6 +633,17 @@ export function AiChatComposer({
           </div>
         ) : null}
 
+        {shareableExcerptCount > 0 ? <label className="genithm-note" style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+          <input type="checkbox" checked={shareTextExcerpts} disabled={sending}
+            onChange={(event) => setShareTextExcerpts(event.target.checked)} />
+          Share up to 1,500 characters from each locally inspected text/table document with Gemini or Groq for this message.
+          Original files stay in this browser; without this option only filenames, file sizes, formats, counts and checksums are shared.
+        </label> : null}
+        {readyLocalEvidence.length > 0 ? <p className="genithm-note" role="status">
+          {readyLocalEvidence.length} research file(s) inspected locally. Complete counts are reported only for fully parsed formats.
+          Binary, compressed, proprietary or large files are accepted as metadata, not misrepresented as analyzed.
+          Use Research files for persistent, private project storage; for GWAS use the GWAS Lab.
+        </p> : null}
         <textarea
           ref={textareaRef}
           value={message}
@@ -587,7 +678,6 @@ export function AiChatComposer({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".fa,.fasta,.fna,.faa,.fas,.txt,text/plain,image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
               className={styles.fileInput}
               onChange={(event) => {
                 if (event.target.files) void addFiles(event.target.files);
@@ -599,15 +689,15 @@ export function AiChatComposer({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={sending || attachments.length >= MAX_ATTACHMENTS}
-              aria-label="Attach sequence files or images"
-              title="Attach FASTA files or images"
+              aria-label="Attach research files or images"
+              title="Attach files of any format for local inspection; supported FASTA can be stored as a sequence"
             >
               <span aria-hidden="true">＋</span>
               Attach
             </button>
             <Link href="/dashboard/gwas" className={styles.attachButton} title="Open real local genome-wide association analysis">GWAS Lab</Link>
             <button className={styles.attachButton} type="button" disabled={!projectId || sending} aria-expanded={researchFilesOpen} aria-controls={researchFilesOpen ? "genithm-chat-research-files" : undefined} onClick={() => setResearchFilesOpen(value => !value)}>Research files</button>
-            <span className={styles.hint}>FASTA, DNA, protein, images · drag &amp; drop</span>
+            <span className={styles.hint}>FASTA, FASTQ, VCF, tables, documents, archives and more · drag &amp; drop</span>
           </div>
           <button
             className="button primary"
