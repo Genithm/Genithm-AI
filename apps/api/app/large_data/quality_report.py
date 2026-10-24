@@ -181,11 +181,17 @@ def report_for_row(row: dict, *, paired: bool = False) -> dict:
             _require(report["format"] == row["data_format"] and report["source_bytes"] == row["expected_bytes"])
             _require(isinstance(report["source_sha256"], str) and HEX.fullmatch(report["source_sha256"]))
             _require(report["source_sha256"] == row["expected_sha256"] == row["actual_sha256"])
-            if report["metrics"] is None and report["scientific_scope"] in {"bytes_only", "full_fasta_structural_summary"}:
-                raise LargeDataError("quality_profile_not_available", 409)
-            _require(report["format"] in ("fastq", "fastq.gz") and report["scientific_scope"] == "full_fastq_aggregate_qc")
-            _require(report["metrics"]["paired_identifiers_checked"] is False)
-            metrics = [report["metrics"]]
+            if report["scientific_scope"] == "full_vcf_site_qc" and modern:
+                from .vcf_scanner import validate_vcf_metric
+                _require(report["format"] == "opaque")
+                validate_vcf_metric(report["metrics"], report["source_bytes"])
+                metrics = []
+            else:
+                if report["metrics"] is None and report["scientific_scope"] in {"bytes_only", "full_fasta_structural_summary"}:
+                    raise LargeDataError("quality_profile_not_available", 409)
+                _require(report["format"] in ("fastq", "fastq.gz") and report["scientific_scope"] == "full_fastq_aggregate_qc")
+                _require(report["metrics"]["paired_identifiers_checked"] is False)
+                metrics = [report["metrics"]]
         for metric in metrics:
             validate_metric(metric)
     except (AssertionError, KeyError, TypeError, ValueError, IndexError, OverflowError):
@@ -199,6 +205,21 @@ def report_tsv(envelope: dict) -> str:
     report = envelope["report"]
     stream = io.StringIO(newline="")
     writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
+    if report["scientific_scope"] == "full_vcf_site_qc":
+        # report_for_row validated the exact metric schema first. Fixed metric
+        # labels and numeric outputs cannot inject spreadsheet formulas.
+        writer.writerow(["# Genithm complete VCF site QC, not genotype QC or variant calling"])
+        writer.writerow(["# report_sha256", report["report_sha256"]])
+        writer.writerow(["# original_source_sha256", report["source_sha256"]])
+        writer.writerow(["metric", "value"])
+        for key in ("record_count", "sample_count", "contigs_seen", "snv_sites", "mnv_sites",
+                    "indel_sites", "complex_sites", "symbolic_sites", "reference_only_sites",
+                    "multiallelic_sites", "canonical_snv_alt_alleles", "transitions", "transversions",
+                    "pass_sites", "failed_filter_sites", "unfiltered_sites", "quality_available_sites",
+                    "missing_quality_sites", "mean_qual", "expanded_bytes"):
+            value = report["metrics"][key]
+            writer.writerow([key, value if value is not None else "."])
+        return stream.getvalue()
     writer.writerow(["# Genithm whole-file read-quality profile; not a FastQC report"])
     writer.writerow(["# record_id", envelope["record_id"]])
     writer.writerow(["# report_sha256", report["report_sha256"]])
