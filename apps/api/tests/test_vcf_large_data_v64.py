@@ -98,6 +98,7 @@ def test_genotype_rows_accepted_but_never_exported_or_inferred():
 @pytest.mark.parametrize('bad',[
     b'', b'garbage\n',HEADER.replace(b'VCFv4.3',b'VCFv5.0'),HEADER.replace(b'INFO',b'INFO\t'),
     HEADER + b'chr1\tX\tid\tA\tG\t20\tPASS\t.\n',
+    HEADER + b'chr1\t0\tid\tA\tG\t20\tPASS\t.\n',
     HEADER + b'chr1\t1\tid\tA\t?\t20\tPASS\t.\n',
     HEADER + b'chr1\t1\tid\tA\tG\tNaN\tPASS\t.\n',
     HEADER + b'chr1\t1\tid\tA\tG\t10\tPASS;lowQual\t.\n',
