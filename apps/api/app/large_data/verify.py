@@ -87,7 +87,7 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
     try:
         modern = row.get("intake_mode", "legacy") != "legacy"
         reader = HashingReader(source,row["expected_bytes"],tick,capture_prefix=modern)
-        fasta = None
+        fasta = vcf = None
         with io.BufferedReader(reader, buffer_size=CHUNK_BYTES) as raw:
             if row["data_format"] == "opaque":
                 from .file_registry import describe
@@ -99,10 +99,17 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
                             fasta = scan_fasta(decoded, max_expanded_bytes, lambda: tick(reader.count))
                     else:
                         fasta = scan_fasta(raw, max_expanded_bytes, lambda: tick(reader.count))
+                elif modern and row["intake_mode"] == "auto" and hint["available_inspection"] == "complete_vcf":
+                    from .vcf_scanner import scan_vcf
+                    if hint["compression_hint"] == "gzip":
+                        with gzip.GzipFile(fileobj=raw, mode="rb") as decoded:
+                            vcf = scan_vcf(decoded, max_expanded_bytes, lambda: tick(reader.count))
+                    else:
+                        vcf = scan_vcf(raw, max_expanded_bytes, lambda: tick(reader.count))
                 else:
                     while raw.read(CHUNK_BYTES):
                         pass
-                metrics = None
+                metrics = vcf
             elif row["data_format"] == "fastq":
                 metrics = scan_fastq(raw,max_expanded_bytes,lambda:tick(reader.count))
             elif row["data_format"] == "fastq.gz":
@@ -121,14 +128,14 @@ def verify_stream(source, row, max_expanded_bytes, progress=lambda _n: None, can
             progress(reader.count)
             result = {"schema":"genithm-large-data-result/1","source_bytes":reader.count,
                 "format":row["data_format"],"verifier_version":"genithm-large-data/1.1.0",
-                "verification":"whole_object_sha256","scientific_scope":"full_fastq_aggregate_qc" if metrics else "bytes_only",
+                "verification":"whole_object_sha256","scientific_scope":"full_vcf_site_qc" if vcf is not None else "full_fastq_aggregate_qc" if metrics else "bytes_only",
                 "metrics":metrics,"elapsed_seconds":round(monotonic()-start,3)}
             from .quality_report import seal_report
             result["source_sha256"] = digest
             if modern:
                 from .file_intake import build_intake
                 result["verifier_version"] = "genithm-large-data/1.2.0"
-                result["intake"] = build_intake(row, bytes(reader.prefix), fasta=fasta)
+                result["intake"] = build_intake(row, bytes(reader.prefix), fasta=fasta, vcf=vcf)
                 if fasta is not None:
                     result["scientific_scope"] = "full_fasta_structural_summary"
             return digest, seal_report(result)
