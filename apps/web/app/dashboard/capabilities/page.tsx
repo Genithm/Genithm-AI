@@ -19,10 +19,10 @@ export default async function ScientificCapabilityProgress(){
     <section className="genithm-card" aria-label="Merged capability milestones">
       <h2>Completed code milestones</h2>
       <ul>{MERGED_MILESTONES.map(x=><li key={x.version}><strong>✓ {x.version}</strong> — {x.what}</li>)}</ul>
-      <h3>New research components subject to release approval</h3>
+      {PARTIAL_MILESTONES.length>0&&<><h3>New research components subject to release approval</h3>
       <ul>{PARTIAL_MILESTONES.map(x=><li key={x.version}>
         <strong>◻ {x.version}</strong> — {x.what} (<a href={x.reference}>release evidence</a>)
-      </li>)}</ul>
+      </li>)}</ul></>}
     </section>
     <section aria-label="P0 through P10 scientific coverage stages" style={{marginTop:18}}>
       <h2>Full-platform acceptance checklist</h2>
