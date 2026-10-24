@@ -211,8 +211,9 @@ export async function runChatStudy({kind,inputs,outDirectory,onProgress=()=>{},f
     result.summary.public_source_genes=pub.original_genes;result.summary.prefilter_retained_genes=pub.genes_after_prefilter;result.summary.prefilter_rule=pub.prefilter;
     result.outputs['summary.json']=json(result.summary);
     result.outputs['provenance.json']=json(result.provenance);
-    result.outputs['METHODS.md']+='\nPublic source: '+AIRWAY_SOURCE.paper+'; '+AIRWAY_SOURCE.repository+' at '+AIRWAY_SOURCE.revision+'\nImportant: 8 samples correspond to four paired cell lines; Welch method does not model pairing. Treat significance as exploratory only.\n';}
+    result.outputs['METHODS.md']+='\nPublic source: '+AIRWAY_SOURCE.paper+'; '+AIRWAY_SOURCE.repository+' at '+AIRWAY_SOURCE.revision+'\nImportant: 8 samples correspond to four paired cell lines; Welch method does not model pairing. Treat significance as exploratory only.\n';
     result.outputs['METHODS.md']+='\nPrespecified low-count filter: '+pub.prefilter+'. Original gene rows: '+pub.original_genes+'; retained: '+pub.genes_after_prefilter+'.\n';
+  }
   result.outputs['complete-results.zip']=createZip(result.outputs);
   await mkdir(outDirectory,{recursive:true,mode:0o700});
   const hashes={};
