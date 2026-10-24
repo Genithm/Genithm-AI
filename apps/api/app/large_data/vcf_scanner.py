@@ -135,7 +135,7 @@ def scan_vcf(stream, max_expanded_bytes: int, tick=lambda: None) -> dict:
             _invalid()
         chrom, pos, ident, ref, alt, qual, flt, info = cols[:8]
         if (not _ascii_visible(chrom) or len(chrom) > 255 or
-            not INTEGER.fullmatch(pos) or int(pos) > 2**31 - 1 or
+            not INTEGER.fullmatch(pos) or int(pos) < 1 or int(pos) > 2**31 - 1 or
             not _ascii_visible(ident) or not REF.fullmatch(ref) or len(ref) > MAX_ALLELE_BYTES or
             not _ascii_visible(info) or not _ascii_visible(flt)):
             _invalid()
