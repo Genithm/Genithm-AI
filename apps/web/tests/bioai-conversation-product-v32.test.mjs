@@ -100,7 +100,7 @@ test("V32 conversation keeps actual science consent and provenance accessible in
 test("V32 design remains keyboard-, mobile-, and status-accessible",()=>{
   assert.match(composer,/onKeyDown/);
   assert.match(composer,/event\.key === "Enter" && !event\.shiftKey/);
-  assert.match(composer,/aria-label="Attach sequence files or images"/);
+  assert.match(composer,/aria-label="Attach research files or images"/);
   assert.match(sidebar,/aria-label="Search conversations"/);
   assert.match(sidebar,/aria-expanded=\{mobileOpen\}/);
   assert.match(landing,/role="status"/);

@@ -1,0 +1,36 @@
+name: Chat universal research files V55
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/chat-file-intake.ts'
+      - 'apps/web/lib/chat-file-intake.worker.ts'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/tests/chat-file-*v55.test.mjs'
+      - '.github/workflows/chat-universal-files-v55.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/chat-file-intake.ts'
+      - 'apps/web/lib/chat-file-intake.worker.ts'
+      - 'apps/web/components/ai-chat-composer.tsx'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/tests/chat-file-*v55.test.mjs'
+      - '.github/workflows/chat-universal-files-v55.yml'
+permissions:
+  contents: read
+jobs:
+  local-file-inspection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify universal file format inspection, upload routing, privacy and evidence boundary
+        run: node --experimental-strip-types --test apps/web/tests/chat-file-intake-v55.test.mjs apps/web/tests/chat-file-composer-v55.test.mjs
