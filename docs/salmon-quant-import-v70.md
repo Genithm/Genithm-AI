@@ -14,7 +14,7 @@ Name, Length, EffectiveLength, TPM, NumReads. Every transcript ID, reported
 effective length, TPM and NumReads is read from the selected file. Sample IDs
 are assigned by the researcher; they are not inferred from private input.
 Each file has up to 100,000 transcript entries and 24 MiB of text. At most
-24 samples and 1,000,000 transcript-by-sample matrix cells can be processed
+24 samples, 96 MiB total input and 1,000,000 transcript-by-sample matrix cells can be processed
 per invocation. Invalid TSV, reused identifiers, nonfinite values, negative
 abundance or inconsistent transcript IDs/reference transcript lengths fail
 closed. Nonzero abundance must have a TPM sum close to one million, allowing
