@@ -1,0 +1,56 @@
+name: Genithm V72 GTF-backed Salmon gene cohort QC
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/salmon-gene-summary-v71.ts'
+      - 'apps/web/lib/gtf-transcript-mapping-v72.ts'
+      - 'apps/web/lib/salmon-gene-cohort-qc-v72.ts'
+      - 'apps/web/app/dashboard/rnaseq/salmon-gene-workbench.tsx'
+      - 'apps/web/app/dashboard/rnaseq/page.tsx'
+      - 'apps/web/tests/salmon-gene-summary-v71.test.mjs'
+      - 'apps/web/tests/gtf-transcript-mapping-v72.test.mjs'
+      - 'apps/web/tests/salmon-gene-cohort-qc-v72.test.mjs'
+      - 'apps/web/tests/fixtures/v71/**'
+      - 'apps/web/tests/fixtures/v72/**'
+      - 'docs/salmon-reference-cohort-v72.md'
+      - '.github/workflows/salmon-reference-cohort-v72.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/salmon-gene-summary-v71.ts'
+      - 'apps/web/lib/gtf-transcript-mapping-v72.ts'
+      - 'apps/web/lib/salmon-gene-cohort-qc-v72.ts'
+      - 'apps/web/app/dashboard/rnaseq/salmon-gene-workbench.tsx'
+      - 'apps/web/app/dashboard/rnaseq/page.tsx'
+      - 'apps/web/tests/salmon-gene-summary-v71.test.mjs'
+      - 'apps/web/tests/gtf-transcript-mapping-v72.test.mjs'
+      - 'apps/web/tests/salmon-gene-cohort-qc-v72.test.mjs'
+      - 'apps/web/tests/fixtures/v71/**'
+      - 'apps/web/tests/fixtures/v72/**'
+      - 'docs/salmon-reference-cohort-v72.md'
+      - '.github/workflows/salmon-reference-cohort-v72.yml'
+permissions:
+  contents: read
+jobs:
+  gtf-backed-salmon-gene-qc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate actual GTF mapping, gene sums and sample-level QC
+        run: |
+          node --experimental-strip-types --test \
+            apps/web/tests/salmon-gene-summary-v71.test.mjs \
+            apps/web/tests/gtf-transcript-mapping-v72.test.mjs \
+            apps/web/tests/salmon-gene-cohort-qc-v72.test.mjs
+      - name: Preserve RNA-seq V70 transcript quantification and V69 design validation
+        run: |
+          node --experimental-strip-types --test \
+            apps/web/tests/salmon-quant-matrix-v70.test.mjs \
+            apps/web/tests/rnaseq-study-preflight-v69.test.mjs

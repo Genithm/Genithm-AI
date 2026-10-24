@@ -1,0 +1,20 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=(path)=>readFileSync(new URL(path,import.meta.url),'utf8');
+test('V71–V72 RNA-seq UI adds a working local GTF and sample QC path to the existing signed-in page',()=>{
+  const page=read('../app/dashboard/rnaseq/page.tsx');
+  const view=read('../app/dashboard/rnaseq/salmon-gene-workbench.tsx');
+  assert.match(page,/SalmonGeneWorkbench/);
+  assert.match(page,/supabase\.auth\.getClaims/);
+  assert.match(page,/SalmonQuantWorkbench/);
+  assert.match(page,/RnaSeqPreflightWorkbench/);
+  assert.match(view,/deriveTx2GeneFromGtf\(referenceText\)/);
+  assert.match(view,/summarizeSalmonGenes\(quant,tx2geneText\)/);
+  assert.match(view,/inspectSalmonGeneCohort\(report\)/);
+  assert.match(view,/Download derived tx2gene TSV/);
+  assert.match(view,/Download sample correlations/);
+  assert.match(view,/gene_level_differential_expression_performed: false/);
+  assert.match(view,/crypto\.subtle\.digest\("SHA-256"/);
+  assert.doesNotMatch(view,/fetch\(|axios|supabase\.from\(|child_process|eval\(/);
+});

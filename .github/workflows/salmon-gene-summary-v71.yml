@@ -1,0 +1,41 @@
+name: Genithm V71 Salmon transcript-to-gene scientific summarization
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/salmon-gene-summary-v71.ts'
+      - 'apps/web/app/dashboard/rnaseq/salmon-gene-workbench.tsx'
+      - 'apps/web/app/dashboard/rnaseq/page.tsx'
+      - 'apps/web/tests/salmon-gene-summary-v71.test.mjs'
+      - 'apps/web/tests/fixtures/v71/**'
+      - 'docs/salmon-gene-summary-v71.md'
+      - '.github/workflows/salmon-gene-summary-v71.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/salmon-gene-summary-v71.ts'
+      - 'apps/web/app/dashboard/rnaseq/salmon-gene-workbench.tsx'
+      - 'apps/web/app/dashboard/rnaseq/page.tsx'
+      - 'apps/web/tests/salmon-gene-summary-v71.test.mjs'
+      - 'apps/web/tests/fixtures/v71/**'
+      - 'docs/salmon-gene-summary-v71.md'
+      - '.github/workflows/salmon-gene-summary-v71.yml'
+permissions:
+  contents: read
+jobs:
+  verify-gene-summary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Calculate gene-level sums from real V70-formatted Salmon fixtures
+        run: node --experimental-strip-types --test apps/web/tests/salmon-gene-summary-v71.test.mjs
+      - name: Preserve V70 transcript and V69 study metadata regressions
+        run: node --experimental-strip-types --test apps/web/tests/salmon-quant-matrix-v70.test.mjs apps/web/tests/rnaseq-study-preflight-v69.test.mjs
+      - name: Preserve V56 exploratory count matrix statistical methods
+        run: node --experimental-strip-types --test apps/web/tests/expression-science-v56.test.mjs
