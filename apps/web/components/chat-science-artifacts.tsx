@@ -1,5 +1,5 @@
 /** V58: persisted chat attachments, not text-only fake results. */
-const MARKER=/\[\[genithm_science_run:(gwas|expression|pathways|public-airway|fastq-qc|vcf-qc|fasta-qc|fastq-trim|orf-scan|genomic-overlap|sam-qc):([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(?::(paired|single))?\]\]/i;
+const MARKER=/\[\[genithm_science_run:(gwas|expression|pathways|public-airway|fastq-qc|vcf-qc|fasta-qc|fastq-trim|orf-scan|genomic-overlap|sam-qc|bam-qc):([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(?::(paired|single))?\]\]/i;
 const FILES=[
   ['complete-results.zip','Complete reproducible results (.zip)'],
   ['association.tsv','Variant association statistics (.tsv)'],
@@ -20,7 +20,9 @@ const FILES=[
   ['interval-overlaps.tsv','BED/GFF3 exact intersections'],['coverage-by-feature.tsv','Coverage by annotated feature type'],
   ['genomic-overlaps.svg','Feature overlap chart'],
   ['sam-mapping-qc.tsv','SAM mapping and read-flag counts'],['sam-reference-coverage.tsv','Per-reference aligned coverage'],
-  ['sam-cigar-operations.tsv','CIGAR operation statistics'],['sam-mapq.svg','Primary mapped read MAPQ chart'], 
+  ['sam-cigar-operations.tsv','CIGAR operation statistics'],['sam-mapq.svg','Primary mapped read MAPQ chart'],
+  ['bam-mapping-qc.tsv','BAM mapping and flag metrics'],['bam-reference-coverage.tsv','BAM reference coverage'],
+  ['bam-cigar-operations.tsv','BAM CIGAR operation counts'],['bam-mapq.svg','BAM MAPQ chart'],  
   ['summary.json','Computed summary (.json)'],['provenance.json','Input hashes and methods (.json)'],['METHODS.md','Methods report'],
 ] as const;
 export function ChatScienceArtifacts({content}:{content:string}){
@@ -39,7 +41,8 @@ export function ChatScienceArtifacts({content}:{content:string}){
     (name!=='trimmed_R2.fastq.gz'||mateMode==='paired'))||
   (kind==='orf-scan'&&['orfs.tsv','orfs.gff3','proteins.faa','orf-lengths.svg'].includes(name))||
    (kind==='genomic-overlap'&&['interval-overlaps.tsv','coverage-by-feature.tsv','genomic-overlaps.svg'].includes(name))||
-   (kind==='sam-qc'&&['sam-mapping-qc.tsv','sam-reference-coverage.tsv','sam-cigar-operations.tsv','sam-mapq.svg'].includes(name)));
+   (kind==='sam-qc'&&['sam-mapping-qc.tsv','sam-reference-coverage.tsv','sam-cigar-operations.tsv','sam-mapq.svg'].includes(name))||
+   (kind==='bam-qc'&&['bam-mapping-qc.tsv','bam-reference-coverage.tsv','bam-cigar-operations.tsv','bam-mapq.svg'].includes(name)));
  return <section aria-label="Computed scientific files" style={{display:'grid',gap:10,marginTop:14,padding:16,border:'1px solid #a7cad0',borderRadius:12,background:'#f6fbfd'}}>
    <strong>Genithm scientific results — download your files</strong>
    <p style={{margin:0,fontSize:12}}>Actual computed output from verified source bytes. Result links are account-private, SHA-256 checked and expire after 48 hours.</p>

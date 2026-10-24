@@ -11,15 +11,15 @@ import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.4.0';
+export const CHAT_SCIENCE_VERSION = 'genithm-chat-science/1.5.0';
 export const CHAT_SCIENCE_BASE = join(tmpdir(),'genithm-v58-chat-science');
 export const CHAT_SCIENCE_AGE_MS = 48*3600*1000;
 const EXECUTION_LIMIT_MS = 150_000;
-const ACCEPTED_MANIFEST_VERSIONS = new Set(['genithm-chat-science/1.0.0','genithm-chat-science/1.1.0','genithm-chat-science/1.2.0','genithm-chat-science/1.3.0',CHAT_SCIENCE_VERSION]);
+const ACCEPTED_MANIFEST_VERSIONS = new Set(['genithm-chat-science/1.0.0','genithm-chat-science/1.1.0','genithm-chat-science/1.2.0','genithm-chat-science/1.3.0','genithm-chat-science/1.4.0',CHAT_SCIENCE_VERSION]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESULT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA = /^[a-f0-9]{64}$/i;
-const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan','genomic-overlap','sam-qc'] as const;
+const ALLOWED_KINDS = ['gwas','expression','pathways','public-airway','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan','genomic-overlap','sam-qc','bam-qc'] as const;
 export type ChatScienceKind = typeof ALLOWED_KINDS[number];
 const REQUIRED_FILES: Record<Exclude<ChatScienceKind,'public-airway'>,Record<string,number>> = {
   gwas: {genotypes:64*1024*1024,phenotypes:2*1024*1024},
@@ -32,6 +32,7 @@ const REQUIRED_FILES: Record<Exclude<ChatScienceKind,'public-airway'>,Record<str
   'orf-scan': {fasta:32*1024*1024},
   'genomic-overlap': {bed:8*1024*1024,gff3:8*1024*1024},
   'sam-qc': {sam:12*1024*1024},
+  'bam-qc': {bam:12*1024*1024},
 };
 const FILE_NAMES = new Set(['complete-results.zip','association.tsv','manhattan.svg','qq.svg','expression.tsv',
   'significant_genes.txt','measured_genes.txt','sample_qc.tsv','volcano.svg','sample-pca.svg',
@@ -41,6 +42,7 @@ const FILE_NAMES = new Set(['complete-results.zip','association.tsv','manhattan.
   'orfs.tsv','orfs.gff3','proteins.faa','orf-lengths.svg',
   'interval-overlaps.tsv','coverage-by-feature.tsv','genomic-overlaps.svg',
   'sam-mapping-qc.tsv','sam-reference-coverage.tsv','sam-cigar-operations.tsv','sam-mapq.svg',
+  'bam-mapping-qc.tsv','bam-reference-coverage.tsv','bam-cigar-operations.tsv','bam-mapq.svg',
   'summary.json','provenance.json','METHODS.md']);
 const CACHE_ID = createHash('sha256').update('Himes2014|bioconnector/workshops@68ff3e4868b0e5673a1c4399828a3e0adc72f8e4|'+CHAT_SCIENCE_VERSION+'|control-treated-minCPM1').digest('hex').slice(0,25);
 const PUBLIC_CACHE = join(CHAT_SCIENCE_BASE,'public-airway-cache-'+CACHE_ID);
@@ -167,6 +169,7 @@ export async function runChatScience(userId:string,projectId:string,kind:ChatSci
       kind==='orf-scan'?'Finding six-frame candidate open reading frames and translating proteins…':
        kind==='genomic-overlap'?'Indexing BED and GFF3 intervals, computing overlap and union coverage…':
        kind==='sam-qc'?'Validating SAM records, CIGAR mapping quality and measured reference coverage…':
+       kind==='bam-qc'?'Decoding BGZF BAM records and calculating real mapping statistics and reference coverage…':
       'Checking file integrity and running validated scientific tests…');
     const cacheHit=kind==='public-airway'&&await verifiedPublicCopy(dir);
     if(cacheHit)progress('Reusing the checksum-verified version of the same published public RNA study…');
