@@ -26,7 +26,7 @@ export async function POST(request:NextRequest){
   catch{return Response.json({error:'Unable to read the scientific file upload.'},{status:400});}
   const projectId=String(form.get('project_id')||'');
   const kind=String(form.get('kind')||'') as ChatScienceKind;
-  if(!UUID.test(projectId)||!['gwas','expression','pathways','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan','genomic-overlap'].includes(kind)||form.get('approved_private_compute')!=='yes')
+  if(!UUID.test(projectId)||!['gwas','expression','pathways','fastq-qc','vcf-qc','fasta-qc','fastq-trim','orf-scan','genomic-overlap','sam-qc'].includes(kind)||form.get('approved_private_compute')!=='yes')
     return Response.json({error:'Choose a project, supported analysis, and explicitly approve temporary processing of your original research files.'},{status:422});
   // Enforce the signed-in researcher's exact existing Supabase project scope,
   // not client-provided org data or an elevated service-role read.
