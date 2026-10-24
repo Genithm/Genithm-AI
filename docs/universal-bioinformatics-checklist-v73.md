@@ -22,7 +22,7 @@ See [the P0–P10 delivery plan](universal-bioinformatics-delivery-plan-v69.md),
 - [x] V69: authenticated browser-local bulk RNA-seq metadata/sample-design preflight
 - [x] V70: browser-local import of existing Salmon transcript quant.sf abundance
 - [x] V71–V72: gene-level transcript sums, GTF mapping and descriptive sample QC — [PR #265](https://github.com/Genithm/Genithm-AI/pull/265), **merged** after 9/9 GitHub workflows passed
-- [ ] V73: exact researcher sample-condition reconciliation and within/between-group descriptive correlation summaries, with browser reports and roadmap UI **must pass actual GitHub CI and merge**
+- [x] V73: exact researcher sample-condition reconciliation and within/between-group descriptive correlation summaries, with browser reports and roadmap UI — PR #266 **merged after GitHub CI**
 
 ## Scientific phase acceptance — NO PHASE CERTIFIED COMPLETE
 
@@ -46,7 +46,7 @@ large-file projects. This observation can become stale; use
 - [x] V69 validate RNA-seq metadata sheets and biological condition labels
 - [x] V70 import measured, preexisting Salmon transcript TPM/NumReads
 - [x] V71–V72 gene-level sums, strict tx2gene/GTF import and sample QC merged
-- [ ] V73 match sample labels against measured cohort and summarize descriptive within/between correlations **merge**
+- [x] V73 match sample labels against measured cohort and summarize descriptive within/between correlations merged
 - [ ] Bind real authorized FASTQ objects, matching immutable reference FASTA/GTF and verified Salmon index
 - [ ] Run pinned nf-core/rnaseq or equivalent STAR/Salmon under human-approved, metered compute
 - [ ] Produce validated, reference-aware gene expression quantification and tximport-type length offsets
@@ -111,7 +111,7 @@ expression-workbench's Welch tests are NOT DESeq2.
 ## Immediate next release gates
 
 1. [x] PR #265: 9/9 scientific/repository workflows passed, then V71–V72 merged.
-2. [ ] V73: scientific group QC + in-app checklist tests green, then merge and tick its *component* only.
+2. [x] V73: scientific grouped QC, checklist tests and repository CI passed; release merged. *P1 remains incomplete*.
 3. [ ] P0: operator activates separate worker services, private S3 and quotas; no unapproved paid compute.
 4. [ ] P1: trusted runtime handles reference-bound real FASTQ and pinned Salmon/nf-core pipeline, with honest actual output metrics.
 5. [ ] P1: test legitimate transcript-to-gene quantification offsets and DESeq2/edgeR after reliable raw-count and design validation.

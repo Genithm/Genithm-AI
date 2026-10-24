@@ -17,12 +17,12 @@ test('V73 checklist matches P0–P10 with no falsely completed end-to-end phase'
 });
 
 test('V73 tracks only factually merged historic releases and keeps unfinished modules pending',()=>{
- assert.deepEqual(MERGED_MILESTONES.map(x=>x.version),['V64–V68','V69','V70','V71–V72']);
+ assert.deepEqual(MERGED_MILESTONES.map(x=>x.version),['V64–V68','V69','V70','V71–V72','V73']);
  assert.ok(!PARTIAL_MILESTONES.some(x=>x.version==='V71–V72'));
- assert.ok(PARTIAL_MILESTONES.some(x=>x.version==='V73'));
+ assert.equal(PARTIAL_MILESTONES.length,0);
  const md=read('../../../docs/universal-bioinformatics-checklist-v73.md');
  assert.match(md,/- \[x\] V69/);assert.match(md,/- \[x\] V70/);
- assert.match(md,/- \[x\] V71–V72/);assert.match(md,/- \[ \] V73/);
+ assert.match(md,/- \[x\] V71–V72/);assert.match(md,/- \[x\] V73/);
  assert.match(md,/NO PHASE CERTIFIED COMPLETE/);
  assert.match(md,/0 online large-file verifiers/);
 });
