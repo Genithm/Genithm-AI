@@ -1,0 +1,38 @@
+name: Genithm V69 RNA-seq study metadata intake
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/rnaseq-study-preflight.ts'
+      - 'apps/web/app/dashboard/rnaseq/**'
+      - 'apps/web/tests/rnaseq-study-preflight-v69.test.mjs'
+      - 'apps/web/app/dashboard/apps/page.tsx'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'docs/universal-bioinformatics-delivery-plan-v69.md'
+      - '.github/workflows/rnaseq-study-preflight-v69.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/rnaseq-study-preflight.ts'
+      - 'apps/web/app/dashboard/rnaseq/**'
+      - 'apps/web/tests/rnaseq-study-preflight-v69.test.mjs'
+      - 'apps/web/app/dashboard/apps/page.tsx'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'docs/universal-bioinformatics-delivery-plan-v69.md'
+      - '.github/workflows/rnaseq-study-preflight-v69.yml'
+permissions:
+  contents: read
+jobs:
+  rnaseq-manifest-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate RNA-seq metadata preflight and privacy boundary
+        run: node --experimental-strip-types --test apps/web/tests/rnaseq-study-preflight-v69.test.mjs
+      - name: Preserve prior V56 expression statistics and sample design
+        run: node --experimental-strip-types --test apps/web/tests/expression-science-v56.test.mjs
