@@ -5,7 +5,7 @@ import { shouldRunPublicAirway, scienceCompletionText } from "@/lib/chat-science
 import { isPublicRiceGwasRequest, riceGwasCompletionMessage } from "@/lib/public-rice-gwas-intent";
 import { matchLocalAnalysisRequest, localAnalysisGuidance } from "@/lib/local-analysis-intent";
 import { buildAuthorizedResearchContext } from "@/lib/authorized-research-context";
-import {assertMatchingEvidence, loadVerifiedResearchFiles} from "@/lib/verified-research-files";
+import {assertMatchingEvidence, loadVerifiedResearchFiles, withVerifiedVcfSiteEvidence} from "@/lib/verified-research-files";
 import { parseChatResearchProtocol } from "@/lib/chat-research-protocol";
 import { fixedResearchProposalReply, offlineResearchReply } from "@/lib/offline-research-response";
 import { scienceSchemaUnavailableError, scienceV22Configured } from "@/lib/science-release";
@@ -423,12 +423,16 @@ export async function POST(request: Request) {
           }
 
           const context = buildAuthorizedResearchContext(row.authorized_context);
+          // V65: the DB first bound immutable source/report hashes to this turn.
+          // Add only worker-verified, numeric site QC to conversational context.
+          // Never use local browser claims or unscoped file bytes here.
+          const scopedContext = withVerifiedVcfSiteEvidence(context,verifiedFiles);
           const conversationalContext = localFiles.length ? {
-            ...context,
+            ...scopedContext,
             // A client can forge any of these counts. Keep the trust boundary
             // distinct from database-authenticated project files and job IDs.
             client_reported_local_file_previews: safeChatFileContext(localFiles, body.share_local_text_excerpts === true),
-          } : context;
+          } : scopedContext;
           const providerResult = await startStreamingChat(
             row.user_message,
             conversationalContext,

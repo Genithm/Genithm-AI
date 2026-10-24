@@ -1,0 +1,37 @@
+name: Genithm V65 verified VCF evidence in AI chat
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/lib/verified-research-files.ts'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/tests/test-verified-vcf-chat-v65.mjs'
+      - '.github/workflows/verified-vcf-chat-v65.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/lib/verified-research-files.ts'
+      - 'apps/web/app/api/ai/chat/route.ts'
+      - 'apps/web/lib/genithm-ai-chat.ts'
+      - 'apps/web/tests/test-verified-vcf-chat-v65.mjs'
+      - '.github/workflows/verified-vcf-chat-v65.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-vcf-chat-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Verify V65 signed-file cross-binding, safe numeric-only VCF context and private request boundaries
+        run: node --experimental-strip-types --test apps/web/tests/test-verified-vcf-chat-v65.mjs
+      - name: Preserve existing authenticated V48 science-file evidence contract
+        run: node --experimental-strip-types --test apps/web/tests/test-verified-research-files-v48.mjs
