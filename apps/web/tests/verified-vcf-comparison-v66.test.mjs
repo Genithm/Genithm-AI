@@ -61,7 +61,7 @@ test('V66 never claims zero transversions yields a finite Ti/Tv and handles miss
    quality_available_sites:0,missing_quality_sites:10,mean_qual:null});
  const reply=renderVerifiedVcfComparison('side by side comparison',[changed,file(1)]);
  assert.match(reply,/n\/a \(no transversions\)/);
- assert.match(reply,/Mean called QUAL/);
+ assert.match(reply,/Mean available QUAL/);
  assert.match(reply,/n\/a/);
  assert.doesNotMatch(reply,/\bInfinity\b|\bNaN\b/);
 });
