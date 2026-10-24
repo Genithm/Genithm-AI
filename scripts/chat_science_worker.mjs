@@ -98,7 +98,9 @@ export async function fetchPublicAirway(fetcher=fetch){
     const response=await fetcher(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(45000)});
     check(response.ok&&response.url===url,`Public airway data download failed for ${name}.`);
     const length=Number(response.headers.get('content-length')||0);
-    check(!length||length===spec.bytes,`Unexpected public airway source size for ${name}.`);
+    // Transport Content-Length may describe compressed HTTP bytes; the
+    // decompressed original is checked exactly against git SHA1 and byte size.
+    check(!length||length<=spec.bytes*4,`Public airway download is oversized for ${name}.`);
     const raw=Buffer.from(await response.arrayBuffer());
     check(raw.length===spec.bytes,`Unexpected public airway file bytes: ${name}.`);
     const gitBlob=createHash('sha1').update(`blob ${raw.length}\0`).update(raw).digest('hex');

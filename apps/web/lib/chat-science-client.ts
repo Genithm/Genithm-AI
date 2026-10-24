@@ -18,7 +18,7 @@ export function proposeChatScience(message:string,sources:Array<{filename:string
   const kind:ChatScienceUploadKind|null=isGwasExecutionRequest(message)?'gwas':matchLocalAnalysisRequest(message)==='expression'?'expression':
     matchLocalAnalysisRequest(message)==='pathway'?'pathways':null;
   if(!kind&&!action.test(message))return null;
-  const types=sources.map(s=>{
+  const types: string[]=sources.map(s=>{
     const h=header(s.head.trim()); const cols=h.split(sep(h)).map(x=>x.trim().toLowerCase());
     if(/^##fileformat=VCFv4/i.test(s.head)||h.startsWith('#CHROM\t'))return 'genotypes';
     if(cols.slice(0,3).join('|')==='chr|pos|snp')return 'genotypes';
