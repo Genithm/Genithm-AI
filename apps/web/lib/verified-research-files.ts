@@ -178,6 +178,14 @@ export function parseVerifiedResearchFile(input: unknown, id: string, project: s
       source_bytes:size,format:report.format,scientific_scope:report.scientific_scope,inspection,gff3_feature_qc:gff3};
   } else if (report.metrics !== null || (inspection !== "legacy" && inspection !== "integrity_only")) {
     throw new Error("Bytes-only evidence cannot claim a scientific result.");
+  } else if (inspection === "integrity_only" && report.intake !== undefined) {
+    const intake=object(report.intake),hint=intake.name_hint;
+    // A modern auto-inspect candidate cannot disguise its complete-science
+    // capability as a bytes-only verified result to bypass worker checks.
+    if (intake.mode === "auto" && intake.registry_version === "genithm-file-registry/3" &&
+        hint && typeof hint === "object" && !Array.isArray(hint) &&
+        (hint as RecordValue).available_inspection !== "integrity_only")
+      throw new Error("Scientific file was misrepresented as integrity-only.");
   }
   return {id, project_id: project, source_sha256: report.source_sha256, report_sha256: report.report_sha256,
     source_bytes: size, format: report.format, scientific_scope: report.scientific_scope, inspection};
