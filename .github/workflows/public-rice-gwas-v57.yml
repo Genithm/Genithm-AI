@@ -56,6 +56,9 @@ jobs:
           assert.ok(s.markers_tested>5000 && s.markers_tested<=36901);
           assert.equal(s.trait,'Plant height');
           assert.ok(s.top_markers.length>5);
+          assert.ok(s.genomic_inflation_lambda>5 && s.genomic_inflation_lambda<6,
+            'Unexpected genomic inflation factor for the fixed published rice panel');
+          assert.equal(p.genomic_inflation_lambda,s.genomic_inflation_lambda);
           for(const info of Object.values(p.sources)){
             assert.match(info.sha256,/^[0-9a-f]{64}$/);
             assert.match(info.git_blob_sha1,/^[0-9a-f]{40}$/);

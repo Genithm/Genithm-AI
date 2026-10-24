@@ -30,6 +30,25 @@ All four Git blob object digests are pinned in `scripts/public_rice_gwas.mjs`; e
 
 This first automated public-source executor runs **only in a private GitHub Codespace in development mode** (`GENITHM_CODESPACES_PREVIEW=1`, with Codespace env). Do not claim hosted Cloudflare or a different environment can safely run POSIX subprocesses. The existing GWAS Lab for user-supplied local study files remains separate and unchanged. No new Supabase table/function, no private user-data fetch, and no new API credentials. Existing signed-in chat RPCs persist the request and result message.
 
+## Public-data scientific validity and genomic inflation
+
+All analyzed SNP P values are used to compute the **genomic inflation factor**
+lambda_GC = median(chi-square(1) equivalent statistics) / 0.4549364231.
+The independently verified original rice panel run yielded **lambda_GC ≈ 5.47**,
+indicating very substantial inflation. The model adjusts for three published
+population principal components, but strong relatedness/population structure,
+linkage, batch effects or true widespread polygenicity can inflate the
+distribution. Thousands of SNPs below a naive Bonferroni threshold are **not**
+established independent causal or breeding-relevant loci. The analysis reports
+lambda_GC and a prominent caveat in the chat, machine JSON, README, and
+source provenance. Kinship-aware GWAS with population diagnostics and
+independent replication is needed for scientifically rigorous associations.
+
+Subsequent identical requests can reuse public result outputs cached in the
+Codespace only when **every artifact checksum**, source commit, method version,
+and computation parameters match. Each researcher has separately authenticated,
+expiring access to their own copy. No private genotype data enters this cache.
+
 ## Scientific caution
 
 This is a reproducible exploratory public-data **association** study, not a causal or published rediscovery claim. Covariates include published population PCs, but a kinship-aware linear mixed model, additional sample QC, LD and independent validation are necessary before making rigorous locus discoveries. No medical or plant-breeding recommendation follows automatically. The demonstrated trait is **Plant height**; don't report analyses of other rice traits as completed. All downloaded and interpreted sources are pinned; source terms must be respected.

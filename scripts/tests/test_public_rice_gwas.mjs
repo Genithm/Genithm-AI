@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
-import { DATA_FILES, DATA_REVISION, createZip, runPublicRiceStudy } from '../public_rice_gwas.mjs';
+import { DATA_FILES, DATA_REVISION, createZip, runPublicRiceStudy, genomicInflationFactor } from '../public_rice_gwas.mjs';
 import { isPublicRiceGwasRequest, riceGwasCompletionMessage } from '../../apps/web/lib/public-rice-gwas-intent.ts';
 
 function synthetic() {
@@ -29,11 +29,13 @@ test('delegate real rice GWAS for explicit first-turn and authorized follow-ups'
    assert.equal(isPublicRiceGwasRequest(p,h),true,p);
  assert.equal(isPublicRiceGwasRequest('You choose everything',[{role:'user',content:'Run GWAS on maize'}]),false);
  assert.equal(isPublicRiceGwasRequest('How do I fetch rice data',h),false);
+ assert.equal(isPublicRiceGwasRequest('Run GWAS on rice drought tolerance'),false);
 });
 test('result messages reference actual verified artifacts, not invented results',()=>{
  const run='d3b99b93-b942-48fb-9710-0dd95a1f4a62';
- const message=riceGwasCompletionMessage(run,{trait:'Plant height',matched:70,markers_source:60,markers_tested:55,significant_bonferroni:2,top_markers:[{chr:'3',pos:100,id:'id1',p:.001,fdr:.08}]});
+ const message=riceGwasCompletionMessage(run,{trait:'Plant height',matched:70,markers_source:60,markers_tested:55,significant_bonferroni:2,genomic_inflation_lambda:5.47,top_markers:[{chr:'3',pos:100,id:'id1',p:.001,fdr:.08}]});
  assert.match(message,/published/);assert.match(message,/\[\[genithm_rice_gwas_run:/);assert.match(message,/55 of 60/);
+ assert.match(message,/5\.47/);assert.match(message,/confounded|inflation/i);
 });
 test('ZIP generator produces valid independently decoded files and rejects directory traversal',()=>{
  const zip=createZip({'a.tsv':'header\n1\n','b.txt':'hello world'});
@@ -57,6 +59,9 @@ test('full synthetic PED with matching real-shaped genotype/phenotype computes S
   const result=JSON.parse(await readFile(join(out,'summary.json'),'utf8'));
   assert.ok(result.markers_tested>=40,result.markers_tested);
   assert.equal(result.trait,'Plant height');
+  assert.ok(result.genomic_inflation_lambda>0 && Number.isFinite(result.genomic_inflation_lambda));
+  assert.equal(result.genomic_inflation_lambda,report.provenance.genomic_inflation_lambda);
+  assert.match(await readFile(join(out,'README.md'),'utf8'),/Genomic inflation diagnostic/);
   assert.ok(result.top_markers.some(item=>item.id==='id7' && item.p<1e-6), 'The planted SNP must show a strong association even if another correlated marker ranks first');
   const tsv=await readFile(join(out,'association.tsv'),'utf8');
   assert.match(tsv,/# genotype_source_sha256=/);
@@ -97,4 +102,10 @@ test('scientific executor is bounded, allowlisted and never inherits private AI 
  assert.match(runner,/hashes\[fileName\] !== hash/);
  assert.match(runner,/env:\{PATH:/);
  assert.doesNotMatch(runner,/process\.env\.(?:SUPABASE_SECRET_KEY|GEMINI_API_KEY|GROQ_API_KEY)/);
+});
+
+test('genomic inflation factor is 1 at the theoretical chi-square(1) null median',()=>{
+ assert.ok(Math.abs(genomicInflationFactor([0.5])-1)<0.0001);
+ assert.ok(genomicInflationFactor([0.115])>5);
+ assert.throws(()=>genomicInflationFactor([NaN]),/Invalid GWAS P values/);
 });

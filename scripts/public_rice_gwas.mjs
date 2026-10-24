@@ -15,7 +15,7 @@ import { calculateGwas, gwasManhattanOrder, gwasSummaryTsv } from '../apps/web/l
 
 export const DATA_REVISION = 'd83cc64f993f8a86485d30f715381b3c613e3d69';
 export const DATA_REPOSITORY = 'rladiestunis/R4Bioinfo-series-workshop-Introduction-to-GWAS';
-export const ENGINE = 'genithm-public-rice-gwas/1.0.0';
+export const ENGINE = 'genithm-public-rice-gwas/1.0.1';
 export const DATA_FILES = Object.freeze({
   'sativas413.ped': { max: 65_000_000, gitBlob: 'a2fb3454e91a2c2cfdd6361f55cae2ef67d1912f' },
   'sativas413.map': { max: 1_000_000, gitBlob: '8c645b51b7a9977db38e5ca34b492943ef1a779b' },
@@ -125,6 +125,28 @@ function parsePed(content, markers, phenotype, population) {
   return {samples, sampleVectors, invalid, totalPed:rows.length};
 }
 
+/** Chi-square(1) quantile inversion, for genomic inflation diagnostics only.
+ * The scientific association P values are calculated by validated Student t,
+ * not by this approximation.
+ */
+function erfcApprox(x) {
+  const t=1/(1+0.5*x);
+  return t*Math.exp(-x*x-1.26551223+t*(1.00002368+t*(.37409196+t*(.09678418+
+    t*(-.18628806+t*(.27886807+t*(-1.13520398+t*(1.48851587+
+    t*(-.82215223+t*.17087277)))))))));
+}
+export function genomicInflationFactor(pValues) {
+  check(Array.isArray(pValues) && pValues.length>0 &&
+    pValues.every(p=>Number.isFinite(p) && p>0 && p<=1),'Invalid GWAS P values for inflation check');
+  const ps=pValues.slice().sort((a,b)=>a-b);
+  const mid=Math.floor(ps.length/2), median=ps.length%2?ps[mid]:(ps[mid-1]+ps[mid])/2;
+  let low=0,high=2000;
+  for(let i=0;i<62;i++){
+    const center=(low+high)/2;
+    if(erfcApprox(Math.sqrt(center/2))>median)low=center;else high=center;
+  }
+  return (low+high)/2/0.454936423119572;
+}
 function fmt(v) { return String(Number.isFinite(v)?v:'NA'); }
 function plotManhattan(result) {
   const full=result.variants.slice().sort(gwasManhattanOrder);
@@ -214,16 +236,22 @@ export async function computeRiceGwas({ sourceFiles, outDirectory, fixture = fal
   // Recompute correction across *all* tested markers, never per-file chunk.
   const m=allVariants.length,sorted=allVariants.slice().sort((a,b)=>a.p-b.p);let minQ=1;
   for(let i=m-1;i>=0;i--){const v=sorted[i];v.bonferroni=Math.min(1,v.p*m);minQ=Math.min(minQ,v.p*m/(i+1));v.fdr=minQ;}
+  const genomicInflationLambda=genomicInflationFactor(allVariants.map(v=>v.p));
+  const genomicInflationWarning=genomicInflationLambda>1.2
+    ? `Genomic inflation lambda_GC=${genomicInflationLambda.toFixed(2)} is substantial. Population structure/relatedness may cause false associations despite PC adjustment; SNP hits are not validated discoveries.`
+    : `Genomic inflation lambda_GC=${genomicInflationLambda.toFixed(2)}. Interpret alongside ancestry, relatedness and batch QC.`;
   allVariants.sort(gwasManhattanOrder);
-  const result={schema:'genithm-public-rice-gwas/1',engineVersion:ENGINE,mode:'dosage-matrix',traitKind:'quantitative',associationMethod:'Covariate-adjusted additive OLS (two-sided Student t)',samplesInGenotypes:totalPed,samplesMatched:samples.length,covariates:['PC1','PC2','PC3'],variantsSeen:map.length,variantsTested:allVariants.length,excluded:exclusions,thresholds:{minMaf:.05,maxMissing:.1},significantBonferroni:allVariants.filter(v=>v.bonferroni<.05).length,warnings:['Exploratory GLM with three published ancestry PCs; no kinship random effect. Treat population structure and relatedness as important remaining confounders.','This is a real source-based GWAS, not a new published association discovery. Independently confirm significant loci, relatedness, allele coding and genome assembly.', 'All analyzed markers came from an authentic published rice 44K panel; no genotype, phenotype or P-value is AI-generated.'],variants:allVariants};
+  const result={schema:'genithm-public-rice-gwas/1',engineVersion:ENGINE,mode:'dosage-matrix',traitKind:'quantitative',associationMethod:'Covariate-adjusted additive OLS (two-sided Student t)',samplesInGenotypes:totalPed,samplesMatched:samples.length,covariates:['PC1','PC2','PC3'],variantsSeen:map.length,variantsTested:allVariants.length,excluded:exclusions,thresholds:{minMaf:.05,maxMissing:.1},significantBonferroni:allVariants.filter(v=>v.bonferroni<.05).length,warnings:[genomicInflationWarning,'Exploratory GLM with three published ancestry PCs; no kinship random effect. Treat population structure and relatedness as important remaining confounders.','This is a real source-based GWAS, not a new published association discovery. Independently confirm significant loci, relatedness, allele coding and genome assembly.', 'All analyzed markers came from an authentic published rice 44K panel; no genotype, phenotype or P-value is AI-generated.'],variants:allVariants};
   const top=sorted.slice(0,15).map(v=>({chr:v.chrom,pos:v.pos,id:v.id,p:v.p,fdr:v.fdr,beta:v.beta,n:v.n}));
-  const provenance={schema:'genithm-public-rice-gwas-provenance/1',engine:ENGINE,date_utc:new Date().toISOString(),organism:'Oryza sativa',dataset:'Rice Diversity Panel (Zhao et al. 2011)',paper_doi:'10.1038/ncomms1467',trait:'Plant height',samples_in_genotypes:totalPed,samples_complete:samples.length,snp_markers_in_source:map.length,snp_markers_tested:allVariants.length,exclusions,model:'Per-variant additive OLS adjusted for published PC1, PC2, PC3; two-sided t test',qc:{maf_at_least:.05,missingness_at_most:.1,minor_allele_count_at_least:5},multiple_testing:['Bonferroni','Benjamini-Hochberg FDR across all tested variants'],limitations:['Exploratory GLM not a kinship-adjusted linear mixed model','Full published marker map is processed; missing genotypes excluded per variant','No allelic effect prediction, causal claim or clinical interpretation'],source_repository:`https://github.com/${DATA_REPOSITORY}`,source_commit:DATA_REVISION,sources:Object.fromEntries(FILE_ORDER.map(name=>[name,{url:source[name].url,bytes:source[name].bytes,sha256:source[name].sha256,git_blob_sha1:source[name].git_blob_sha1}])),top_markers:top};
+  const provenance={schema:'genithm-public-rice-gwas-provenance/1',engine:ENGINE,date_utc:new Date().toISOString(),organism:'Oryza sativa',dataset:'Rice Diversity Panel (Zhao et al. 2011)',paper_doi:'10.1038/ncomms1467',trait:'Plant height',samples_in_genotypes:totalPed,samples_complete:samples.length,snp_markers_in_source:map.length,snp_markers_tested:allVariants.length,exclusions,model:'Per-variant additive OLS adjusted for published PC1, PC2, PC3; two-sided t test',qc:{maf_at_least:.05,missingness_at_most:.1,minor_allele_count_at_least:5},genomic_inflation_lambda:genomicInflationLambda,confounding_warning:genomicInflationWarning,multiple_testing:['Bonferroni','Benjamini-Hochberg FDR across all tested variants'],limitations:['Exploratory GLM not a kinship-adjusted linear mixed model','Full published marker map is processed; missing genotypes excluded per variant','No allelic effect prediction, causal claim or clinical interpretation'],source_repository:`https://github.com/${DATA_REPOSITORY}`,source_commit:DATA_REVISION,sources:Object.fromEntries(FILE_ORDER.map(name=>[name,{url:source[name].url,bytes:source[name].bytes,sha256:source[name].sha256,git_blob_sha1:source[name].git_blob_sha1}])),top_markers:top};
   const first=sorted[0],topline=`${first.chrom}:${first.pos} (${first.id}), P=${first.p.toExponential(3)}, BH q=${first.fdr.toExponential(3)}`;
-  const report=`# Genithm public rice GWAS — measured Plant height\n\n**Actual published input data:** Zhao et al. (2011), DOI 10.1038/ncomms1467. Source accession panel: ${totalPed} Oryza sativa accessions, ${map.length} mapped SNPs. Genotype and phenotype source files were fetched verbatim from the pinned public repository commit ${DATA_REVISION}.\n\n**Analysis performed:** ${samples.length} rice accessions with complete recorded plant height and three supplied population-structure covariates (PC1/PC2/PC3). ${m} SNPs passed the defined QC and statistical checks. Full additive OLS + PC1/2/3; per-variant missing genotype deletion; MAF>=0.05; missingness <=0.10; Bonferroni and BH q-values across all ${m} tests. Genotypes were not synthesized or guessed.\n\n**Top association (exploratory):** ${topline}. Bonferroni P<0.05: ${result.significantBonferroni}.\n\n**Outputs:** association.tsv (ALL tested markers), manhattan.svg, qq.svg, provenance.json and summary.json. Every source SHA256 and publication path is in provenance.json.\n\n**Scientific limitations:** Association is not causation. The population PC adjustment does not replace a kinship-aware mixed-model analysis; relatedness, LD, potential batch effects, cultivar structure and multiple phenotypic years require additional checks. Use PLINK2, GEMMA, REGENIE or a suitable rice GWAS tool for peer-reviewed claims. This is not clinical or plant breeding advice.\n`;
+  const report=`# Genithm public rice GWAS — measured Plant height\n\n**Actual published input data:** Zhao et al. (2011), DOI 10.1038/ncomms1467. Source accession panel: ${totalPed} Oryza sativa accessions, ${map.length} mapped SNPs. Genotype and phenotype source files were fetched verbatim from the pinned public repository commit ${DATA_REVISION}.\n\n**Analysis performed:** ${samples.length} rice accessions with complete recorded plant height and three supplied population-structure covariates (PC1/PC2/PC3). ${m} SNPs passed the defined QC and statistical checks. Full additive OLS + PC1/2/3; per-variant missing genotype deletion; MAF>=0.05; missingness <=0.10; Bonferroni and BH q-values across all ${m} tests. Genotypes were not synthesized or guessed.\n\n**Top association (exploratory):** ${topline}. Bonferroni P<0.05: ${result.significantBonferroni}.
+
+**Genomic inflation diagnostic (important):** lambda_GC=${genomicInflationLambda.toFixed(2)}. ${genomicInflationWarning} These results must NOT be presented as validated biological discoveries.\n\n**Outputs:** association.tsv (ALL tested markers), manhattan.svg, qq.svg, provenance.json and summary.json. Every source SHA256 and publication path is in provenance.json.\n\n**Scientific limitations:** Association is not causation. The population PC adjustment does not replace a kinship-aware mixed-model analysis; relatedness, LD, potential batch effects, cultivar structure and multiple phenotypic years require additional checks. Use PLINK2, GEMMA, REGENIE or a suitable rice GWAS tool for peer-reviewed claims. This is not clinical or plant breeding advice.\n`;
   const bytes={
     'association.tsv':gwasSummaryTsv(result,source['sativas413.ped'].sha256,source['sativas413.pheno'].sha256).replace(/^# genotype_sha256=.*?\n/m,`# genotype_source_sha256=${source['sativas413.ped'].sha256}; phenotype_source_sha256=${source['sativas413.pheno'].sha256}; population_source_sha256=${source['sativas413.csv'].sha256}\n`),
     'manhattan.svg':plotManhattan(result),'qq.svg':plotQq(result),
-    'provenance.json':JSON.stringify(provenance,null,2)+'\n','summary.json':JSON.stringify({dataset:provenance.dataset,trait:'Plant height',accessions:totalPed,matched:samples.length,markers_source:map.length,markers_tested:allVariants.length,significant_bonferroni:result.significantBonferroni,top_markers:top,excluded:exclusions,engine:ENGINE},null,2)+'\n',
+    'provenance.json':JSON.stringify(provenance,null,2)+'\n','summary.json':JSON.stringify({dataset:provenance.dataset,trait:'Plant height',accessions:totalPed,matched:samples.length,markers_source:map.length,markers_tested:allVariants.length,significant_bonferroni:result.significantBonferroni,genomic_inflation_lambda:genomicInflationLambda,confounding_warning:genomicInflationWarning,top_markers:top,excluded:exclusions,engine:ENGINE},null,2)+'\n',
     'README.md':report,
   };
   await mkdir(outDirectory,{recursive:true,mode:0o700});
