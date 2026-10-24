@@ -32,8 +32,8 @@ const numeric = value => Number.isFinite(value) ? Number(value).toPrecision(5) :
  * use the dedicated GWAS Lab to override or configure advanced models.
  */
 export function inferGwasTraitKind(table){
- const lines=table.replace(/^\\uFEFF/,'').split(/\\r?\\n/).filter(Boolean);
- const first=lines[0]||'',sep=first.includes('\\t')?'\\t':',';
+ const lines=table.replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);
+ const first=lines[0]||'',sep=first.includes('\t')?'\t':',';
  const fields=first.split(sep).map(x=>x.trim().toLowerCase());
  const col=fields.indexOf('phenotype');
  if(fields[0]!=='sample_id'||col<0)throw new Error('GWAS phenotype must start with sample_id and include phenotype column.');

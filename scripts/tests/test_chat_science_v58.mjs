@@ -132,7 +132,7 @@ test('chat integration dispatch is separate from LLM and enforces private-file c
 
 test('case/control 0/1 phenotype is routed to logistic score; quantitative phenotype stays OLS',()=>{
  const samples=Array.from({length:30},(_,i)=>'S'+(i+1));
- assert.equal(inferGwasTraitKind('sample_id,phenotype\\n'+samples.map((s,i)=>s+','+(i%2)).join('\\n')+'\\n'),'binary');
- assert.equal(inferGwasTraitKind('sample_id,phenotype\\n'+samples.map((s,i)=>s+','+(i%3)).join('\\n')+'\\n'),'quantitative');
- assert.throws(()=>inferGwasTraitKind('id,trait\\nS1,0'),/sample_id/);
+ assert.equal(inferGwasTraitKind('sample_id,phenotype\n'+samples.map((s,i)=>s+','+(i%2)).join('\n')+'\n'),'binary');
+ assert.equal(inferGwasTraitKind('sample_id,phenotype\n'+samples.map((s,i)=>s+','+(i%3)).join('\n')+'\n'),'quantitative');
+ assert.throws(()=>inferGwasTraitKind('id,trait\nS1,0'),/sample_id/);
 });
