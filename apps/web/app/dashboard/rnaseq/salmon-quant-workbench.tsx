@@ -2,7 +2,7 @@
 
 import {useState} from "react";
 import {
- MAX_SALMON_SAMPLES,MAX_SALMON_QUANT_BYTES,
+ MAX_SALMON_SAMPLES,MAX_SALMON_QUANT_BYTES,MAX_SALMON_TOTAL_BYTES,
  inspectSalmonQuantifications,type SalmonMatrix
 } from "@/lib/salmon-quant-matrix";
 
@@ -39,6 +39,8 @@ export function SalmonQuantWorkbench(){
     try{
       if(selection.some(s=>s.file.size<1||s.file.size>MAX_SALMON_QUANT_BYTES))
         throw new Error("Each Salmon quant.sf file must be nonempty and at most 24 MiB.");
+      if(selection.reduce((sum,item)=>sum+item.file.size,0)>MAX_SALMON_TOTAL_BYTES)
+        throw new Error("The combined Salmon quant.sf files exceed the 96 MiB local input limit.");
       const inputs=await Promise.all(selection.map(async item=>({
         sample:item.sample,text:await item.file.text()
       })));
