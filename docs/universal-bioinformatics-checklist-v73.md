@@ -1,6 +1,6 @@
 # Genithm scientific coverage checklist — V73 (P0–P10)
 
-**Checked against:** GitHub `main` at V70 (commit `34f6552`) and private
+**Checked against:** GitHub `main` including V71–V72 (PR #265, merge commit `3125754`) and private
 Supabase readiness read on **2026-10-24**. V71–V73 development status is tracked
 separately from merged code and deployable services. Keep this distinction in
 user-facing messages and never mark a whole scientific phase complete because
@@ -21,7 +21,7 @@ See [the P0–P10 delivery plan](universal-bioinformatics-delivery-plan-v69.md),
 - [x] V68: private verifier Compose deployment **configuration** (not an online worker)
 - [x] V69: authenticated browser-local bulk RNA-seq metadata/sample-design preflight
 - [x] V70: browser-local import of existing Salmon transcript quant.sf abundance
-- [ ] V71–V72: gene-level transcript sums, GTF mapping, descriptive sample QC **must pass actual GitHub CI and merge** — [PR #265](https://github.com/Genithm/Genithm-AI/pull/265); locally 21/21 scientific tests passed
+- [x] V71–V72: gene-level transcript sums, GTF mapping and descriptive sample QC — [PR #265](https://github.com/Genithm/Genithm-AI/pull/265), **merged** after 9/9 GitHub workflows passed
 - [ ] V73: exact researcher sample-condition reconciliation and within/between-group descriptive correlation summaries, with browser reports and roadmap UI **must pass actual GitHub CI and merge**
 
 ## Scientific phase acceptance — NO PHASE CERTIFIED COMPLETE
@@ -45,7 +45,7 @@ large-file projects. This observation can become stale; use
 
 - [x] V69 validate RNA-seq metadata sheets and biological condition labels
 - [x] V70 import measured, preexisting Salmon transcript TPM/NumReads
-- [ ] V71–V72 gene-level sums, strict tx2gene/GTF import and sample QC **merge**
+- [x] V71–V72 gene-level sums, strict tx2gene/GTF import and sample QC merged
 - [ ] V73 match sample labels against measured cohort and summarize descriptive within/between correlations **merge**
 - [ ] Bind real authorized FASTQ objects, matching immutable reference FASTA/GTF and verified Salmon index
 - [ ] Run pinned nf-core/rnaseq or equivalent STAR/Salmon under human-approved, metered compute
@@ -110,7 +110,7 @@ expression-workbench's Welch tests are NOT DESeq2.
 
 ## Immediate next release gates
 
-1. [ ] PR #265: all scientific regression and full repo GitHub workflows green, then merge V71–V72.
+1. [x] PR #265: 9/9 scientific/repository workflows passed, then V71–V72 merged.
 2. [ ] V73: scientific group QC + in-app checklist tests green, then merge and tick its *component* only.
 3. [ ] P0: operator activates separate worker services, private S3 and quotas; no unapproved paid compute.
 4. [ ] P1: trusted runtime handles reference-bound real FASTQ and pinned Salmon/nf-core pipeline, with honest actual output metrics.

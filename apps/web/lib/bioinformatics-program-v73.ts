@@ -11,7 +11,7 @@ export const BIOINFORMATICS_PHASES:ProgramPhase[]=[
  remaining:["Bring six core scientific workers online with fresh authenticated heartbeats", "Deploy private large-file and paired-file workers", "Provision private object storage and enable per-project quotas", "Demonstrate tenant-isolated, authorized upload → analysis → verified report with interruption and resource tests"],
  completion_rule:"Live operator-verified end-to-end processing, privacy and budget evidence"},
  {id:"P1",title:"Bulk RNA-seq from reads to gene statistics",state:"partial",
- implemented:["V69 sample-sheet and experimental design preflight merged", "V70 existing Salmon quant.sf transcript-level TPM/fragment import merged", "V71–V72 gene summaries, GTF mapping and descriptive cohort QC introduced as reviewed code", "V73 matching researcher-designed groups to measured cohort correlations under review"],
+ implemented:["V69 sample-sheet and experimental design preflight merged", "V70 existing Salmon quant.sf transcript-level TPM/fragment import merged", "V71–V72 gene summaries, GTF mapping and descriptive cohort QC merged as PR #265", "V73 matching researcher-designed groups to measured cohort correlations under review"],
  remaining:["Bind actual verified FASTQ bytes and immutable reference transcriptome/index data", "Run pinned nf-core/rnaseq or validated STAR/Salmon workflow under user-approved compute", "Perform reference-appropriate gene-level length correction/tximport and legitimate DESeq2/edgeR analysis", "Validate public truth-data results, scientific provenance, job cancellation and output privacy"],
  completion_rule:"Reproducible real FASTQ → validated transcript/gene counts → justified differential model"},
  {id:"P2",title:"Whole-genome / exome sequencing",state:"partial",implemented:["Bounded SAM/BAM and VCF quality-control modules exist"],
@@ -32,10 +32,10 @@ export const BIOINFORMATICS_PHASES:ProgramPhase[]=[
 export const MERGED_MILESTONES=[
  {version:"V64–V68",what:"VCF/GFF3 managed-file QC, verified chat summaries, safe numeric comparisons, optional worker container template"},
  {version:"V69",what:"Bulk RNA-seq metadata and sample/design preflight"},
- {version:"V70",what:"Real import of existing Salmon transcript quantification"}
+ {version:"V70",what:"Real import of existing Salmon transcript quantification"},
+ {version:"V71–V72",what:"Validated Salmon transcript-to-gene sums, GTF mappings and descriptive cohort QC (PR #265 merged)"}
 ];
 export const PARTIAL_MILESTONES=[
- {version:"V71–V72",what:"Salmon gene summaries, GTF transcript mappings and sample cohort QC",reference:"https://github.com/Genithm/Genithm-AI/pull/265"},
  {version:"V73",what:"Researcher-design reconciliation with actual imported sample correlations and checkable delivery roadmap",reference:"https://github.com/Genithm/Genithm-AI/issues/264"}
 ];
 export function validateProgramPhases(phases:readonly ProgramPhase[]=BIOINFORMATICS_PHASES){
