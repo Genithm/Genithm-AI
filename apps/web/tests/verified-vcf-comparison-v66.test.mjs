@@ -104,6 +104,6 @@ test('V66 route persists numeric scientific comparison before any model streamin
  assert.ok(comparison>0&&persisted>comparison&&model>persisted);
  assert.match(route.slice(comparison,model),/if\(finishError\)throw new Error/);
  assert.match(route.slice(comparison,model),/return;/);
- assert.match(route.slice(comparison,model),/!attachmentIds\.length && !localFiles\.length && !mediaAttachments\.length/);
+ assert.match(route.slice(comparison-160,comparison),/!attachmentIds\.length && !localFiles\.length && !mediaAttachments\.length/);
  assert.match(ui,/Compare these VCF QC reports/);
 });
