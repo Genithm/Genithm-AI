@@ -29,8 +29,9 @@ export type RnaSeqPreflight={
   };
 };
 export class RnaSeqIntakeError extends Error {
-  constructor(public readonly code:string,detail:string){
-    super(detail);this.name="RnaSeqIntakeError";
+  readonly code:string;
+  constructor(code:string,detail:string){
+    super(detail);this.code=code;this.name="RnaSeqIntakeError";
   }
 }
 function reject(code:string,message:string):never{throw new RnaSeqIntakeError(code,message);}
